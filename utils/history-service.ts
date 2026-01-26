@@ -21,13 +21,14 @@ export interface HistoryItem {
   workspaceId: string;
   createdAt: number;
   input: string;
+  personaId: string; // Added for analytics
   assets: GeneratedAssets;
   performance?: PerformanceData;
 }
 
 const STORAGE_KEY = "strategyos_history";
 
-export function saveHistory(input: string, assets: GeneratedAssets): void {
+export function saveHistory(input: string, assets: GeneratedAssets, personaId: string = "cso"): string {
   try {
     const workspaceId = getActiveWorkspaceId();
     
@@ -36,6 +37,7 @@ export function saveHistory(input: string, assets: GeneratedAssets): void {
       workspaceId,
       createdAt: Date.now(),
       input,
+      personaId,
       assets,
     };
 
@@ -46,8 +48,10 @@ export function saveHistory(input: string, assets: GeneratedAssets): void {
     const updated = [newItem, ...existing].slice(0, 200); // Increased limit due to multiple workspaces
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    return newItem.id;
   } catch (e) {
     console.error("Failed to save history:", e);
+    return "";
   }
 }
 

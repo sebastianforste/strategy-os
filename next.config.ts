@@ -11,6 +11,9 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
+  experimental: {
+    turbopack: false
+  },
   transpilePackages: ["@react-pdf/renderer"],
   webpack: (config) => {
     config.resolve.alias.canvas = false;

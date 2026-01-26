@@ -7,8 +7,9 @@ You have a **premium MVP** with:
 - AI-powered content generation (3 personas)
 - Anti-robot filtering
 - Image generation (DALL-E 3)
-- Trend hunting (Serper.dev)
+- Google Grounding (Trend Hunter)
 - Local history & simple scheduling (intent-based)
+- **Content Repurposing** (PDF Carousels) ✅
 
 ---
 
@@ -152,7 +153,7 @@ You have a **premium MVP** with:
 | **Real LinkedIn API** | 🔥🔥 | High | **P1** |
 | **Performance Feedback** | 🔥🔥🔥 | High | **P1** |
 | **Multi-Platform** | 🔥🔥 | High | **P2** |
-| **Content Repurposing** | 🔥🔥 | Medium | **P2** |
+| **Content Repurposing** | 🔥🔥 | Medium | **DONE** |
 | **Team Workspaces** | 🔥🔥🔥 | Very High | **P3** |
 | **Mobile App** | 🔥 | Very High | **P3** |
 

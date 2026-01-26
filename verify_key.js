@@ -18,7 +18,7 @@ Return a JSON object with keys: "textPost", "imagePrompt", "videoScript".
 `;
 
 async function verify() {
-  const key = "AIzaSyBW2Wl9ZbDHOAg0G5D4yb20LyBveFtCF4o";
+  const key = "AIzaSyCjdqsYkIJEcQEi9LRV4H0v_GwXtjUeNSg";
   console.log(`Testing Key: ${key} with FULL APP LOGIC`);
   
   const genAI = new GoogleGenerativeAI(key);

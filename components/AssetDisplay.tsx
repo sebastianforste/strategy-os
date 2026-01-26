@@ -1,37 +1,35 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Copy, Check, Image as ImageIcon, Video, FileText, Layers, Download, Bookmark } from "lucide-react";
+import { Copy, Check, Image as ImageIcon, Video, FileText, Layers, Download, Bookmark, TrendingUp, ThumbsUp, Minus, ThumbsDown } from "lucide-react";
 import { useState, useEffect } from "react";
 import { GeneratedAssets } from "../utils/ai-service";
 import PostButton from "./PostButton";
 import { transformTextToSlides } from "../utils/carousel-generator";
-import dynamic from "next/dynamic";
-
-// Dynamic import for PDF components to avoid SSR issues
-const PDFDownloadLink = dynamic(
-  () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
-  {
-    ssr: false,
-    loading: () => <span className="text-xs">Loading PDF Engine...</span>,
-  }
-);
-
-const CarouselPDF = dynamic(() => import("./CarouselPDF"), { ssr: false });
+import CarouselPDF from "./CarouselPDF";
 import ExportMenu from "./ExportMenu";
+import PDFDownloadButton from "./PDFDownloadButton";
+import { PerformanceRating } from "../utils/history-service";
 
 interface AssetDisplayProps {
   assets: GeneratedAssets;
   linkedinClientId?: string;
+  onRate?: (rating: PerformanceRating) => void;
 }
 
-export default function AssetDisplay({ assets, linkedinClientId }: AssetDisplayProps) {
+export default function AssetDisplay({ assets, linkedinClientId, onRate }: AssetDisplayProps) {
   const [activeTab, setActiveTab] = useState<"text" | "image" | "video" | "carousel">("text");
   const [isClient, setIsClient] = useState(false);
+  const [userRating, setUserRating] = useState<PerformanceRating>(null);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  const handleRate = (rating: PerformanceRating) => {
+      setUserRating(rating);
+      if (onRate) onRate(rating);
+  };
 
   const tabs = [
     { id: "text", label: "LINKEDIN POST", icon: FileText },
@@ -52,9 +50,26 @@ export default function AssetDisplay({ assets, linkedinClientId }: AssetDisplayP
 
   return (
     <div className="w-full max-w-3xl mx-auto mt-12">
+        {/* Rating Bar */}
+        {onRate && (
+            <div className="flex justify-center mb-8 gap-3">
+                <button onClick={() => handleRate("viral")} className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${userRating === "viral" ? "bg-green-500/20 border-green-500 text-green-400" : "bg-neutral-900 border-neutral-800 text-neutral-500 hover:border-green-900 hover:text-green-400"}`}>
+                    <TrendingUp className="w-4 h-4" /> <span className="text-xs font-bold">VIRAL</span>
+                </button>
+                <button onClick={() => handleRate("good")} className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${userRating === "good" ? "bg-blue-500/20 border-blue-500 text-blue-400" : "bg-neutral-900 border-neutral-800 text-neutral-500 hover:border-blue-900 hover:text-blue-400"}`}>
+                    <ThumbsUp className="w-4 h-4" /> <span className="text-xs font-bold">GOOD</span>
+                </button>
+                <button onClick={() => handleRate("meh")} className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${userRating === "meh" ? "bg-yellow-500/20 border-yellow-500 text-yellow-400" : "bg-neutral-900 border-neutral-800 text-neutral-500 hover:border-yellow-900 hover:text-yellow-400"}`}>
+                    <Minus className="w-4 h-4" /> <span className="text-xs font-bold">MEH</span>
+                </button>
+                <button onClick={() => handleRate("flopped")} className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${userRating === "flopped" ? "bg-red-500/20 border-red-500 text-red-400" : "bg-neutral-900 border-neutral-800 text-neutral-500 hover:border-red-900 hover:text-red-400"}`}>
+                    <ThumbsDown className="w-4 h-4" /> <span className="text-xs font-bold">FLOPPED</span>
+                </button>
+            </div>
+        )}
+
       <div className="flex border-b border-neutral-800 mb-6 overflow-x-auto">
         {tabs.map((tab) => {
-            // @ts-ignore
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
@@ -115,15 +130,10 @@ export default function AssetDisplay({ assets, linkedinClientId }: AssetDisplayP
                         </p>
                     </div>
                     {isClient && (
-                         <div className="bg-white text-black px-4 py-2 rounded-lg font-bold text-xs hover:bg-neutral-200 transition-colors flex items-center gap-2">
-                             <Download className="w-4 h-4" />
-                             <PDFDownloadLink
-                                document={<CarouselPDF slides={slides} />}
-                                fileName="strategy_os_carousel.pdf"
-                             >
-                                {({ loading }) => (loading ? "GENERATING..." : "DOWNLOAD PDF")}
-                             </PDFDownloadLink>
-                         </div>
+                         <PDFDownloadButton 
+                            document={<CarouselPDF slides={slides} />} 
+                            fileName="strategy_os_carousel.pdf" 
+                         />
                     )}
                 </div>
                 
@@ -171,7 +181,6 @@ export default function AssetDisplay({ assets, linkedinClientId }: AssetDisplayP
                             />
                         </div>
                     )}
-                    {/* @ts-ignore */}
                      {/* Replaced simple CopyButton with full ExportMenu for Text Tab */}
                      {activeTab === "text" ? (
                         <ExportMenu content={content.text} />
@@ -180,8 +189,7 @@ export default function AssetDisplay({ assets, linkedinClientId }: AssetDisplayP
                      )}
                 </div>
                 <pre className="font-mono text-sm text-neutral-300 whitespace-pre-wrap leading-relaxed mt-2 p-2">
-                {/* @ts-ignore */}
-                {content[activeTab]}
+                    {content[activeTab]}
                 </pre>
             </>
         )}

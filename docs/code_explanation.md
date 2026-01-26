@@ -112,8 +112,7 @@ export async function processInput(input, apiKeys) {
 
 ## 4. The Artist: `utils/image-service.ts`
 
-This new file connects to OpenAI (DALL-E 3) to generate real images.
-"A picture is worth a 1000 words," so we use this to create the viral "Visualize Value" style graphics automatically.
+This new file connects to Google's **Imagen 4** (via the Gemini API) to generate real images. "A picture is worth a 1000 words," so we use this to create the viral "Visualize Value" style graphics automatically. It uses the same API key as your text generation.
 
 ---
 
@@ -121,8 +120,8 @@ This new file connects to OpenAI (DALL-E 3) to generate real images.
 
 This file is the eyes of the operation.
 - **Goal**: Find real-time news so the AI isn't hallucinating.
-- **Provider**: Serper.dev (A tool that searches Google).
-- **Logic**: If you type a short phrase like "Nvidia", it triggers a "Hunt", finds the top 3 news stories from the last 24 hours, and feeds them to the Brain.
+- **Provider**: **Google Grounding** (Built into Gemini).
+- **Logic**: If you type a short phrase like "Nvidia", it triggers a "Hunt". The AI searches Google natively and returns valid JSON data about breaking news, which is then fed back into the Brain. No extra subscription needed.
 
 ---
 

@@ -10,8 +10,8 @@ StrategyOS is a personal tool that helps you write high-status, contrarian Linke
 
 *   **AI Drafting Engine**: Generates 3 assets (Text, Image Prompt, Video Script) from one topic.
 *   **Anti-Robot Core**: Automatically filters out "ChatGPT words" (e.g., *delve, unlock, tapestry*) to ensure your content sounds human and premium.
-*   **Trend Hunter**: Scans the web (via Serper) for real-time news to ground your posts in reality.
-*   **Visualize Value Images**: Creates minimalist, high-contrast vector art (via DALL-E 3).
+*   **Trend Hunter**: Scans the web (via Google Grounding) for real-time news to ground your posts in reality.
+*   **Visualize Value Images**: Creates minimalist, high-contrast vector art (via Google Imagen 4).
 *   **Template Library**: Save your best posts as reusable templates with "Mad Libs" style variables.
 *   **Smart Export**: Copy perfectly formatted posts for Notion (Markdown) or Google Docs (HTML).
 *   **Team Workspaces**: Switch between different brand contexts or clients.
@@ -24,9 +24,7 @@ To run this app, you need:
 
 1.  **Node.js**: Version 18 or higher. [Download here](https://nodejs.org/).
 2.  **API Keys** (Optional for Demo Mode):
-    *   **Google Gemini API Key** (for text generation).
-    *   **OpenAI API Key** (for image generation).
-    *   **Serper API Key** (for trend searching).
+    *   **Google Gemini API Key**: This single key powers text generation, Google Search (Grounding), and Image Generation (Imagen).
 
 > **Note:** You can run the app in **Demo Mode** without any keys! Just enter `demo` in the settings menu.
 
@@ -75,9 +73,30 @@ To run this app, you need:
 ## 🆘 Troubleshooting
 
 *   **"Quota Exceeded" Error**: You might be using a free Gemini key. Switch the model in `utils/ai-service.ts` to `gemini-1.5-flash`.
-*   **Images not generating**: Ensure you have a paid OpenAI account (API usage is billed separately from ChatGPT Plus).
+*   **Images/Search not working**: Ensure your Gemini API Key has access to `Google Search` and `Imagen` features (Google AI Studio keys usually do).
 *   **App won't start**: Try running `npm install` again to ensure all packages are downloaded.
 
 ---
 
 *Built with Next.js, TailwindCSS, and Framer Motion.*
+
+
+## Development Standards
+
+This project follows the "Senior Staff Mentor" persona standards.
+
+### 1. Technology Stack
+*   **Framework**: Next.js 16 (App Router).
+*   **Language**: TypeScript (Strict Mode).
+*   **Styling**: TailwindCSS with `clsx` and `tailwind-merge`.
+*   **State**: React Server Components (RSC) by default; Client Components only when interactivity is needed.
+
+### 2. Engineering Principles
+*   **Structure**:
+    *   `/app`: Routing and Pages (Server Components).
+    *   `/components`: Reusable UI elements (Radix UI / Shadcn).
+    *   `/utils`: Business logic and AI service wrappers.
+*   **Security**: API Keys must strictly be used in Server Actions or API Routes (`/app/api`), never exposed to the client.
+
+### 3. Workflow
+*   **Commits**: Conventional Commits (e.g., `feat: add user login`).

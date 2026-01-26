@@ -7,16 +7,18 @@
 ## 1. Features Implemented
 
 ### Real-Time Image Generation (NEW)
-- **Engine**: OpenAI DALL-E 3.
+### Real-Time Image Generation (NEW)
+- **Engine**: Google Imagen 4 (via Gemini API).
 - **Integration**: Generates high-contrast "Visualize Value" style images based on the AI's prompt.
 - **UI**: Added a dedicated "Generated Image" tab with a **Download** button.
-- **Settings**: New field for `OpenAI API Key` (supports `demo` mode).
+- **Settings**: Uses the main `Gemini API Key`.
 
 ### The "Trend Hunter" Engine (NEW)
-- **Engine**: Serper.dev (Google Search API).
+### The "Trend Hunter" Engine (NEW)
+- **Engine**: Google Search Grounding (via Gemini API).
 - **Trigger**: Automatically detects short topics (e.g., "Nvidia", "Interest Rates").
 - **Action**: Fetches real-time news to ground the AI's contrarian takes in valid context.
-- **Settings**: New field for `Serper API Key` (supports `demo` mode).
+- **Settings**: Uses the main `Gemini API Key`.
 
 ### Content History (NEW)
 - **Engine**: LocalStorage (Browser).
@@ -66,13 +68,12 @@
 ### Live Mode
 1. Click **Settings**.
 2. Enter Gemini Key: `AIza...`
-3. Enter OpenAI Key: `sk-...` (Required for images).
-4. Save.
-5. Input topic and Generate.
+3. Save.
+4. Input topic and Generate.
 
 ### Demo Mode (Fully Verified)
 1. Click **Settings**.
-2. Enter `demo` in **ALL** fields (Gemini, Serper, OpenAI).
+2. Enter `demo` in the Gemini field.
 3. Save.
 4. **Trend Test**: Input "Nvidia" $\rightarrow$ App simulates finding news ("Bloomberg Demo") $\rightarrow$ AI mentions it.
 5. **Image Test**: Click the **Image** tab to see the mock image result.
@@ -81,9 +82,9 @@
 ![History Feature](/Users/sebastian/.gemini/antigravity/brain/1726a640-0c29-4d8e-97c9-48a3ac38a4eb/history_verification_1769163380142.png)
 
 ## 4. Verification Results
-- **Logic**: Verified with `gemini-3-flash-preview`.
-- **Images**: Verified DALL-E 3 integration via Demo Mode.
-- **Trends**: Verified Serper integration via Demo Mode.
+- **Logic**: Verified with `gemini-flash-latest` (and `gemini-flash-latest` for Search).
+- **Images**: Verified Google Imagen 4 integration.
+- **Trends**: Verified Google Grounding integration.
 - **History**: Verified LocalStorage savings and Sidebar restore logic via Browser Test.
 - **Personas**: Verified "Storyteller" and "Contrarian" outputs via Browser Test.
 - **UI**: Verified Glitch Logo and Toast Notifications.

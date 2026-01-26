@@ -8,6 +8,11 @@ export interface CompetitorContent {
   source: string;
 }
 
+/**
+ * TREND REPORT SCHEMA
+ * -------------------
+ * Output format for deep-dive topic analysis.
+ */
 export interface TrendReport {
   mainstreamView: string;
   contrarianAngle: string;
@@ -58,6 +63,16 @@ export async function searchCompetitorContent(
   }
 }
 
+/**
+ * TREND REPORT GENERATOR
+ * ----------------------
+ * Generates a "Deep Dive" strategy report for a given topic.
+ * 
+ * Output Structure:
+ * 1. Mainstream View (The common consensus)
+ * 2. Contrarian Angle (The value-add disagreement)
+ * 3. Underrated Insight (The nuanced detail)
+ */
 export async function generateTrendReport(
   topic: string,
   apiKey: string

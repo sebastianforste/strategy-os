@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Sparkles, UserCircle2, TrendingUp, Mic, Book } from "lucide-react";
+import { ArrowRight, Sparkles, UserCircle2, TrendingUp, Mic, Book, Linkedin, Twitter } from "lucide-react";
 import { PERSONAS, PersonaId } from "../utils/personas";
 import { useState } from "react";
 import TemplateLibraryModal from "./TemplateLibraryModal";
@@ -16,6 +16,8 @@ interface InputConsoleProps {
   viralityScore?: number;
   useNewsjack: boolean;
   setUseNewsjack: (val: boolean) => void;
+  platform: "linkedin" | "twitter";
+  setPlatform: (val: "linkedin" | "twitter") => void;
 }
 
 export default function InputConsole({
@@ -28,6 +30,8 @@ export default function InputConsole({
   viralityScore,
   useNewsjack,
   setUseNewsjack,
+  platform,
+  setPlatform
 }: InputConsoleProps) {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   
@@ -38,16 +42,11 @@ export default function InputConsole({
     if (score >= 25) return "text-yellow-500";
     return "text-red-500";
   };
+// ... [rest of getScoreLabel and render] ...
 
-  const getScoreLabel = (score?: number) => {
-    if (!score || score === 0) return "Not Analyzed";
-    if (score >= 75) return "High Viral Potential";
-    if (score >= 50) return "Good Engagement";
-    if (score >= 25) return "Moderate Reach";
-    return "Needs Work";
-  };
   return (
     <div className="w-full max-w-3xl mx-auto space-y-4">
+      {/* ... [Textarea block] ... */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -66,9 +65,29 @@ export default function InputConsole({
 
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
+             {/* Platform Selector */}
+             <div className="flex items-center bg-neutral-900 rounded-lg p-1 border border-neutral-800">
+                <button
+                    onClick={() => setPlatform("linkedin")}
+                    className={`p-2 rounded-md transition-all ${platform === "linkedin" ? "bg-blue-600 text-white shadow-lg" : "text-neutral-500 hover:text-white"}`}
+                    title="LinkedIn"
+                >
+                    <Linkedin className="w-4 h-4" />
+                </button>
+                <button
+                    onClick={() => setPlatform("twitter")}
+                    className={`p-2 rounded-md transition-all ${platform === "twitter" ? "bg-black text-white shadow-lg border border-neutral-700" : "text-neutral-500 hover:text-white"}`}
+                    title="X (Twitter)"
+                >
+                    <Twitter className="w-4 h-4" />
+                </button>
+             </div>
+
             {/* Newsjack Toggle */}
-            <div className="flex items-center gap-2 mr-2 border-r border-neutral-800 pr-4">
+            <div className="flex items-center gap-2 border-r border-neutral-800 pr-4">
                 <input 
+// ... [Rest of toolbar]
+ 
                     type="checkbox" 
                     id="newsjack"
                     checked={useNewsjack}

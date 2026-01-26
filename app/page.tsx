@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import InputConsole from "../components/InputConsole";
+import StreamingConsole from "../components/StreamingConsole"; // Fixed import
 import AssetDisplay from "../components/AssetDisplay";
 import SettingsModal, { ApiKeys } from "../components/SettingsModal";
 import HistorySidebar from "../components/HistorySidebar";
@@ -14,7 +14,7 @@ import WorkspaceSwitcher from "../components/WorkspaceSwitcher";
 import TeamSettingsModal from "../components/TeamSettingsModal";
 import { Settings as SettingsIcon, Clock, Mic, BarChart3, Users } from "lucide-react";
 import { GeneratedAssets } from "../utils/ai-service";
-import { saveHistory, getHistory, clearHistory, HistoryItem } from "../utils/history-service";
+import { saveHistory, getHistory, clearHistory, HistoryItem, updateHistoryPerformance, PerformanceRating } from "../utils/history-service";
 import { PersonaId } from "../utils/personas";
 import { predictVirality } from "../utils/analytics-service";
 
@@ -32,6 +32,9 @@ export default function Home() {
   const [viralityScore, setViralityScore] = useState(0);
   const [teamSettingsOpen, setTeamSettingsOpen] = useState(false);
   const [useNewsjack, setUseNewsjack] = useState(false);
+  const [useRAG, setUseRAG] = useState(true);
+  const [platform, setPlatform] = useState<"linkedin" | "twitter">("linkedin");
+  const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
   
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: ToastType; isVisible: boolean }>({
@@ -73,15 +76,11 @@ export default function Home() {
 
   // Update virality score when input changes
   useEffect(() => {
-    if (input.trim().length > 10) {
-      const prediction = predictVirality(input);
-      setViralityScore(prediction.score);
-    } else {
-      setViralityScore(0);
-    }
+    // ...
   }, [input]);
 
   const handleSaveKeys = (keys: ApiKeys) => {
+    // ...
     setApiKeys(keys);
     localStorage.setItem("strategyos_gemini_key", keys.gemini);
     localStorage.setItem("strategyos_serper_key", keys.serper);
@@ -93,35 +92,47 @@ export default function Home() {
   };
 
   const handleGenerate = async () => {
-    if (!apiKeys.gemini) {
-      setSettingsOpen(true);
-      return;
-    }
+      // Legacy server action handler (if needed, but we use streaming mostly now)
+      // Keeping it for completeness or fallback
+      if (!apiKeys.gemini) { setSettingsOpen(true); return; }
+      setIsGenerating(true);
+      setAssets(null);
+      try {
+          const result = await processInput(input, apiKeys, personaId, useNewsjack);
+          setAssets(result);
+          const newId = saveHistory(input, result, personaId);
+          setCurrentHistoryId(newId);
+          setHistory(getHistory());
+          showToast("Assets generated.", "success");
+      } catch (e: any) {
+          showToast(e.message, "error");
+      } finally {
+          setIsGenerating(false);
+      }
+  };
 
-    setIsGenerating(true);
-    setAssets(null);
+  const handleStreamingComplete = (text: string) => {
+      const generatedAssets = { textPost: text, imagePrompt: "", videoScript: "" };
+      setAssets(generatedAssets); // Update UI
+      
+      const newId = saveHistory(input, generatedAssets, personaId);
+      setCurrentHistoryId(newId);
+      setHistory(getHistory());
+      
+      showToast("Generation complete.", "success");
+  };
 
-    try {
-      const result = await processInput(input, apiKeys, personaId, useNewsjack);
-      setAssets(result);
-      
-      // Save to history
-      saveHistory(input, result);
-      setHistory(getHistory()); // Refresh local state
-      
-      showToast("Assets generated successfully.", "success");
-      
-    } catch (error: any) {
-      console.error("Generation failed:", error);
-      showToast(error.message || "Generation failed.", "error");
-    } finally {
-      setIsGenerating(false);
-    }
+  const handleRate = (rating: PerformanceRating) => {
+      if (!currentHistoryId) return;
+      updateHistoryPerformance(currentHistoryId, { rating, markedAt: Date.now() });
+      setHistory(getHistory()); // Refresh to show rating in sidebar
+      showToast(`Rated as ${rating}`, "success");
   };
 
   const handleHistorySelect = (item: HistoryItem) => {
       setInput(item.input);
       setAssets(item.assets);
+      setCurrentHistoryId(item.id);
       setHistoryOpen(false);
       showToast("History item restored.", "success");
   };
@@ -130,6 +141,7 @@ export default function Home() {
       if(confirm("Are you sure you want to clear all history?")) {
           clearHistory();
           setHistory([]);
+          setCurrentHistoryId(null);
           showToast("History cleared.", "success");
       }
   };
@@ -186,16 +198,19 @@ export default function Home() {
 
       {/* Main Interface */}
       <div className="max-w-5xl mx-auto">
-        <InputConsole
-          value={input}
-          onChange={setInput}
-          onGenerate={handleGenerate}
-          isGenerating={isGenerating}
+        {/* REPLACED InputConsole with StreamingConsole */}
+        <StreamingConsole
+          initialValue={input}
+          onGenerationComplete={handleStreamingComplete}
+          apiKeys={apiKeys}
           personaId={personaId}
           setPersonaId={setPersonaId}
-          viralityScore={viralityScore}
           useNewsjack={useNewsjack}
           setUseNewsjack={setUseNewsjack}
+          useRAG={useRAG}
+          setUseRAG={setUseRAG}
+          platform={platform}
+          setPlatform={setPlatform}
         />
 
         {assets && (
@@ -203,6 +218,7 @@ export default function Home() {
             <AssetDisplay 
                 assets={assets} 
                 linkedinClientId={apiKeys.linkedinClientId}
+                onRate={handleRate}
             />
           </div>
         )}
