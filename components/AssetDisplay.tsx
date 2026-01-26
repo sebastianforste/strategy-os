@@ -1,38 +1,106 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Copy, Check, Image as ImageIcon, Video, FileText, Layers, Download, Bookmark, TrendingUp, ThumbsUp, Minus, ThumbsDown } from "lucide-react";
+import { Copy, Check, Image as ImageIcon, Video, FileText, Layers, Download, Bookmark, TrendingUp, ThumbsUp, Minus, ThumbsDown, RefreshCw, Sparkles, Eye } from "lucide-react";
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { GeneratedAssets } from "../utils/ai-service";
 import PostButton from "./PostButton";
 import { transformTextToSlides } from "../utils/carousel-generator";
-import CarouselPDF from "./CarouselPDF";
 import ExportMenu from "./ExportMenu";
-import PDFDownloadButton from "./PDFDownloadButton";
 import { PerformanceRating } from "../utils/history-service";
+import RemixModal from "./RemixModal";
+import { generateRemixes, RemixResult } from "../utils/remix-service";
+import LinkedInPreview from "./LinkedInPreview";
+
+// Lazy load heavy PDF components (saves ~400KB on initial load)
+const CarouselPDF = dynamic(() => import("./CarouselPDF"), { 
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-neutral-800 h-40 rounded-lg" />
+});
+
+const PDFDownloadButton = dynamic(() => import("./PDFDownloadButton"), { 
+  ssr: false,
+  loading: () => <div className="w-32 h-10 bg-neutral-800 rounded animate-pulse" />
+});
 
 interface AssetDisplayProps {
   assets: GeneratedAssets;
   linkedinClientId?: string;
   onRate?: (rating: PerformanceRating) => void;
+  onUpdateAssets?: (assets: GeneratedAssets) => void;
+  geminiKey?: string;
 }
 
-export default function AssetDisplay({ assets, linkedinClientId, onRate }: AssetDisplayProps) {
-  const [activeTab, setActiveTab] = useState<"text" | "image" | "video" | "carousel">("text");
+import { explainPost, Explanation } from "../utils/explainer-service";
+
+export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdateAssets, geminiKey }: AssetDisplayProps) {
+  const [activeTab, setActiveTab] = useState<"text" | "preview" | "image" | "video" | "carousel">("text");
   const [isClient, setIsClient] = useState(false);
   const [userRating, setUserRating] = useState<PerformanceRating>(null);
+  const [remixModalOpen, setRemixModalOpen] = useState(false);
+  const [remixes, setRemixes] = useState<RemixResult[]>([]);
+  const [isRemixing, setIsRemixing] = useState(false);
+  const [explanations, setExplanations] = useState<Explanation[]>([]);
+  const [isExplaining, setIsExplaining] = useState(false);
+  const [showExplainer, setShowExplainer] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Auto-explain on first load
+  useEffect(() => {
+    if (geminiKey && assets.textPost && !explanations.length && !isExplaining) {
+      handleExplain();
+    }
+  }, [assets.textPost, geminiKey]);
 
   const handleRate = (rating: PerformanceRating) => {
       setUserRating(rating);
       if (onRate) onRate(rating);
   };
 
+  const handleExplain = async () => {
+    if (!geminiKey) return;
+    setIsExplaining(true);
+    try {
+      const results = await explainPost(assets.textPost, geminiKey);
+      setExplanations(results);
+      setShowExplainer(results.length > 0);
+    } catch (e) {
+      console.error("Explain failed:", e);
+    } finally {
+      setIsExplaining(false);
+    }
+  };
+
+  const handleRemix = async () => {
+    if (!geminiKey) {
+      alert("Gemini API key required for remixing.");
+      return;
+    }
+    setRemixModalOpen(true);
+    setIsRemixing(true);
+    try {
+      const results = await generateRemixes(assets.textPost, geminiKey);
+      setRemixes(results);
+    } catch (e) {
+      console.error("Remix failed:", e);
+    } finally {
+      setIsRemixing(false);
+    }
+  };
+
+  const handleSelectRemix = (content: string) => {
+    if (onUpdateAssets) {
+      onUpdateAssets({ ...assets, textPost: content });
+    }
+  };
+
   const tabs = [
     { id: "text", label: "LINKEDIN POST", icon: FileText },
+    { id: "preview", label: "PREVIEW", icon: Eye },
     { id: "image", label: "IMAGE PROMPT", icon: ImageIcon },
     { id: "video", label: "VIDEO SCRIPT", icon: Video },
     { id: "carousel", label: "CAROUSEL PDF", icon: Layers },
@@ -40,6 +108,7 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate }: Asset
 
   const content = {
     text: assets.textPost,
+    preview: assets.textPost,
     image: assets.imagePrompt,
     video: assets.videoScript,
     carousel: "", // Placeholder, derived from text
@@ -120,6 +189,13 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate }: Asset
                <p className="font-mono text-xs text-neutral-400">{assets.imagePrompt}</p>
             </div>
           </div>
+        ) : activeTab === "preview" ? (
+            <div className="py-4">
+                <div className="text-center mb-4">
+                    <span className="text-xs font-mono text-neutral-500">PREVIEW: How it will look on LinkedIn</span>
+                </div>
+                <LinkedInPreview content={assets.textPost} />
+            </div>
         ) : activeTab === "carousel" ? (
             <div className="space-y-8">
                 <div className="flex items-center justify-between pb-4 border-b border-neutral-900">
@@ -161,6 +237,15 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate }: Asset
                 <div className="absolute top-4 right-4 flex items-center gap-2">
                     {activeTab === "text" && (
                         <div className="flex items-center gap-2">
+                            {/* Remix Button */}
+                            <button
+                                onClick={handleRemix}
+                                disabled={isRemixing}
+                                className="p-2 text-neutral-500 hover:text-purple-400 transition-colors rounded-md bg-neutral-900 border border-neutral-800 hover:border-purple-900 disabled:opacity-50"
+                                title="Generate Variations"
+                            >
+                                <RefreshCw className={`w-4 h-4 ${isRemixing ? 'animate-spin' : ''}`} />
+                            </button>
                             <button
                                 onClick={() => {
                                     const name = prompt("Enter a name for this template:");
@@ -194,6 +279,50 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate }: Asset
             </>
         )}
       </motion.div>
+
+      {/* Why This Works Explainer */}
+      {activeTab === "text" && (showExplainer || isExplaining) && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-6 bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-800/50 rounded-lg p-5"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <h4 className="text-sm font-bold text-white">Why This Works</h4>
+            {isExplaining && <span className="text-xs text-neutral-500 ml-2">Analyzing...</span>}
+          </div>
+          
+          {explanations.length > 0 ? (
+            <div className="space-y-3">
+              {explanations.map((exp, i) => (
+                <div key={i} className="flex gap-3">
+                  <div className="flex-shrink-0 w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center">
+                    <span className="text-xs font-bold text-purple-400">{i + 1}</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">{exp.pattern}</p>
+                    <p className="text-xs text-neutral-400 mt-0.5">{exp.reason}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex justify-center py-4">
+              <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* Remix Modal */}
+      <RemixModal
+        isOpen={remixModalOpen}
+        onClose={() => setRemixModalOpen(false)}
+        remixes={remixes}
+        onSelect={handleSelectRemix}
+        isLoading={isRemixing}
+      />
     </div>
   );
 }

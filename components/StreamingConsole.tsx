@@ -1,11 +1,13 @@
 
 import { useCompletion } from "ai/react";
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { ArrowRight, UserCircle2, Square, Linkedin, Twitter, Brain, Zap } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowRight, UserCircle2, Square, Linkedin, Twitter, Brain, Zap, Sparkles } from "lucide-react";
 import { PERSONAS, PersonaId } from "../utils/personas";
 import TemplateLibraryModal from "./TemplateLibraryModal";
 import { ApiKeys } from "./SettingsModal";
+import { getSuggestions, Suggestion } from "../utils/suggestion-service";
+import ReactMarkdown from "react-markdown";
 
 interface StreamingConsoleProps {
   initialValue: string;
@@ -36,6 +38,42 @@ export default function StreamingConsole({
 }: StreamingConsoleProps) {
   const [input, setInput] = useState(initialValue);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced suggestion fetching
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    
+    if (input.length >= 5 && input.length < 100 && !input.includes("\n") && apiKeys.gemini) {
+      debounceRef.current = setTimeout(async () => {
+        setIsLoadingSuggestions(true);
+        try {
+          const results = await getSuggestions(input, apiKeys.gemini);
+          setSuggestions(results);
+          setShowSuggestions(results.length > 0);
+        } catch (e) {
+          console.error("Suggestions failed:", e);
+        } finally {
+          setIsLoadingSuggestions(false);
+        }
+      }, 800);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [input, apiKeys.gemini]);
+
+  const handleSelectSuggestion = (angle: string) => {
+    setInput(angle);
+    setShowSuggestions(false);
+  };
 
   // Vercel AI SDK Hook
   const { complete, completion, isLoading, stop } = useCompletion({
@@ -66,15 +104,44 @@ export default function StreamingConsole({
         <div className="absolute -inset-0.5 bg-gradient-to-r from-neutral-700 to-neutral-800 rounded-lg blur opacity-30 group-hover:opacity-75 transition duration-1000"></div>
         <div className="relative bg-[#050505] rounded-lg border border-neutral-800 p-1 min-h-[12rem]">
           {!isLoading && !completion ? (
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Paste high-complexity input here..."
-                className="w-full h-48 bg-transparent text-white p-6 outline-none resize-none font-mono text-sm leading-relaxed placeholder:text-neutral-600"
-              />
+              <>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                  placeholder="Paste high-complexity input here..."
+                  className="w-full h-48 bg-transparent text-white p-6 outline-none resize-none font-mono text-sm leading-relaxed placeholder:text-neutral-600"
+                />
+                
+                {/* Suggestions Dropdown */}
+                <AnimatePresence>
+                  {showSuggestions && suggestions.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute left-4 right-4 bottom-4 bg-neutral-900 border border-neutral-700 rounded-lg overflow-hidden shadow-xl z-10"
+                    >
+                      <div className="px-3 py-2 border-b border-neutral-800 flex items-center gap-2 text-xs text-neutral-500">
+                        <Sparkles className="w-3 h-3" />
+                        <span>Try these angles:</span>
+                      </div>
+                      {suggestions.map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => handleSelectSuggestion(s.angle)}
+                          className="w-full text-left px-4 py-3 text-sm text-neutral-300 hover:bg-neutral-800 hover:text-white transition-colors border-b border-neutral-800 last:border-b-0"
+                        >
+                          {s.angle}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
           ) : (
-              <div className="w-full h-auto min-h-[12rem] bg-transparent text-white p-6 font-mono text-sm leading-relaxed whitespace-pre-wrap">
-                  {completion}
+              <div className="w-full h-auto min-h-[12rem] bg-transparent text-white p-6 prose prose-invert prose-sm max-w-none">
+                  <ReactMarkdown>{completion}</ReactMarkdown>
                   {isLoading && <span className="inline-block w-2 h-4 bg-white ml-1 animate-pulse"/>}
               </div>
           )}

@@ -68,19 +68,6 @@ export async function deepDiveAction(
  * 
  * @returns {GeneratedAssets} The final ready-to-use assets.
  */
-export async function processInput(
-  input: string,
-  apiKeys: { gemini: string; serper?: string; openai?: string },
-  personaId: PersonaId = "cso",
-  forceTrends: boolean = false,
-  platform: "linkedin" | "twitter" = "linkedin"
-): Promise<GeneratedAssets> { // GeneratedAssets is { textPost, imagePrompt, videoScript, imageUrl? }
-  if (!input) throw new Error("Input required");
-  if (!apiKeys.gemini) throw new Error("Gemini API Key required");
-
-  // Select Adapter
-  const adapter: PlatformAdapter = platform === "twitter" ? TwitterAdapter : LinkedInAdapter;
-
 /**
  * Helper: Constructs the enriched prompt with RAG, Mode, and Platform instructions.
  * Refactored for use in both Server Actions (legacy) and API Route (Streaming).
@@ -116,6 +103,30 @@ export async function constructEnrichedPrompt(
         console.log("[RAG] Skipped by user.");
     }
 
+    // FEW-SHOT EXAMPLES (From user's best posts)
+    let fewShotContext = "";
+    try {
+        // Import dynamically to avoid server/client issues
+        const { getTopRatedPosts } = await import("../utils/history-service");
+        const topPosts = getTopRatedPosts(personaId, 3);
+        if (topPosts.length > 0) {
+            fewShotContext = `
+            YOUR BEST PERFORMING POSTS (Write in this exact style):
+            ${topPosts.map((p, i) => `
+            Example ${i + 1} (Rated ${p.performance?.rating}):
+            """
+            ${p.assets.textPost.substring(0, 500)}${p.assets.textPost.length > 500 ? '...' : ''}
+            """
+            `).join("\n")}
+            
+            MIMIC THIS VOICE AND STRUCTURE.
+            `;
+            console.log(`[Few-Shot] Injected ${topPosts.length} examples.`);
+        }
+    } catch (e) {
+        console.warn("[Few-Shot] Failed to retrieve examples:", e);
+    }
+
     let enrichedInput = input;
     let mode = "Newsjacker"; // Default
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -129,6 +140,7 @@ export async function constructEnrichedPrompt(
         enrichedInput = `
         ${platformInstr}
         ${ragContext}
+        ${fewShotContext}
 
         MODE: THE TRANSLATOR (Document/URL Analysis)
         INPUT SOURCE: ${input}
@@ -150,6 +162,7 @@ export async function constructEnrichedPrompt(
                     enrichedInput = `
                     ${platformInstr}
                     ${ragContext}
+                    ${fewShotContext}
 
                     MODE: THE NEWSJACKER (Trend Hunter)
                     TOPIC: ${input}
@@ -168,6 +181,7 @@ export async function constructEnrichedPrompt(
                 enrichedInput = `
                     ${platformInstr}
                     ${ragContext}
+                    ${fewShotContext}
 
                     MODE: THE NEWSJACKER (Standard)
                     TOPIC: ${input}
@@ -181,6 +195,7 @@ export async function constructEnrichedPrompt(
             enrichedInput = `
                 ${platformInstr}
                 ${ragContext}
+                ${fewShotContext}
 
                 MODE: THE NEWSJACKER (Standard)
                 TOPIC: ${input}

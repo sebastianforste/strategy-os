@@ -219,6 +219,8 @@ export default function Home() {
                 assets={assets} 
                 linkedinClientId={apiKeys.linkedinClientId}
                 onRate={handleRate}
+                geminiKey={apiKeys.gemini}
+                onUpdateAssets={(newAssets) => setAssets(newAssets)}
             />
           </div>
         )}

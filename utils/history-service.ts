@@ -98,3 +98,34 @@ export function clearHistory(): void {
     console.error("Failed to clear history:", e);
   }
 }
+
+/**
+ * Get top-rated posts for few-shot prompting.
+ * Returns posts rated "viral" or "good" sorted by rating then recency.
+ */
+export function getTopRatedPosts(personaId?: string, limit: number = 3): HistoryItem[] {
+  try {
+    const history = getHistory();
+    
+    // Filter to only rated posts
+    const rated = history.filter(item => {
+      const isTopRated = item.performance?.rating === "viral" || item.performance?.rating === "good";
+      const matchesPersona = personaId ? item.personaId === personaId : true;
+      return isTopRated && matchesPersona;
+    });
+    
+    // Sort: viral first, then by recency
+    rated.sort((a, b) => {
+      const ratingOrder = { viral: 2, good: 1, meh: 0, flopped: -1 };
+      const aScore = ratingOrder[a.performance?.rating || "meh"];
+      const bScore = ratingOrder[b.performance?.rating || "meh"];
+      if (bScore !== aScore) return bScore - aScore;
+      return b.createdAt - a.createdAt;
+    });
+    
+    return rated.slice(0, limit);
+  } catch (e) {
+    console.error("Failed to get top rated posts:", e);
+    return [];
+  }
+}
