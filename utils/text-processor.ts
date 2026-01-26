@@ -53,7 +53,6 @@ export function applyAntiRobotFilter(text: string): string {
   BANNED_PHRASES.forEach((phrase) => {
     // Escape special regex characters if any (not strictly needed for this list but good practice)
     const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\b${escapedPhrase}\\b`, "gi"); // Try to match boundaries if possible, or just the phrase
     // For phrases, strict word boundaries can be tricky if they contain punctuation.
     // Let's use a simpler replacement for phrases or ensure boundaries where appropriate.
     // Given the list, standard space-separated words are fine.

@@ -1,8 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Copy, Check, Image as ImageIcon, Video, FileText, Layers, Download, Bookmark, TrendingUp, ThumbsUp, Minus, ThumbsDown, RefreshCw, Sparkles, Eye } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Copy, Check, Image as ImageIcon, Video, FileText, Layers, Bookmark, TrendingUp, ThumbsUp, Minus, ThumbsDown, RefreshCw, Sparkles, Eye, MessageSquare, Calendar } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { GeneratedAssets } from "../utils/ai-service";
 import PostButton from "./PostButton";
@@ -12,6 +12,9 @@ import { PerformanceRating } from "../utils/history-service";
 import RemixModal from "./RemixModal";
 import { generateRemixes, RemixResult } from "../utils/remix-service";
 import LinkedInPreview from "./LinkedInPreview";
+import CommentsPanel from "./CommentsPanel";
+import { schedulePost } from "../utils/schedule-service";
+import { saveTemplate } from "../utils/template-service";
 
 // Lazy load heavy PDF components (saves ~400KB on initial load)
 const CarouselPDF = dynamic(() => import("./CarouselPDF"), { 
@@ -44,24 +47,13 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
   const [explanations, setExplanations] = useState<Explanation[]>([]);
   const [isExplaining, setIsExplaining] = useState(false);
   const [showExplainer, setShowExplainer] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Auto-explain on first load
-  useEffect(() => {
-    if (geminiKey && assets.textPost && !explanations.length && !isExplaining) {
-      handleExplain();
-    }
-  }, [assets.textPost, geminiKey]);
-
-  const handleRate = (rating: PerformanceRating) => {
-      setUserRating(rating);
-      if (onRate) onRate(rating);
-  };
-
-  const handleExplain = async () => {
+  const handleExplain = useCallback(async () => {
     if (!geminiKey) return;
     setIsExplaining(true);
     try {
@@ -73,7 +65,20 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
     } finally {
       setIsExplaining(false);
     }
+  }, [assets.textPost, geminiKey]);
+
+  // Auto-explain on first load
+  useEffect(() => {
+    if (geminiKey && assets.textPost && !explanations.length && !isExplaining) {
+      handleExplain();
+    }
+  }, [assets.textPost, geminiKey, explanations.length, handleExplain, isExplaining]);
+
+  const handleRate = (rating: PerformanceRating) => {
+      setUserRating(rating);
+      if (onRate) onRate(rating);
   };
+
 
   const handleRemix = async () => {
     if (!geminiKey) {
@@ -95,6 +100,23 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
   const handleSelectRemix = (content: string) => {
     if (onUpdateAssets) {
       onUpdateAssets({ ...assets, textPost: content });
+    }
+  };
+
+  const handleSchedule = () => {
+    const dateTimeStr = prompt("When do you want to schedule this post? (YYYY-MM-DD HH:MM)", 
+      new Date(Date.now() + 86400000).toISOString().slice(0, 16).replace('T', ' ')
+    );
+    
+    if (dateTimeStr) {
+      const timestamp = Date.parse(dateTimeStr.replace(' ', 'T'));
+      if (isNaN(timestamp)) {
+        alert("Invalid date format. Please use YYYY-MM-DD HH:MM");
+        return;
+      }
+      
+      schedulePost(assets, timestamp);
+      alert("Post scheduled for " + new Date(timestamp).toLocaleString());
     }
   };
 
@@ -144,7 +166,7 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={`flex items-center gap-2 px-6 py-4 text-xs font-bold tracking-widest transition-colors whitespace-nowrap ${
                 isActive
                   ? "text-white border-b-2 border-white"
@@ -250,7 +272,6 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                                 onClick={() => {
                                     const name = prompt("Enter a name for this template:");
                                     if(name) {
-                                        const { saveTemplate } = require("../utils/template-service");
                                         saveTemplate({ name, content: content.text, tags: [] });
                                         alert("Template saved!");
                                     }
@@ -259,6 +280,20 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                                 title="Save as Template"
                             >
                                 <Bookmark className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setCommentsOpen(!commentsOpen)}
+                                className={`p-2 transition-colors rounded-md bg-neutral-900 border border-neutral-800 ${commentsOpen ? 'text-blue-400 border-blue-900' : 'text-neutral-500 hover:text-white'}`}
+                                title="Comments"
+                            >
+                                <MessageSquare className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={handleSchedule}
+                                className="p-2 text-neutral-500 hover:text-green-400 transition-colors rounded-md bg-neutral-900 border border-neutral-800 hover:border-green-900"
+                                title="Schedule Post"
+                            >
+                                <Calendar className="w-4 h-4" />
                             </button>
                             <PostButton 
                                 text={content.text} 
@@ -322,6 +357,13 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
         remixes={remixes}
         onSelect={handleSelectRemix}
         isLoading={isRemixing}
+      />
+
+      {/* Comments Panel */}
+      <CommentsPanel 
+        assetId={assets.textPost.substring(0, 50)} // Using a snippet of text as assetId proxy
+        isOpen={commentsOpen}
+        onClose={() => setCommentsOpen(false)}
       />
     </div>
   );

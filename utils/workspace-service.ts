@@ -52,7 +52,7 @@ export function getWorkspaces(): Workspace[] {
   
   try {
     return JSON.parse(stored);
-  } catch (e) {
+  } catch {
     return [DEFAULT_WORKSPACE];
   }
 }

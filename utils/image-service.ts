@@ -58,7 +58,7 @@ export async function generateImage(prompt: string, apiKey: string): Promise<str
     // usually jpeg or png. Let's assume png or check headers if needed, but standard is usually png.
     return `data:image/png;base64,${b64}`;
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Image Generation Error:", error);
     // Don't crash the whole app, just return empty so the UI handles it gracefully
     return ""; 

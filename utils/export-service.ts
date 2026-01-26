@@ -16,7 +16,7 @@ export const formatForNotion = (text: string): string => {
  */
 export const formatForGDocs = (text: string): string => {
   // Convert Markdown-ish to HTML
-  let html = text
+  const html = text
     .replace(/\n/g, "<br>") // Line breaks
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") // Bold
     .replace(/__(.*?)__/g, "<strong>$1</strong>") // Bold alt
@@ -52,14 +52,14 @@ export const copyToClipboard = async (text: string, format: "text/plain" | "text
       await navigator.clipboard.writeText(text);
     }
     return true;
-  } catch (e) {
-    console.warn("Clipboard API failed, falling back to basic writeText", e);
+  } catch {
+    console.warn("Clipboard API failed, falling back to basic writeText");
     // Fallback
     try {
         await navigator.clipboard.writeText(text);
         return true;
-    } catch(e2) {
-        console.error("Clipboard fallback failed", e2);
+    } catch {
+        console.error("Clipboard fallback failed");
         return false;
     }
   }

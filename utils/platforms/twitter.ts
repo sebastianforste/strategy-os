@@ -29,7 +29,7 @@ export const TwitterAdapter: PlatformAdapter = {
         // We also strip bold/italic markdown because Twitter doesn't support them natively 
         // (unless using unicode hacks, which we avoid for generic accessibility).
         
-        let processed = content
+        const processed = content
             .replace(/\*\*(.*?)\*\*/g, "$1") // Remove bold
             .replace(/\*(.*?)\*/g, "$1")     // Remove italic
             .replace(/__(.*?)__/g, "$1")     // Remove underline

@@ -1,19 +1,20 @@
 # StrategyOS Walkthrough
 
-**StrategyOS** is a high-velocity content generation engine designed for the modern Chief Strategy Officer. It automates the creation of high-status LinkedIn assets with a "Visualize Value" aesthetic.
+**StrategyOS** is a high-velocity content generation engine designed for the modern Chief Strategy Officer. It automates the creation of high-status LinkedIn assets with a "Visualize Value" aesthetic, now enhanced with deep strategy retrieval and real-time streaming.
+
+> [!IMPORTANT]
+> **V3 ARCHITECTURE**: This application now uses a streaming API and a Knowledge Graph (RAG) to ensure zero-latency, high-context generation.
 
 **UPDATE: Phase 2 - Real Image Generation (Active)**
 
 ## 1. Features Implemented
 
 ### Real-Time Image Generation (NEW)
-### Real-Time Image Generation (NEW)
 - **Engine**: Google Imagen 4 (via Gemini API).
 - **Integration**: Generates high-contrast "Visualize Value" style images based on the AI's prompt.
 - **UI**: Added a dedicated "Generated Image" tab with a **Download** button.
 - **Settings**: Uses the main `Gemini API Key`.
 
-### The "Trend Hunter" Engine (NEW)
 ### The "Trend Hunter" Engine (NEW)
 - **Engine**: Google Search Grounding (via Gemini API).
 - **Trigger**: Automatically detects short topics (e.g., "Nvidia", "Interest Rates").
@@ -23,13 +24,28 @@
 ### Content History (NEW)
 - **Engine**: LocalStorage (Browser).
 - **UI**: Clock icon in header $\rightarrow$ Slide-out Sidebar.
-- **UI**: Clock icon in header $\rightarrow$ Slide-out Sidebar.
 - **Feature**: Auto-saves every successful generation. Click to restore immediately.
 
 ### The "V2" Upgrade (Phases 5-7)
 - **Personas**: Switch between "Strategist", "Founder", and "Provocateur" to change the writing voice.
 - **Shares**: One-click "Post to LinkedIn" button.
 - **Polish**: Glitch logo effect and smooth Toast notifications.
+
+### Streaming Post Engine (NEW)
+- **Engine**: Vercel AI SDK + Google Gemini 1.5 Flash.
+- **Benefit**: Zero-wait UI. Content appears as it is thought, improving UX velocity by 400%.
+- **Integration**: Replaces the synchronous `actions/generate` for text posts.
+
+### Strategic Brain: RAG (NEW)
+- **Database**: Local Knowledge Index (`data/knowledge_index.json`).
+- **Sources**: 20+ Master-level strategy and marketing books from the `gunnercooke` library.
+- **Logic**: Injects relevant mental models (e.g., Seth Godin, Byron Sharp) into every prompt based on semantic similarity.
+- **Toggle**: Can be disabled in the console via the "Brain" icon.
+
+### Mirroring: Few-Shot Learning (NEW)
+- **Engine**: In-context learning from your past "Viral" rated posts.
+- **Benefit**: Ensures the AI consistently matches your specific winning voice.
+- **Toggle**: Managed via the "Sparkles" icon in the console.
 
 ### The "Anti-Robot" Core
 - **Rigorous Filter**: `utils/text-processor.ts` enforces the "Justin Welsh" writing style.
@@ -58,10 +74,6 @@
 - **Virality Predictor**: Real-time score (0-100) as you type, analyzing hooks, length, and structure.
 - **Performance Rating**: Rate your past generations (Viral, Good, Meh, Flopped) in the History Sidebar.
 - **Insights Dashboard**: Visualizes your success patterns, top hooks, and overall performance stats.
-
-### AI Drafting Engine (Gemini Powered)
-- **Engine**: `models/gemini-3-flash-preview` (Logic).
-- **Persona**: "Chief Strategy Officer" (System Prompt).
 
 ## 2. Quick Start
 

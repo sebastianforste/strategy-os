@@ -20,9 +20,9 @@ export default function AnalyticsDashboard({
   onClose,
 }: AnalyticsDashboardProps) {
   const [activeTab, setActiveTab] = useState<"performance" | "market">("performance");
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<import("../utils/analytics-service").AnalyticsStats | null>(null);
   const [insights, setInsights] = useState<string[]>([]);
-  const [patterns, setPatterns] = useState<any>(null);
+  const [patterns, setPatterns] = useState<ReturnType<typeof import("../utils/analytics-service").getSuccessPatterns> | null>(null);
 
   // Market Intel State
   const [competitorName, setCompetitorName] = useState("");
@@ -35,7 +35,10 @@ export default function AnalyticsDashboard({
 
   useEffect(() => {
     if (isOpen) {
-      loadData();
+      const timer = setTimeout(() => {
+        loadData();
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
@@ -400,21 +403,21 @@ export default function AnalyticsDashboard({
                                      <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
                                      <h4 className="text-xs font-bold text-neutral-500 uppercase mb-2">The Mainstream View</h4>
                                      <p className="text-sm text-neutral-200 leading-relaxed font-medium">
-                                         "{trendReport.mainstreamView}"
+                                         &ldquo;{trendReport.mainstreamView}&rdquo;
                                      </p>
                                  </div>
                                  <div className="p-5 bg-neutral-900/50 border border-red-900/30 rounded-xl relative overflow-hidden">
                                      <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
                                      <h4 className="text-xs font-bold text-red-400 uppercase mb-2">The Contrarian Angle</h4>
                                      <p className="text-sm text-white leading-relaxed font-bold">
-                                         "{trendReport.contrarianAngle}"
+                                         &ldquo;{trendReport.contrarianAngle}&rdquo;
                                      </p>
                                  </div>
                                  <div className="p-5 bg-neutral-900/50 border border-purple-900/30 rounded-xl relative overflow-hidden">
                                      <div className="absolute top-0 right-0 w-20 h-20 bg-purple-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
                                      <h4 className="text-xs font-bold text-purple-400 uppercase mb-2">Underrated Insight</h4>
                                      <p className="text-sm text-neutral-200 leading-relaxed italic">
-                                         "{trendReport.underratedInsight}"
+                                         &ldquo;{trendReport.underratedInsight}&rdquo;
                                      </p>
                                  </div>
                              </div>

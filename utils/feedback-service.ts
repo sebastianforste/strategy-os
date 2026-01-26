@@ -1,5 +1,5 @@
 
-import { getHistory, HistoryItem } from "./history-service";
+import { getHistory } from "./history-service";
 import { PERSONAS } from "./personas";
 
 export interface PersonaStats {

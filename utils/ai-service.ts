@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { PERSONAS, PersonaId } from "./personas";
 import { getActiveModel } from "./voice-training-service";
+import { verifyConstraints } from "./constraint-service";
 
 /**
  * GENERATED ASSETS SCHEMA
@@ -67,7 +68,7 @@ Return JSON with these keys:
       imagePrompt: parsed.imagePrompt || parsed.image_prompt || "Minimalist vector line art. White on black. High contrast.",
       videoScript: parsed.videoScript || parsed.video_script || parsed.script || "",
     };
-  } catch (e) {
+  } catch {
     // Fallback if JSON parsing fails
     return {
       textPost: content,
@@ -151,8 +152,6 @@ export async function generateContent(
   `;
 
     // RETRY LOOP: Enforce Constraints
-    let finalContent = "";
-    let finalParsed: any = {};
     let attempts = 0;
     const MAX_ATTEMPTS = 2; // Original + 2 Retries
 
@@ -174,7 +173,6 @@ export async function generateContent(
             const textPost = parsed.textPost || parsed.text_post || "";
 
             // VERIFY CONSTRAINTS
-            const { verifyConstraints } = require("./constraint-service");
             const validation = verifyConstraints(textPost);
 
             if (validation.valid) {
@@ -200,12 +198,13 @@ export async function generateContent(
                 };
             }
 
-        } catch (e: any) {
+        } catch (e: unknown) {
+             const errorMessage = e instanceof Error ? e.message : "Unknown error";
              console.error(`[AI Service] Attempt ${attempts} Error`, e);
              
              // GRACEFUL FALLBACK FOR 429 / QUOTA / NETWORK ERRORS
              // This ensures the app "runs perfectly" even if Google API is unstable or rate-limited.
-             if (e.message.includes("429") || e.message.includes("503") || e.message.includes("500") || e.message.includes("fetch failed")) {
+             if (errorMessage.includes("429") || errorMessage.includes("503") || errorMessage.includes("500") || errorMessage.includes("fetch failed")) {
                 console.warn("[AI Service] Hit API Limit or Network Error. Switching to Backup Content.");
                 return {
                     textPost: `[BACKUP MODE: API BUSY]\n\nConsistency beats intensity.\n\nEveryone starts strong.\nFew finish.\n\nThe secret isn't a hack.\nIt's showing up when you don't want to.\n\nDon't break the chain.`,

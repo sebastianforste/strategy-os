@@ -39,7 +39,7 @@ export async function findTrends(topic: string, apiKey?: string): Promise<TrendR
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ 
         model: "gemini-flash-latest", 
-        // @ts-ignore - googleSearch is a valid tool but types might lag
+        // @ts-expect-error - googleSearch is a valid tool but types might lag
         tools: [{ googleSearch: {} }] 
     });
 
@@ -63,7 +63,7 @@ export async function findTrends(topic: string, apiKey?: string): Promise<TrendR
     let data;
     try {
         data = JSON.parse(responseText);
-    } catch (e) {
+    } catch {
         console.warn("Failed to parse Grounding JSON:", responseText);
         return [];
     }
@@ -79,8 +79,9 @@ export async function findTrends(topic: string, apiKey?: string): Promise<TrendR
     
     return [];
 
-  } catch (error: any) {
-    if (error.message?.includes("429") || error.message?.includes("503")) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "";
+    if (errorMessage.includes("429") || errorMessage.includes("503")) {
         console.warn("Trend Hunt Usage Limit. Switching to Mock Data.");
         return [
             {

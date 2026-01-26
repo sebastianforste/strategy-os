@@ -49,7 +49,14 @@ export async function searchCompetitorContent(
     const data = await response.json();
     if (!data.organic) return [];
 
-    return data.organic.map((item: any) => ({
+    interface SerperItem {
+      title: string;
+      link: string;
+      snippet: string;
+      date?: string;
+    }
+
+    return data.organic.map((item: SerperItem) => ({
       title: item.title,
       link: item.link,
       snippet: item.snippet,

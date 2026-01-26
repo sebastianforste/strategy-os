@@ -4,8 +4,8 @@
  */
 
 const LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization";
-const LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
-const LINKEDIN_API_URL = "https://api.linkedin.com/v2";
+// const LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
+// const LINKEDIN_API_URL = "https://api.linkedin.com/v2";
 
 export interface LinkedInConfig {
   clientId: string;
@@ -55,7 +55,7 @@ export function getLinkedInAuthUrl(clientId: string, redirectUri: string): strin
  * Mock function to simulate posting to LinkedIn
  * (Used when keys are set to 'demo' or actual API call fails)
  */
-export async function mockPostToLinkedIn(text: string): Promise<{ success: boolean; id: string }> {
+export async function mockPostToLinkedIn(text?: string): Promise<{ success: boolean; id: string }> {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve({

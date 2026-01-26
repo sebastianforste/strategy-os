@@ -27,14 +27,17 @@ export default function SettingsModal({
 }: SettingsModalProps) {
   const [keys, setKeys] = useState(initialKeys);
 
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [installPrompt, setInstallPrompt] = useState<unknown>(null);
 
   useEffect(() => {
-    setKeys(initialKeys);
+    const timer = setTimeout(() => {
+      setKeys(initialKeys);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [initialKeys]);
 
   useEffect(() => {
-    const handler = (e: any) => {
+    const handler = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e);
     };
@@ -44,8 +47,9 @@ export default function SettingsModal({
 
   const handleInstallClick = () => {
     if (!installPrompt) return;
-    installPrompt.prompt();
-    installPrompt.userChoice.then((choiceResult: any) => {
+    const prompt = installPrompt as { prompt: () => void, userChoice: Promise<{ outcome: string }> };
+    prompt.prompt();
+    prompt.userChoice.then((choiceResult) => {
       if (choiceResult.outcome === "accepted") {
         setInstallPrompt(null);
       }
@@ -82,7 +86,7 @@ export default function SettingsModal({
               </button>
             </div>
 
-            {installPrompt && (
+            {!!installPrompt && (
               <div className="mb-6 p-4 bg-neutral-900 border border-neutral-800 rounded-lg flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-white">Install App</h3>

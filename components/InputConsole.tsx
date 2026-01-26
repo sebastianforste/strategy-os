@@ -101,7 +101,6 @@ export default function InputConsole({
            {/* Voice Input Button */}
            <button
              onClick={() => {
-               // @ts-ignore
                if ('webkitSpeechRecognition' in window) {
                    // ... existing speech logic
                }

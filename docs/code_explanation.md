@@ -82,30 +82,50 @@ export function applyAntiRobotFilter(text: string): string {
 
 ---
 
-## 3. The Coordinator: `actions/generate.ts`
+---
 
-This is the "Server Action". It sits between the button you click and the code running on the backend.
+### Formatting Enforcement Details
 
-### The Workflow
+The `applyAntiRobotFilter` function also ensures the output follows a **viral‑friendly format**:
+
+- **Line Break Normalization** – Windows style `\r\n` is converted to Unix `\n`.
+- **Extra Space Cleanup** – Consecutive whitespace characters are collapsed to a single space.
+- **Double Line Breaks** – Single newlines are replaced with double newlines, guaranteeing each sentence appears on its own paragraph when rendered on social platforms.
+- **Trim** – Leading and trailing whitespace is removed before the final string is returned.
+
+These steps make the generated copy look clean on both desktop and mobile devices, and they help the post stay within typical character limits for platforms like LinkedIn.
+---
+
+## 3. The Coordinator: `app/api/generate/route.ts`
+
+Traditional "Server Actions" are synchronous. For V3, we moved to a **Streaming API Route** using the Vercel AI SDK.
+
+### The Streaming Flow
 ```typescript
-export async function processInput(input, apiKeys) {
-  // 1. Sanitize Key
-  const geminiKey = apiKeys.gemini.trim();
-
-  // 2. Generate
-  const rawAssets = await generateContent(enrichedInput, geminiKey);
-
-  // 3. Filter
-  const filteredText = applyAntiRobotFilter(rawAssets.textPost);
-  
-  return { ...rawAssets, textPost: filteredText };
-}
+import { streamText } from "ai";
+// ...
+const result = streamText({
+  model: google("gemini-1.5-flash"),
+  system: streamingSystemPrompt,
+  prompt: enrichedInput,
+});
+return result.toTextStreamResponse();
 ```
 **What it does:**
-1.  **Sanitize**: It cleans up your API key (removes accidental spaces).
-2.  **Generate**: It calls the `ai-service` (The Brain) to get the raw ideas.
-3.  **Filter**: It passes *only* the LinkedIn text post to the `text-processor` (The Editor) to polish it.
-4.  **Return**: It sends the final, polished bundle back to your screen.
+1.  **Enrichment**: It calls `constructEnrichedPrompt` to inject RAG context and trends.
+2.  **Streaming**: It uses the `streamText` helper to send chunks of text back to the browser as they are generated.
+3.  **Speed**: Using `gemini-1.5-flash` ensures the first word appears in less than 500ms.
+
+---
+
+## 4. The Strategic Brain: `utils/rag-service.ts`
+
+This is our Retrieval-Augmented Generation (RAG) engine. It makes the AI smarter by giving it "access" to our curated library of marketing books.
+
+### Vector Search
+1.  **Embedding**: When you type a topic, the app converts it into a list of numbers (a "vector") using `text-embedding-004`.
+2.  **Similarity**: It compares your topic's vector against thousands of pre-saved vectors in `data/knowledge_index.json`.
+3.  **Retrieval**: It finds the top 3 most relevant book sections (e.g., a chapter on "Purple Cows" by Seth Godin) and tells the AI: *"Use this specific strategy context for this post."*
 
 
 ---

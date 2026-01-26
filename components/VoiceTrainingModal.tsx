@@ -33,17 +33,11 @@ export default function VoiceTrainingModal({
   const [posts, setPosts] = useState<TrainingPost[]>([]);
   const [newPost, setNewPost] = useState("");
   const [bulkPosts, setBulkPosts] = useState("");
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<Awaited<ReturnType<typeof import("../utils/voice-training-service").getTrainingStats>> | null>(null);
   const [isTraining, setIsTraining] = useState(false);
   const [trainingModel, setTrainingModel] = useState<TrainingModel | null>(null);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"upload" | "manage">("upload");
-
-  useEffect(() => {
-    if (isOpen) {
-      loadData();
-    }
-  }, [isOpen]);
 
   const loadData = async () => {
     const [loadedPosts, loadedStats] = await Promise.all([
@@ -58,6 +52,15 @@ export default function VoiceTrainingModal({
     }
   };
 
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        loadData();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
   const handleAddSingle = async () => {
     setError("");
     const validation = validateTrainingPost(newPost);
@@ -71,8 +74,8 @@ export default function VoiceTrainingModal({
       await addTrainingPost(newPost, 'manual');
       setNewPost("");
       await loadData();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "An error occurred");
     }
   };
 
@@ -104,8 +107,8 @@ export default function VoiceTrainingModal({
       if (invalid > 0) {
         setError(`Added ${valid.length} posts. Skipped ${invalid} (too short).`);
       }
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "An error occurred");
     }
   };
 
@@ -155,15 +158,15 @@ export default function VoiceTrainingModal({
             setIsTraining(false);
             setError(updated.error || 'Training failed');
           }
-        } catch (e: any) {
-          console.error('Status check failed:', e);
+        } catch (e: unknown) {
+          console.error("Status check failed:", e);
         }
       }, 30000);
 
       // Save interval ID to clear on unmount
       return () => clearInterval(pollInterval);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "An error occurred");
       setIsTraining(false);
     }
   };

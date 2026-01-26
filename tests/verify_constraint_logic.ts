@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { verifyConstraints } = require("../utils/constraint-service");
 
 console.log("🧪 Running Constraint Service Logic Tests...");

@@ -78,9 +78,10 @@ export async function constructEnrichedPrompt(
     personaId: PersonaId,
     forceTrends: boolean,
     adapter: PlatformAdapter,
-    useRAG: boolean = true // Default ON
+    useRAG: boolean = true, // Default ON
+    useFewShot: boolean = true // New flag
 ): Promise<{ prompt: string; mode: string }> {
-    console.log(`[Prompt Construction] Persona: ${personaId}, Newsjack: ${forceTrends}, RAG: ${useRAG}, Platform: ${adapter.name}`);
+    console.log(`[Prompt Construction] Persona: ${personaId}, Newsjack: ${forceTrends}, RAG: ${useRAG}, FewShot: ${useFewShot}, Platform: ${adapter.name}`);
 
     // RAG RETRIEVAL (Strategy Concepts)
     let ragContext = "";
@@ -105,26 +106,30 @@ export async function constructEnrichedPrompt(
 
     // FEW-SHOT EXAMPLES (From user's best posts)
     let fewShotContext = "";
-    try {
-        // Import dynamically to avoid server/client issues
-        const { getTopRatedPosts } = await import("../utils/history-service");
-        const topPosts = getTopRatedPosts(personaId, 3);
-        if (topPosts.length > 0) {
-            fewShotContext = `
-            YOUR BEST PERFORMING POSTS (Write in this exact style):
-            ${topPosts.map((p, i) => `
-            Example ${i + 1} (Rated ${p.performance?.rating}):
-            """
-            ${p.assets.textPost.substring(0, 500)}${p.assets.textPost.length > 500 ? '...' : ''}
-            """
-            `).join("\n")}
-            
-            MIMIC THIS VOICE AND STRUCTURE.
-            `;
-            console.log(`[Few-Shot] Injected ${topPosts.length} examples.`);
+    if (useFewShot) {
+        try {
+            // Import dynamically to avoid server/client issues
+            const { getTopRatedPosts } = await import("../utils/history-service");
+            const topPosts = getTopRatedPosts(personaId, 3);
+            if (topPosts.length > 0) {
+                fewShotContext = `
+                YOUR BEST PERFORMING POSTS (Write in this exact style):
+                ${topPosts.map((p, i) => `
+                Example ${i + 1} (Rated ${p.performance?.rating}):
+                """
+                ${p.assets.textPost.substring(0, 500)}${p.assets.textPost.length > 500 ? '...' : ''}
+                """
+                `).join("\n")}
+                
+                MIMIC THIS VOICE AND STRUCTURE.
+                `;
+                console.log(`[Few-Shot] Injected ${topPosts.length} examples.`);
+            }
+        } catch (e) {
+            console.warn("[Few-Shot] Failed to retrieve examples:", e);
         }
-    } catch (e) {
-        console.warn("[Few-Shot] Failed to retrieve examples:", e);
+    } else {
+        console.log("[Few-Shot] Skipped by user.");
     }
 
     let enrichedInput = input;
@@ -140,7 +145,7 @@ export async function constructEnrichedPrompt(
         enrichedInput = `
         ${platformInstr}
         ${ragContext}
-        ${fewShotContext}
+        ${useFewShot ? fewShotContext : ""}
 
         MODE: THE TRANSLATOR (Document/URL Analysis)
         INPUT SOURCE: ${input}
@@ -214,7 +219,8 @@ export async function processInput(
   apiKeys: { gemini: string; serper?: string; openai?: string },
   personaId: PersonaId = "cso",
   forceTrends: boolean = false,
-  platform: "linkedin" | "twitter" = "linkedin"
+  platform: "linkedin" | "twitter" = "linkedin",
+  useFewShot: boolean = true // New flag
 ): Promise<GeneratedAssets> { // GeneratedAssets is { textPost, imagePrompt, videoScript, imageUrl? }
   if (!input) throw new Error("Input required");
   if (!apiKeys.gemini) throw new Error("Gemini API Key required");
@@ -231,7 +237,9 @@ export async function processInput(
       geminiKey, 
       personaId, 
       forceTrends, 
-      adapter
+      adapter,
+      true, // useRAG default
+      useFewShot
   );
 
   // 2. AI Generation

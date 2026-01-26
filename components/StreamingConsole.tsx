@@ -1,5 +1,5 @@
 
-import { useCompletion } from "ai/react";
+import { useCompletion } from "@ai-sdk/react";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, UserCircle2, Square, Linkedin, Twitter, Brain, Zap, Sparkles } from "lucide-react";
@@ -19,8 +19,11 @@ interface StreamingConsoleProps {
   setUseNewsjack: (val: boolean) => void;
   useRAG: boolean;
   setUseRAG: (val: boolean) => void;
+  useFewShot: boolean;
+  setUseFewShot: (val: boolean) => void;
   platform: "linkedin" | "twitter";
   setPlatform: (val: "linkedin" | "twitter") => void;
+  onError?: (msg: string) => void;
 }
 
 export default function StreamingConsole({
@@ -33,41 +36,37 @@ export default function StreamingConsole({
   setUseNewsjack,
   useRAG,
   setUseRAG,
+  useFewShot,
+  setUseFewShot,
   platform,
-  setPlatform
+  setPlatform,
+  onError
 }: StreamingConsoleProps) {
   const [input, setInput] = useState(initialValue);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Debounced suggestion fetching
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    
-    if (input.length >= 5 && input.length < 100 && !input.includes("\n") && apiKeys.gemini) {
-      debounceRef.current = setTimeout(async () => {
-        setIsLoadingSuggestions(true);
+    const timer = setTimeout(async () => {
+      if (input.length >= 5 && input.length < 100 && !input.includes("\n") && apiKeys.gemini) {
         try {
           const results = await getSuggestions(input, apiKeys.gemini);
           setSuggestions(results);
           setShowSuggestions(results.length > 0);
         } catch (e) {
           console.error("Suggestions failed:", e);
-        } finally {
-          setIsLoadingSuggestions(false);
         }
-      }, 800);
-    } else {
-      setSuggestions([]);
-      setShowSuggestions(false);
-    }
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 800);
+    
+    debounceRef.current = timer;
+    return () => clearTimeout(timer);
   }, [input, apiKeys.gemini]);
 
   const handleSelectSuggestion = (angle: string) => {
@@ -83,14 +82,20 @@ export default function StreamingConsole({
         personaId,
         forceTrends: useNewsjack,
         useRAG, // Pass the new flag
+        useFewShot, // Pass few-shot flag
         platform
     },
-    onFinish: (prompt, result) => {
+    onFinish: (_prompt: string, result: string) => {
         onGenerationComplete(result);
     },
-    onError: (err) => {
+    onError: (err: unknown) => {
         console.error("Streaming Error:", err);
-        alert("Streaming failed. Check console.");
+        const msg = err instanceof Error ? err.message : "Streaming failed";
+        if (onError) {
+          onError(msg);
+        } else {
+          alert(msg);
+        }
     }
   });
 
@@ -174,6 +179,15 @@ export default function StreamingConsole({
                 >
                     <Brain className="w-3 h-3" />
                     Strategy Brain
+                </button>
+
+                {/* Mirroring Toggle */}
+                <button 
+                    onClick={() => setUseFewShot(!useFewShot)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${useFewShot ? "bg-amber-900/30 text-amber-400 border border-amber-900" : "bg-neutral-900 text-neutral-500 border border-neutral-800 hover:border-neutral-700"}`}
+                >
+                    <Sparkles className="w-3 h-3" />
+                    Mirroring
                 </button>
              </div>
              

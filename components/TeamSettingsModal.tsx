@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Users, Mail, Shield, UserPlus } from "lucide-react";
+import { X, Users, Mail, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { getWorkspaces, getActiveWorkspaceId, addMember } from "../utils/workspace-service";
 

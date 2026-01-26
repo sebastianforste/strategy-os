@@ -237,10 +237,11 @@ export async function startFineTuning(apiKey: string, modelName: string): Promis
     });
 
     return model;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error during fine-tuning";
     await updateTrainingModel(model.id, {
       status: 'failed',
-      error: error.message,
+      error: errorMessage,
     });
     throw error;
   }

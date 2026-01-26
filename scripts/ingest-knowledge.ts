@@ -67,7 +67,7 @@ async function ingest() {
                     });
                      process.stdout.write(".");
                 }
-            } catch (e) {
+            } catch {
                 console.error(`Failed to embed chunk in ${file}`);
             }
         }

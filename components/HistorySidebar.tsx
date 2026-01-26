@@ -3,7 +3,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Clock, Trash2, TrendingUp, ThumbsUp, Meh, ThumbsDown } from "lucide-react";
 import { HistoryItem, PerformanceRating, updateHistoryPerformance } from "../utils/history-service";
-import { useState } from "react";
 
 interface HistorySidebarProps {
   isOpen: boolean;
@@ -22,7 +21,6 @@ export default function HistorySidebar({
   onClear,
   onRatingChange,
 }: HistorySidebarProps) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const handleRate = (itemId: string, rating: Exclude<PerformanceRating, null>, e: React.MouseEvent) => {
     e.stopPropagation();

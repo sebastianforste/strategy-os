@@ -19,9 +19,13 @@ export default function WorkspaceSwitcher() {
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
 
   useEffect(() => {
-    // Initial load
-    setWorkspaces(getWorkspaces());
-    setActiveId(getActiveWorkspaceId());
+    // Initial load - deferred to avoid synchronous setState inside effect warning 
+    // and possible hydration mismatches in Next.js
+    const timer = setTimeout(() => {
+        setWorkspaces(getWorkspaces());
+        setActiveId(getActiveWorkspaceId());
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleSwitch = (id: string) => {

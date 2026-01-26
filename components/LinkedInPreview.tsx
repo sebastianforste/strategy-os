@@ -13,7 +13,6 @@ export default function LinkedInPreview({
   content,
   authorName = "Sebastian Forster",
   authorTitle = "Founder & CEO | Helping leaders communicate strategy",
-  authorImage,
 }: LinkedInPreviewProps) {
   // Process content for LinkedIn-style formatting
   const formatContent = (text: string) => {

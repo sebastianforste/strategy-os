@@ -14,7 +14,7 @@ export function transformTextToSlides(text: string, handle: string = "@StrategyO
 
   // Slide 1: Cover (Hook)
   // Usually the first paragraph or the first sentence if the paragraph is long
-  let hook = paragraphs[0];
+  const hook = paragraphs[0];
   const remainingParagraphs = paragraphs.slice(1);
   
   slides.push({
@@ -24,7 +24,7 @@ export function transformTextToSlides(text: string, handle: string = "@StrategyO
   });
 
   // Middle Slides: Content
-  remainingParagraphs.forEach((para, index) => {
+  remainingParagraphs.forEach((para) => {
     // If paragraph is very long (> 200 chars), split it further? 
     // For now, keep it simple.
     

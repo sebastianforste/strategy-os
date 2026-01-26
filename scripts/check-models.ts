@@ -1,5 +1,5 @@
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+
 
 const key = "AIzaSyCjdqsYkIJEcQEi9LRV4H0v_GwXtjUeNSg";
 
@@ -12,7 +12,11 @@ async function list() {
       
       if (data.models) {
           console.log("AVAILABLE MODELS:");
-          data.models.forEach((m: any) => {
+          interface ModelInfo {
+            name: string;
+            supportedGenerationMethods: string[];
+          }
+          data.models.forEach((m: ModelInfo) => {
              console.log(`- ${m.name}`);
              console.log(`  Methods: ${m.supportedGenerationMethods}`);
           });
@@ -20,8 +24,8 @@ async function list() {
           console.error("No models found:", data);
       }
 
-  } catch(e) {
-      console.error("Error:", e);
+  } catch {
+      console.error("Error: Fetching models failed.");
   }
 }
 

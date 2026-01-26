@@ -11,10 +11,9 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  experimental: {
-    turbopack: false
-  },
+  experimental: {},
   transpilePackages: ["@react-pdf/renderer"],
+  turbopack: {}, // Silence warning: app works under Turbopack with no custom config
   webpack: (config) => {
     config.resolve.alias.canvas = false;
     return config;

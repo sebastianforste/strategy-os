@@ -19,9 +19,12 @@ export default function PDFDownloadButton({ document, fileName }: PDFDownloadBut
   return (
     <div className="bg-white text-black px-4 py-2 rounded-lg font-bold text-xs hover:bg-neutral-200 transition-colors flex items-center gap-2 cursor-pointer">
       <Download className="w-4 h-4" />
-      <PDFDownloadLink document={document} fileName={fileName}>
-        {/* @ts-ignore */}
-        {({ loading }) => (loading ? "GENERATING..." : "DOWNLOAD PDF")}
+      <PDFDownloadLink 
+        // @ts-expect-error - React-PDF types are outdated for Document prop
+        document={document} 
+        fileName={fileName}
+      >
+        {({ loading }: { loading: boolean }) => (loading ? "GENERATING..." : "DOWNLOAD PDF")}
       </PDFDownloadLink>
     </div>
   );

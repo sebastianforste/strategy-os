@@ -9,30 +9,29 @@ import AnalyticsDashboard from "../components/AnalyticsDashboard";
 import GlitchLogo from "../components/GlitchLogo";
 import Toast, { ToastType } from "../components/Toast";
 import VoiceTrainingModal from "../components/VoiceTrainingModal";
-import { processInput } from "../actions/generate";
 import WorkspaceSwitcher from "../components/WorkspaceSwitcher";
 import TeamSettingsModal from "../components/TeamSettingsModal";
-import { Settings as SettingsIcon, Clock, Mic, BarChart3, Users } from "lucide-react";
+import ScheduleCalendar from "../components/ScheduleCalendar";
+import { Settings as SettingsIcon, Clock, Mic, BarChart3, Users, Calendar } from "lucide-react";
 import { GeneratedAssets } from "../utils/ai-service";
 import { saveHistory, getHistory, clearHistory, HistoryItem, updateHistoryPerformance, PerformanceRating } from "../utils/history-service";
 import { PersonaId } from "../utils/personas";
-import { predictVirality } from "../utils/analytics-service";
 
 export default function Home() {
   const [input, setInput] = useState("");
   const [assets, setAssets] = useState<GeneratedAssets | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [voiceTrainingOpen, setVoiceTrainingOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKeys>({ gemini: "", serper: "", openai: "" });
   const [personaId, setPersonaId] = useState<PersonaId>("cso");
-  const [viralityScore, setViralityScore] = useState(0);
   const [teamSettingsOpen, setTeamSettingsOpen] = useState(false);
   const [useNewsjack, setUseNewsjack] = useState(false);
   const [useRAG, setUseRAG] = useState(true);
+  const [useFewShot, setUseFewShot] = useState(true);
   const [platform, setPlatform] = useState<"linkedin" | "twitter">("linkedin");
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
   
@@ -51,7 +50,7 @@ export default function Home() {
     setToast((prev) => ({ ...prev, isVisible: false }));
   };
 
-  // Load keys and history on mount
+  // Load keys and history on mount (Hydration-safe)
   useEffect(() => {
     const savedGemini = localStorage.getItem("strategyos_gemini_key");
     const savedSerper = localStorage.getItem("strategyos_serper_key");
@@ -91,25 +90,7 @@ export default function Home() {
     showToast("Configuration saved.", "success");
   };
 
-  const handleGenerate = async () => {
-      // Legacy server action handler (if needed, but we use streaming mostly now)
-      // Keeping it for completeness or fallback
-      if (!apiKeys.gemini) { setSettingsOpen(true); return; }
-      setIsGenerating(true);
-      setAssets(null);
-      try {
-          const result = await processInput(input, apiKeys, personaId, useNewsjack);
-          setAssets(result);
-          const newId = saveHistory(input, result, personaId);
-          setCurrentHistoryId(newId);
-          setHistory(getHistory());
-          showToast("Assets generated.", "success");
-      } catch (e: any) {
-          showToast(e.message, "error");
-      } finally {
-          setIsGenerating(false);
-      }
-  };
+  // handleGenerate removed as it was unused (replaced by streaming)
 
   const handleStreamingComplete = (text: string) => {
       const generatedAssets = { textPost: text, imagePrompt: "", videoScript: "" };
@@ -181,6 +162,13 @@ export default function Home() {
             <span className="hidden md:inline">History</span>
             </button>
             <button
+            onClick={() => setScheduleOpen(true)}
+            className="text-neutral-500 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium"
+            >
+            <Calendar className="w-5 h-5" />
+            <span className="hidden md:inline">Schedule</span>
+            </button>
+            <button
             onClick={() => setTeamSettingsOpen(true)}
             className="text-neutral-500 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium"
             >
@@ -209,8 +197,11 @@ export default function Home() {
           setUseNewsjack={setUseNewsjack}
           useRAG={useRAG}
           setUseRAG={setUseRAG}
+          useFewShot={useFewShot}
+          setUseFewShot={setUseFewShot}
           platform={platform}
           setPlatform={setPlatform}
+          onError={(msg) => showToast(msg, "error")}
         />
 
         {assets && (
@@ -253,7 +244,7 @@ export default function Home() {
         isOpen={voiceTrainingOpen}
         onClose={() => setVoiceTrainingOpen(false)}
         openaiKey={apiKeys.openai || ""}
-        onTrainingComplete={(modelId) => {
+        onTrainingComplete={() => {
           showToast(`Voice training complete! Model ready.`, "success");
           setVoiceTrainingOpen(false);
         }}
@@ -262,6 +253,11 @@ export default function Home() {
       <TeamSettingsModal
         isOpen={teamSettingsOpen}
         onClose={() => setTeamSettingsOpen(false)}
+      />
+
+      <ScheduleCalendar
+        isOpen={scheduleOpen}
+        onClose={() => setScheduleOpen(false)}
       />
 
       <Toast 

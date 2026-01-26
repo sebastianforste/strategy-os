@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Search, FileText, Plus, Trash2, ArrowRight } from "lucide-react";
+import { Search, FileText, Plus, Trash2, ArrowRight } from "lucide-react";
 import { Template, getTemplates, deleteTemplate, extractVariables, fillTemplate } from "../utils/template-service";
 
 interface TemplateLibraryModalProps {
@@ -15,17 +15,20 @@ export default function TemplateLibraryModal({ isOpen, onClose, onSelect }: Temp
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [fillerValues, setFillerValues] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (isOpen) {
-      loadTemplates();
-      setSelectedTemplate(null);
-      setFillerValues({});
-    }
-  }, [isOpen]);
-
   const loadTemplates = () => {
     setTemplates(getTemplates().sort((a, b) => b.createdAt - a.createdAt));
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        loadTemplates();
+        setSelectedTemplate(null);
+        setFillerValues({});
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();

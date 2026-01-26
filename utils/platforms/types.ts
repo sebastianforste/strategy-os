@@ -1,5 +1,5 @@
 
-import { GeneratedAssets } from "../../utils/ai-service";
+
 
 export interface ValidationResult {
     isValid: boolean;
