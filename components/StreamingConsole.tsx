@@ -15,6 +15,9 @@ import ReactMarkdown from "react-markdown";
 import LinkedInPreview from "./previews/LinkedInPreview";
 import TwitterPreview from "./previews/TwitterPreview";
 import SkeletonLoader from "./SkeletonLoader";
+import SwotWidget, { SwotData } from "./widgets/SwotWidget";
+import TrendWidget, { TrendData } from "./widgets/TrendWidget";
+import { extractWidgets } from "../utils/widget-parser";
 
 interface StreamingConsoleProps {
   initialValue: string;
@@ -292,25 +295,53 @@ export default function StreamingConsole({
 
                   {!localError && (
                       <div className="space-y-6">
-                        {/* Native-style Preview Card with Cinematic Entrance */}
-                        <div className="flex justify-center py-2">
-                             <AnimatePresence mode="wait">
-                                 <motion.div
-                                    key={platform} // Animate when platform switches
-                                    initial={{ opacity: 0, scale: 0.95, filter: "blur(10px)" }}
-                                    animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                                    exit={{ opacity: 0, scale: 0.95, filter: "blur(10px)" }}
-                                    transition={{ duration: 0.5, ease: "circOut" }}
-                                    className="w-full flex justify-center"
-                                 >
-                                     {platform === 'linkedin' ? (
-                                        <LinkedInPreview content={completion} />
-                                     ) : (
-                                        <TwitterPreview content={completion} />
-                                     )}
-                                 </motion.div>
-                             </AnimatePresence>
-                        </div>
+                        {/* Widget Parsing */}
+                        {(() => {
+                            const { cleanContent, widgets } = extractWidgets(completion);
+                            
+                            return (
+                                <>
+                                    {/* Native-style Preview Card with Cinematic Entrance */}
+                                    <div className="flex justify-center py-2">
+                                        <AnimatePresence mode="wait">
+                                            <motion.div
+                                                key={platform}
+                                                initial={{ opacity: 0, scale: 0.95, filter: "blur(10px)" }}
+                                                animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                                                exit={{ opacity: 0, scale: 0.95, filter: "blur(10px)" }}
+                                                transition={{ duration: 0.5, ease: "circOut" }}
+                                                className="w-full flex justify-center"
+                                            >
+                                                {platform === 'linkedin' ? (
+                                                    <LinkedInPreview content={cleanContent} />
+                                                ) : (
+                                                    <TwitterPreview content={cleanContent} />
+                                                )}
+                                            </motion.div>
+                                        </AnimatePresence>
+                                    </div>
+                                    
+                                    {/* Widgets Area */}
+                                    <AnimatePresence>
+                                        {widgets.map((widget, idx) => (
+                                            <motion.div
+                                                key={`widget-${idx}`}
+                                                initial={{ opacity: 0, y: 20 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ delay: 0.2 * idx }}
+                                            >
+                                                {widget.type === 'swot' && (
+                                                    <SwotWidget data={widget.data as SwotData} />
+                                                )}
+                                                {widget.type === 'trend' && (
+                                                    <TrendWidget data={widget.data as TrendData} />
+                                                )}
+                                            </motion.div>
+                                        ))}
+                                    </AnimatePresence>
+                                </>
+                            );
+                        })()}
                         
                         {isLoading && completion && (
                             <div className="flex justify-center">

@@ -248,3 +248,57 @@ export async function generateSideAssetsFromText(
     };
   }
 }
+
+/**
+ * GENERATE COMMENT
+ * ----------------
+ * Generates a reply/comment to a specific post based on a selected tone.
+ * Now takes personaId to maintain consistent voice across StrategyOS.
+ */
+export async function generateComment(
+  postContent: string,
+  tone: string,
+  apiKey: string,
+  personaId: PersonaId = "cso"
+): Promise<string> {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const persona = PERSONAS[personaId];
+    const personaContext = persona?.basePrompt || "";
+
+    const prompt = `
+        ACT AS: ${persona?.name || "Strategist"}
+        CONTEXT: ${personaContext}
+        
+        TASK:
+        You are NOT creating a new post. You are RESPONDING to someone else's post.
+        Your goal is to be the "Smartest Person in the Comments" while maintaining the StrategyOS voice.
+        
+        POST CONTENT TO REPLY TO:
+        """
+        ${postContent}
+        """
+        
+        COMMENT TONE/GOAL: ${tone}
+        
+        GUIDELINES FOR A REPLIER:
+        1. ACKNOWLEDGE: Briefly acknowledge a specific point from the post (don't just say "Great post").
+        2. ADD VALUE: Provide a strategic pivot, a contrarian angle, or a clarifying framework that the author missed.
+        3. INTERACT: Treat the author as a peer. Challenge them or support them with logic.
+        4. BREVITY: Keep it under 50 words. No "I hope this helps" or fluff.
+        5. NO ROBOT SPEAK: Follow the "Anti-Robot Filter" (No 'Delve', 'Unleash', 'Game-changer').
+        
+        The comment should feel like it's part of a high-level executive conversation.
+        
+        COMMENT:
+    `;
+
+    try {
+        const result = await model.generateContent(prompt);
+        return result.response.text().trim();
+    } catch (e) {
+        console.error("Comment generation failed:", e);
+        return "Error generating comment. Please try again.";
+    }
+}

@@ -13,7 +13,8 @@ import WorkspaceSwitcher from "../components/WorkspaceSwitcher";
 import TeamSettingsModal from "../components/TeamSettingsModal";
 import ScheduleCalendar from "../components/ScheduleCalendar";
 import GhostInboxModal from "../components/GhostInboxModal";
-import { Settings as SettingsIcon, Clock, Mic, BarChart3, Users, Calendar, Ghost, Activity } from "lucide-react";
+import CommentGeneratorModal from "../components/CommentGeneratorModal";
+import { Settings as SettingsIcon, Clock, Mic, BarChart3, Users, Calendar, Ghost, Activity, MessageSquare } from "lucide-react";
 import { GeneratedAssets } from "../utils/ai-service";
 import { saveHistory, getHistory, clearHistory, HistoryItem, updateHistoryPerformance, PerformanceRating } from "../utils/history-service";
 import { PersonaId } from "../utils/personas";
@@ -21,6 +22,7 @@ import { GhostDraft } from "../utils/ghost-agent";
 import BoardroomModal from "../components/BoardroomModal";
 import CouncilModal from "../components/CouncilModal";
 import SimulatorModal from "../components/SimulatorModal";
+import VoiceConversationModal from "../components/VoiceConversationModal";
 
 export default function Home() {
   const [input, setInput] = useState("");
@@ -31,9 +33,11 @@ export default function Home() {
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [ghostOpen, setGhostOpen] = useState(false);
+  const [commentGenOpen, setCommentGenOpen] = useState(false);
   const [boardroomOpen, setBoardroomOpen] = useState(false);
   const [councilOpen, setCouncilOpen] = useState(false);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
+  const [voiceModeOpen, setVoiceModeOpen] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKeys>({ gemini: "", serper: "" });
   const [personaId, setPersonaId] = useState<PersonaId>("cso");
@@ -260,6 +264,14 @@ export default function Home() {
             <span className="hidden md:inline">Ghost Agent</span>
             </button>
             <button
+            onClick={() => setCommentGenOpen(true)}
+            className="text-blue-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-bold bg-blue-500/10 px-3 py-1.5 rounded-full border border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.2)]"
+            aria-label="Comment Gen"
+            >
+            <MessageSquare className="w-4 h-4" />
+            <span className="hidden md:inline">Reply</span>
+            </button>
+            <button
             onClick={() => setBoardroomOpen(true)}
             className="text-indigo-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-bold bg-indigo-500/10 px-3 py-1.5 rounded-full border border-indigo-500/20 shadow-[0_0_10px_rgba(99,102,241,0.2)] mr-2"
             aria-label="Boardroom"
@@ -317,6 +329,15 @@ export default function Home() {
             >
             <Calendar className="w-5 h-5" />
             <span className="hidden md:inline">Schedule</span>
+            </button>
+            <button
+            onClick={() => setVoiceModeOpen(true)}
+            className="text-white hover:text-white transition-all flex items-center gap-2 text-sm font-bold bg-gradient-to-r from-blue-500/20 to-purple-500/20 px-4 py-1.5 rounded-full border border-blue-400/30 shadow-[0_0_15px_rgba(59,130,246,0.3)] animate-pulse hover:animate-none"
+            title="Chat with StrategyOS"
+            aria-label="Voice Mode"
+            >
+            <Mic className="w-4 h-4" />
+            <span className="hidden md:inline">Conversation</span>
             </button>
             <button
             onClick={() => setTeamSettingsOpen(true)}
@@ -419,6 +440,13 @@ export default function Home() {
         onLoadDraft={handleLoadDraft}
       />
 
+      <CommentGeneratorModal
+        isOpen={commentGenOpen}
+        onClose={() => setCommentGenOpen(false)}
+        apiKey={apiKeys.gemini}
+        personaId={personaId}
+      />
+
       <BoardroomModal
         isOpen={boardroomOpen}
         onClose={() => setBoardroomOpen(false)}
@@ -438,6 +466,11 @@ export default function Home() {
       <SimulatorModal
         isOpen={simulatorOpen}
         onClose={() => setSimulatorOpen(false)}
+        apiKey={apiKeys.gemini}
+      />
+      <VoiceConversationModal
+        isOpen={voiceModeOpen}
+        onClose={() => setVoiceModeOpen(false)}
         apiKey={apiKeys.gemini}
       />
     </main>

@@ -152,10 +152,47 @@ export async function constructEnrichedPrompt(
     // PREPEND PLATFORM INSTRUCTIONS
     const platformInstr = adapter.getAIInstructions();
 
+    const widgetInstructions = `
+    GENERATIVE UI WIDGETS:
+    You have access to specialized UI widgets. If the topic allows for strategic analysis or trend data, YOU MUST include one of these at the end of your response as a JSON block (wrapped in \`\`\`json).
+
+    1. SWOT Analysis (Use for strategic breakdown):
+    \`\`\`json
+    {
+      "type": "swot",
+      "data": {
+        "strengths": ["..."],
+        "weaknesses": ["..."],
+        "opportunities": ["..."],
+        "threats": ["..."]
+      }
+    }
+    \`\`\`
+
+    2. Trend Chart (Use for data visualization/growth):
+    \`\`\`json
+    {
+      "type": "trend",
+      "data": {
+        "title": "Topic Interest Over Time",
+        "data": [
+            { "label": "Q1", "value": 20 },
+            { "label": "Q2", "value": 45, "growth": "+125%" },
+            { "label": "Q3", "value": 80, "growth": "+77%" }
+        ],
+        "insight": "Brief 1-sentence insight about the trend."
+      }
+    }
+    \`\`\`
+
+    RULE: Do NOT mention the widget in the text. Just append the JSON block at the very end.
+    `;
+
     if (hasUrl) {
         mode = "Translator";
         enrichedInput = `
         ${platformInstr}
+        ${widgetInstructions}
         ${ragContext}
         ${fewShotContext}
         ${rlhfSection}
@@ -181,6 +218,7 @@ export async function constructEnrichedPrompt(
                     const primaryTrend = trends[0];
                     enrichedInput = `
                     ${platformInstr}
+                    ${widgetInstructions}
                     ${ragContext}
                     ${fewShotContext}
                     ${rlhfSection}
@@ -200,6 +238,7 @@ export async function constructEnrichedPrompt(
                 console.warn("Trend hunting failed or skipped:", e);
                 enrichedInput = `
                     ${platformInstr}
+                    ${widgetInstructions}
                     ${ragContext}
                     ${fewShotContext}
                     ${rlhfSection}
@@ -214,6 +253,7 @@ export async function constructEnrichedPrompt(
         } else {
             enrichedInput = `
                 ${platformInstr}
+                ${widgetInstructions}
                 ${ragContext}
                 ${fewShotContext}
                 ${rlhfSection}
