@@ -7,6 +7,9 @@ export interface Explanation {
   reason: string;
 }
 
+const PRIMARY_MODEL = "gemini-flash-latest";
+const FALLBACK_MODEL = "gemini-1.5-flash";
+
 /**
  * Analyzes a post and explains why it will perform well.
  */
@@ -16,9 +19,6 @@ export async function explainPost(
 ): Promise<Explanation[]> {
   if (!post.trim()) return [];
   if (!geminiKey) return [];
-
-  const genAI = new GoogleGenerativeAI(geminiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const prompt = `You are a LinkedIn content strategist. Analyze this post and identify 2-3 specific persuasion patterns that make it effective.
 
@@ -39,16 +39,32 @@ RESPOND AS JSON ARRAY:
 
 ONLY return the JSON array. No markdown.`;
 
-  try {
-    const response = await model.generateContent(prompt);
-    const text = response.response.text() || "";
-    
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
+  async function tryWithModel(modelName: string): Promise<Explanation[] | null> {
+    try {
+      const genAI = new GoogleGenerativeAI(geminiKey);
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const response = await model.generateContent(prompt);
+      const text = response.response.text() || "";
+      
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) return [];
 
-    return JSON.parse(jsonMatch[0]) as Explanation[];
-  } catch (e) {
-    console.error("[Explainer] Failed:", e);
-    return [];
+      return JSON.parse(jsonMatch[0]) as Explanation[];
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : "";
+      if (errorMessage.includes("429") || errorMessage.includes("Quota") || errorMessage.includes("quota")) {
+        console.warn(`[Explainer] Rate limit on ${modelName}, will try fallback`);
+        return null; // Signal fallback
+      }
+      console.error("[Explainer] Failed:", e);
+      return [];
+    }
   }
+
+  // Try primary, fallback on rate limit
+  let result = await tryWithModel(PRIMARY_MODEL);
+  if (result === null) {
+    result = await tryWithModel(FALLBACK_MODEL);
+  }
+  return result || [];
 }

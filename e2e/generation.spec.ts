@@ -1,32 +1,34 @@
 import { test, expect } from '@playwright/test';
 
-test('has title', async ({ page }) => {
-  await page.goto('http://localhost:3000/');
+test.describe('Content Generation Flow', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+        localStorage.setItem('strategyos_gemini_key', 'mock_gemini_key');
+        localStorage.setItem('strategyos_serper_key', 'mock_serper_key');
+    });
+    await page.goto('/');
+  });
 
-  // Expect a title "to contain" a substring.
-  await expect(page).toHaveTitle(/Strategy OS/);
-});
+  test('has title', async ({ page }) => {
+    await expect(page).toHaveTitle(/StrategyOS/);
+  });
 
-test('generation flow ui check', async ({ page }) => {
-  await page.goto('http://localhost:3000/');
+  test('generation UI elements are present', async ({ page }) => {
+    // Check Input
+    const textarea = page.getByPlaceholder(/What strategy do you want to build today|Paste high-complexity input/i);
+    await expect(textarea).toBeVisible();
 
-  // Check if Input Console is visible (TextArea placeholder)
-  const textarea = page.getByPlaceholder('Paste high-complexity input here...');
-  await expect(textarea).toBeVisible();
+    // Check Generate Button (using the text from StreamingConsole.tsx)
+    const button = page.getByRole('button', { name: /INITIATE SEQUENCE/i });
+    await expect(button).toBeVisible();
+    await expect(button).toBeDisabled(); // Should be disabled when input is empty
+  });
 
-  // Type something
-  await textarea.fill('Testing Playwright Automation');
-
-  // Check generate button
-  const button = page.getByRole('button', { name: 'GENERATE STREAM' });
-  await expect(button).toBeEnabled();
-
-  // Click it
-  // Note: We won't actually wait for full generation as it costs API credits/time
-  // but we can check if it triggers "STOP" button or similar UI change
-  await button.click();
-
-  // Expect button to change or loading state
-  // const stopButton = page.getByRole('button', { name: 'STOP' });
-  // await expect(stopButton).toBeVisible();
+  test('should enable button when input is provided', async ({ page }) => {
+    const textarea = page.getByPlaceholder(/What strategy do you want to build today|Paste high-complexity input/i);
+    await textarea.fill('Test Strategy Input');
+    
+    const button = page.getByRole('button', { name: /INITIATE SEQUENCE/i });
+    await expect(button).toBeEnabled();
+  });
 });

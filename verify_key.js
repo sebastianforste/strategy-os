@@ -24,7 +24,7 @@ async function verify() {
   
   const genAI = new GoogleGenerativeAI(key);
   const model = genAI.getGenerativeModel({ 
-    model: "models/gemini-3-flash-preview",
+    model: "gemini-flash-latest",
     systemInstruction: SYSTEM_PROMPT
   });
 

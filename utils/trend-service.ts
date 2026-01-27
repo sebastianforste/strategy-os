@@ -70,6 +70,9 @@ export async function searchCompetitorContent(
   }
 }
 
+const PRIMARY_MODEL = "gemini-flash-latest";
+const FALLBACK_MODEL = "gemini-1.5-flash";
+
 /**
  * TREND REPORT GENERATOR
  * ----------------------
@@ -84,11 +87,6 @@ export async function generateTrendReport(
   topic: string,
   apiKey: string
 ): Promise<TrendReport> {
-  const genAI = new GoogleGenerativeAI(apiKey);
-  // Using gemini-1.5-flash for speed/cost or gemini-3.0-flash if preferred, 
-  // keeping consistent with ai-service which uses gemini-3-flash-preview.
-  const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
-
   const prompt = `
     Analyze the topic: "${topic}" from a business strategy perspective.
     Generate a 3-part deep dive report in JSON format:
@@ -101,20 +99,40 @@ export async function generateTrendReport(
     Values should be plain strings.
   `;
 
-  try {
-    const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" }
-    });
-    
-    const text = result.response.text();
-    return JSON.parse(text);
-  } catch (e) {
-    console.error("Deep dive generation failed:", e);
-    return {
-        mainstreamView: "Analysis unavailable.",
-        contrarianAngle: "Try again later.",
-        underratedInsight: "Service disruption."
-    };
+  async function tryWithModel(modelName: string): Promise<TrendReport | null> {
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json" }
+      });
+      
+      const text = result.response.text();
+      return JSON.parse(text);
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : "";
+      if (errorMessage.includes("429") || errorMessage.includes("Quota") || errorMessage.includes("quota")) {
+        console.warn(`[TrendReport] Rate limit on ${modelName}, will try fallback`);
+        return null; // Signal fallback
+      }
+      console.error("Deep dive generation failed:", e);
+      return {
+          mainstreamView: "Analysis unavailable.",
+          contrarianAngle: "Try again later.",
+          underratedInsight: "Service disruption."
+      };
+    }
   }
+
+  // Try primary, fallback on rate limit
+  let result = await tryWithModel(PRIMARY_MODEL);
+  if (result === null) {
+    result = await tryWithModel(FALLBACK_MODEL);
+  }
+  return result || {
+      mainstreamView: "Analysis unavailable.",
+      contrarianAngle: "Try again later.",
+      underratedInsight: "Service disruption."
+  };
 }

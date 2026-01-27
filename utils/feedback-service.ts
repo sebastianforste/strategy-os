@@ -1,76 +1,128 @@
+/**
+ * FEEDBACK SERVICE - RLHF Learning Loop
+ * 
+ * This service connects user ratings to AI generation, creating a feedback loop
+ * where the AI learns from your preferences over time.
+ */
 
-import { getHistory } from "./history-service";
-import { PERSONAS } from "./personas";
+import { getHistory, HistoryItem } from "./history-service";
 
-export interface PersonaStats {
-  id: string;
-  name: string;
-  totalPosts: number;
-  successRate: number; // Percentage of "good" or "viral"
-  viralCount: number;
+const BLACKLIST_KEY = "strategyos_blacklist";
+
+/**
+ * Get highly-rated posts as positive examples for few-shot learning
+ */
+export function getPositiveExamples(limit: number = 3): string[] {
+  const history = getHistory();
+  
+  const highlyRated = history
+    .filter(item => item.performance?.rating === "viral" || item.performance?.rating === "good")
+    .sort((a, b) => (b.performance?.markedAt || 0) - (a.performance?.markedAt || 0))
+    .slice(0, limit);
+
+  return highlyRated.map(item => item.assets.textPost);
 }
 
-export interface FeedbackSummary {
-  totalRated: number;
-  globalSuccessRate: number;
-  personaStats: PersonaStats[];
+/**
+ * Extract patterns from poorly-rated posts to avoid
+ */
+export function getNegativePatterns(): string[] {
+  const history = getHistory();
+  
+  const poorlyRated = history.filter(
+    item => item.performance?.rating === "flopped"
+  );
+
+  // Extract common phrases/patterns from flopped posts
+  // For MVP, we just return a summary instruction
+  if (poorlyRated.length === 0) return [];
+
+  // Simple pattern extraction: first sentence of each flopped post
+  const patterns = poorlyRated.slice(0, 5).map(item => {
+    const firstSentence = item.assets.textPost.split(/[.!?]/)[0];
+    return firstSentence.trim();
+  });
+
+  return patterns;
 }
 
-export function getFeedbackStats(): FeedbackSummary {
-    const history = getHistory();
-    const ratedItems = history.filter(item => item.performance?.rating);
-    
-    if (ratedItems.length === 0) {
-        return {
-            totalRated: 0,
-            globalSuccessRate: 0,
-            personaStats: []
-        };
-    }
+/**
+ * User-defined blacklist of phrases the AI should never use
+ */
+export function getBlacklist(): string[] {
+  if (typeof window === "undefined") return [];
+  const stored = localStorage.getItem(BLACKLIST_KEY);
+  return stored ? JSON.parse(stored) : [];
+}
 
-    // Global Stats
-    const successful = ratedItems.filter(i => 
-        i.performance?.rating === "viral" || i.performance?.rating === "good"
-    );
-    const globalSuccessRate = (successful.length / ratedItems.length) * 100;
+export function addToBlacklist(phrase: string): void {
+  const current = getBlacklist();
+  if (!current.includes(phrase.toLowerCase())) {
+    current.push(phrase.toLowerCase());
+    localStorage.setItem(BLACKLIST_KEY, JSON.stringify(current));
+  }
+}
 
-    // Persona Stats
-    const personaMap: Record<string, { total: number; success: number; viral: number }> = {};
-    
-    // Initialize map
-    Object.values(PERSONAS).forEach(p => {
-        personaMap[p.id] = { total: 0, success: 0, viral: 0 };
-    });
+export function removeFromBlacklist(phrase: string): void {
+  const current = getBlacklist();
+  const filtered = current.filter(p => p !== phrase.toLowerCase());
+  localStorage.setItem(BLACKLIST_KEY, JSON.stringify(filtered));
+}
 
-    ratedItems.forEach(item => {
-        const pid = item.personaId || "cso";
-        if (!personaMap[pid]) {
-             personaMap[pid] = { total: 0, success: 0, viral: 0 };
-        }
-        
-        personaMap[pid].total++;
-        if (item.performance?.rating === "viral") {
-            personaMap[pid].viral++;
-            personaMap[pid].success++;
-        } else if (item.performance?.rating === "good") {
-             personaMap[pid].success++;
-        }
-    });
+export function clearBlacklist(): void {
+  localStorage.removeItem(BLACKLIST_KEY);
+}
 
-    const personaStats: PersonaStats[] = Object.entries(personaMap).map(([id, stats]) => {
-        const name = PERSONAS[id as keyof typeof PERSONAS]?.name || id;
-        return {
-            id,
-            name,
-            totalPosts: stats.total,
-            successRate: stats.total > 0 ? (stats.success / stats.total) * 100 : 0,
-            viralCount: stats.viral
-        };
-    }).sort((a, b) => b.successRate - a.successRate);
-    
-    return {
-        totalRated: ratedItems.length,
-        globalSuccessRate,
-        personaStats
-    };
+/**
+ * Apply blacklist filter to generated text
+ * Replaces blacklisted phrases with alternatives
+ */
+export function applyBlacklistFilter(text: string): string {
+  const blacklist = getBlacklist();
+  let filtered = text;
+
+  for (const phrase of blacklist) {
+    // Case-insensitive replacement with [REDACTED] or just removal
+    const regex = new RegExp(phrase, "gi");
+    filtered = filtered.replace(regex, "");
+  }
+
+  // Clean up double spaces
+  filtered = filtered.replace(/\s{2,}/g, " ").trim();
+  
+  return filtered;
+}
+
+/**
+ * Build RLHF context for AI prompts
+ */
+export function buildRLHFContext(): string {
+  const positives = getPositiveExamples(2);
+  const negatives = getNegativePatterns();
+  const blacklist = getBlacklist();
+
+  let context = "";
+
+  if (positives.length > 0) {
+    context += `
+POSTS THAT PERFORMED WELL (Mimic this style):
+${positives.map((p, i) => `Example ${i + 1}: "${p.substring(0, 300)}..."`).join("\n")}
+`;
+  }
+
+  if (negatives.length > 0) {
+    context += `
+PATTERNS THAT FLOPPED (Avoid these openings):
+${negatives.map(n => `- "${n}"`).join("\n")}
+`;
+  }
+
+  if (blacklist.length > 0) {
+    context += `
+BANNED PHRASES (Never use these words):
+${blacklist.join(", ")}
+`;
+  }
+
+  return context;
 }

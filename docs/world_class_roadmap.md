@@ -6,7 +6,7 @@ You have a **premium MVP** with:
 - **Analytics Dashboard** (Virality prediction, ratings)
 - AI-powered content generation (3 personas)
 - Anti-robot filtering
-- Image generation (DALL-E 3)
+- Image generation (Imagen 4)
 - Google Grounding (Trend Hunter)
 - Local history & simple scheduling (intent-based)
 - **Content Repurposing** (PDF Carousels) ✅

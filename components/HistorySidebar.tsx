@@ -75,6 +75,7 @@ export default function HistorySidebar({
               <button
                 onClick={onClose}
                 className="text-neutral-500 hover:text-white transition-colors"
+                aria-label="Close History"
               >
                 <X className="w-6 h-6" />
               </button>

@@ -35,7 +35,7 @@ export async function generateContent(input: string, apiKey: string) {
 ```
 **What it does:**
 1.  **Demo Check:** First, it looks at the API key. If you typed "demo", it skips Google entirely and returns pre-written "Mock" text. This ensures you can test the app even if your key works.
-2.  **Configuration:** It sets up the `gemini-3-flash-preview` model.
+2.  **Configuration:** It sets up the `gemini-flash-latest` model.
 3.  **The Prompt:** It wraps your simple input (e.g., "AI is dangerous") into a detailed instruction: *"Analyze this input... generate 3 assets... ensure JSON format."*
 
 ---
@@ -105,7 +105,7 @@ Traditional "Server Actions" are synchronous. For V3, we moved to a **Streaming 
 import { streamText } from "ai";
 // ...
 const result = streamText({
-  model: google("gemini-1.5-flash"),
+  model: google("gemini-flash-latest"),
   system: streamingSystemPrompt,
   prompt: enrichedInput,
 });
@@ -114,7 +114,7 @@ return result.toTextStreamResponse();
 **What it does:**
 1.  **Enrichment**: It calls `constructEnrichedPrompt` to inject RAG context and trends.
 2.  **Streaming**: It uses the `streamText` helper to send chunks of text back to the browser as they are generated.
-3.  **Speed**: Using `gemini-1.5-flash` ensures the first word appears in less than 500ms.
+3.  **Speed**: Using `gemini-flash-latest` ensures the first word appears in less than 500ms.
 
 ---
 

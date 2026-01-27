@@ -7,7 +7,39 @@ import { TwitterAdapter } from "../../../utils/platforms/twitter";
 
 export async function POST(req: Request) {
   try {
-    const { input, apiKeys, personaId, forceTrends, platform, useRAG, useFewShot } = await req.json();
+    const { prompt, input: manualInput, apiKeys, personaId, forceTrends, platform, useRAG, fewShotExamples, rlhfContext, images } = await req.json();
+    const input = prompt || manualInput;
+    
+    // DEBUG LOGGING
+    const fs = require('fs');
+    const path = require('path');
+    const logFile = path.join(process.cwd(), 'server-debug.log');
+    const log = (msg: string) => fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
+    
+    // MODEL PRIORITY: Try gemini-flash-latest first, fallback to gemini-1.5-flash on rate limit
+    // Both 1.5-flash and 1.5-pro are multimodal.
+    const PRIMARY_MODEL = "gemini-flash-latest";
+    const FALLBACK_MODEL = "gemini-1.5-flash";
+    
+    log(`Incoming Request: InputLen=${input?.length || 0}, Persona=${personaId}, Model=${PRIMARY_MODEL}, Images=${images?.length || 0}`);
+    
+    // DIAGNOSTIC: LIST AVAILABLE MODELS
+    try {
+        console.log("Fetching available models from Google API...");
+        const modelsReq = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKeys.gemini}`);
+        const modelsData = await modelsReq.json();
+        if (modelsData.models) {
+            const names = modelsData.models.map((m: any) => m.name);
+            console.log(`AVAILABLE MODELS: ${names.join(", ")}`);
+            log(`AVAILABLE MODELS: ${names.join(", ")}`);
+        } else {
+            console.log(`FAILED TO LIST MODELS: ${JSON.stringify(modelsData)}`);
+            log(`FAILED TO LIST MODELS: ${JSON.stringify(modelsData)}`);
+        }
+    } catch (e: any) {
+        console.log(`MODEL LISTING ERROR: ${e.message}`);
+        log(`MODEL LISTING ERROR: ${e.message}`);
+    }
 
     if (!input) return new Response("Input required", { status: 400 });
     if (!apiKeys?.gemini) return new Response("Gemini API Key required", { status: 400 });
@@ -62,7 +94,8 @@ Data tells better lies than people do.
         forceTrends, 
         adapter,
         useRAG, // Pass flag
-        useFewShot // Pass new flag
+        fewShotExamples, // Pass string content directly
+        rlhfContext // RLHF learning context
     );
 
     // 2. Select Persona System Prompt
@@ -73,7 +106,7 @@ Data tells better lies than people do.
     // The original system prompt asks for JSON. We override this for streaming.
     
     const streamingSystemPrompt = `
-    ${selectedPersona.systemPrompt}
+    ${selectedPersona.basePrompt}
 
     IMPORTANT OVERRIDE: 
     Do NOT output JSON. 
@@ -81,17 +114,79 @@ Data tells better lies than people do.
     Do not preface it. Just start writing the post.
     `;
 
-    const result = streamText({
-      model: google("gemini-3-flash-preview"), // Updated to match available models
-      system: streamingSystemPrompt,
-      prompt: enrichedInput,
-      temperature: 0.7,
-    });
+    log(`Enriched Prompt constructed. Length: ${enrichedInput.length}`);
 
-    return result.toTextStreamResponse();
+    // Helper function to attempt streaming with a specific model
+    async function tryStreamWithModel(modelName: string) {
+      log(`Trying streamText with ${modelName} (Safety OFF)...`);
+      
+      // Construct User Message Content (Text + Images)
+      // Vercel AI SDK expects { type: 'text', text: ... } | { type: 'image', image: ... }
+      const userContent: any[] = [{ type: 'text', text: enrichedInput }];
+      
+      if (images && Array.isArray(images)) {
+          images.forEach((imgData: string) => {
+              // Ensure it's a valid data URL or base64
+              if (imgData && imgData.startsWith('data:image')) {
+                 userContent.push({ type: 'image', image: imgData });
+              }
+          });
+      }
+
+      return streamText({
+        // @ts-expect-error - Safety settings are valid but types might be strict
+        model: google(modelName, {
+          safetySettings: [
+              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+          ]
+        }), 
+        system: streamingSystemPrompt,
+        messages: [
+            { role: 'user', content: userContent }
+        ],
+        temperature: 0.7,
+        onFinish: (result) => {
+            log(`Stream Finished (${modelName}). Total Tokens: ${result.usage.totalTokens}. Finish Reason: ${result.finishReason}`);
+        }
+      });
+    }
+    
+    // Try primary model first
+    try {
+      const result = await tryStreamWithModel(PRIMARY_MODEL);
+      log("Returning stream response (primary model)...");
+      return result.toTextStreamResponse();
+    } catch (primaryError: unknown) {
+      const errorMessage = primaryError instanceof Error ? primaryError.message : "";
+      
+      // If rate limited, try fallback model
+      if (errorMessage.includes("429") || errorMessage.includes("Quota") || errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED")) {
+        log(`Primary model rate limited. Falling back to ${FALLBACK_MODEL}...`);
+        
+        const fallbackResult = await tryStreamWithModel(FALLBACK_MODEL);
+        log("Returning stream response (fallback model)...");
+        return fallbackResult.toTextStreamResponse();
+      }
+      
+      // Re-throw other errors
+      throw primaryError;
+    }
   } catch (error: unknown) {
-    console.error("Streaming API Error:", error);
+    const fs = require('fs');
+    const path = require('path');
+    const logFile = path.join(process.cwd(), 'server-debug.log');
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-    return new Response(errorMessage, { status: 500 });
+    const errorStack = error instanceof Error ? error.stack : "";
+    
+    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ERROR: ${errorMessage}\nSTACK: ${errorStack}\n`);
+    
+    console.error("Streaming API Error (Global Catch):", error);
+    return new Response(JSON.stringify({ error: errorMessage }), { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+    });
   }
 }

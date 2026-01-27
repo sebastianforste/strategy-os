@@ -20,14 +20,14 @@ import {
 interface VoiceTrainingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  openaiKey: string;
+  geminiKey: string;
   onTrainingComplete: (modelId: string) => void;
 }
 
 export default function VoiceTrainingModal({
   isOpen,
   onClose,
-  openaiKey,
+  geminiKey,
   onTrainingComplete,
 }: VoiceTrainingModalProps) {
   const [posts, setPosts] = useState<TrainingPost[]>([]);
@@ -125,8 +125,8 @@ export default function VoiceTrainingModal({
   };
 
   const handleStartTraining = async () => {
-    if (!openaiKey || openaiKey === 'demo') {
-      setError("Valid OpenAI API key required for voice training");
+    if (!geminiKey || geminiKey === 'demo') {
+      setError("Valid Gemini API key required for voice training");
       return;
     }
 
@@ -139,19 +139,19 @@ export default function VoiceTrainingModal({
     setError("");
 
     try {
-      const model = await startFineTuning(openaiKey, `voice-${Date.now()}`);
+      const model = await startFineTuning(geminiKey, `voice-${Date.now()}`);
       setTrainingModel(model);
       
       // Poll for status every 30 seconds
       const pollInterval = setInterval(async () => {
         try {
-          const updated = await checkTrainingStatus(model.id, openaiKey);
+          const updated = await checkTrainingStatus(model.id, geminiKey);
           setTrainingModel(updated);
           
           if (updated.status === 'completed') {
             clearInterval(pollInterval);
             setIsTraining(false);
-            onTrainingComplete(updated.openaiModelId!);
+            onTrainingComplete(updated.geminiModelId!);
             await loadData();
           } else if (updated.status === 'failed') {
             clearInterval(pollInterval);
@@ -366,7 +366,7 @@ Post 3 content here..."
                 </div>
                 <p className="text-xs text-neutral-400">
                   {trainingModel.status === 'training' && 'This usually takes 10-30 minutes. You can close this and check back later.'}
-                  {trainingModel.status === 'completed' && `Model ID: ${trainingModel.openaiModelId}`}
+                  {trainingModel.status === 'completed' && `Model ID: ${trainingModel.geminiModelId}`}
                 </p>
               </div>
             )}

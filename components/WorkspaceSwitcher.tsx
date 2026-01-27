@@ -47,6 +47,7 @@ export default function WorkspaceSwitcher() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 py-1.5 hover:bg-neutral-800 rounded-lg transition-colors border border-transparent hover:border-neutral-700"
+        aria-label="Switch Workspace"
       >
         <div className="w-6 h-6 rounded bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-[10px] font-bold text-white">
           {activeWorkspace?.name.substring(0, 1).toUpperCase()}

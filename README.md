@@ -72,7 +72,7 @@ To run this app, you need:
 
 ## 🆘 Troubleshooting
 
-*   **"Quota Exceeded" Error**: You might be using a free Gemini key. Switch the model in `utils/ai-service.ts` to `gemini-1.5-flash`.
+*   **"Quota Exceeded" Error**: You might be using a free Gemini key. Switch the model in `utils/ai-service.ts` to `gemini-flash-latest`.
 *   **Images/Search not working**: Ensure your Gemini API Key has access to `Google Search` and `Imagen` features (Google AI Studio keys usually do).
 *   **App won't start**: Try running `npm install` again to ensure all packages are downloaded.
 

@@ -23,8 +23,8 @@ export interface TrainingModel {
   id: string;
   name: string;
   status: 'preparing' | 'training' | 'completed' | 'failed';
-  openaiModelId?: string; // e.g., "ft:gpt-4o-mini-2024-07-18:..."
-  openaiJobId?: string;
+  geminiModelId?: string; // e.g., "tunedModels/my-model-123"
+  geminiOperationName?: string; // For tracking status
   postCount: number;
   createdAt: number;
   completedAt?: number;
@@ -144,99 +144,93 @@ export async function deleteTrainingModel(id: string): Promise<void> {
   await db.delete('trainingModels', id);
 }
 
-// ==================== OpenAI Fine-tuning Integration ====================
+// ==================== Google Gemini Fine-tuning Integration ====================
 
-export async function prepareTrainingData(): Promise<string> {
+interface TuningExample {
+  text_input: string;
+  output: string;
+}
+
+interface TuningDataset {
+  examples: TuningExample[];
+}
+
+export async function prepareTrainingData(): Promise<TuningDataset> {
   const posts = await getTrainingPosts();
   
   if (posts.length < 10) {
     throw new Error('Minimum 10 posts required for training');
   }
 
-  // Convert to OpenAI JSONL format
-  // Each line is a complete training example
-  const jsonlLines = posts.map(post => {
-    return JSON.stringify({
-      messages: [
-        {
-          role: "system",
-          content: "You are a LinkedIn content creator. Write in this exact style and voice."
-        },
-        {
-          role: "user",
-          content: "Write a LinkedIn post about professional growth."
-        },
-        {
-          role: "assistant",
-          content: post.content
-        }
-      ]
-    });
-  });
+  // Convert to Gemini format
+  const examples: TuningExample[] = posts.map(post => ({
+    text_input: "Write a high-status LinkedIn post about professional strategy in your unique voice.",
+    output: post.content
+  }));
 
-  return jsonlLines.join('\n');
+  return { examples };
 }
 
 export async function startFineTuning(apiKey: string, modelName: string): Promise<TrainingModel> {
   const model = await createTrainingModel(modelName);
 
   try {
-    // Prepare training data
     const trainingData = await prepareTrainingData();
 
-    // Create a File object (for upload)
-    const blob = new Blob([trainingData], { type: 'application/jsonl' });
-    const file = new File([blob], 'training.jsonl', { type: 'application/jsonl' });
-
-    // Upload training file to OpenAI
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('purpose', 'fine-tune');
-
-    const uploadResponse = await fetch('https://api.openai.com/v1/files', {
+    // Direct REST call to tunedModels.create
+    // https://ai.google.dev/api/tuning
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/tunedModels?key=${apiKey}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: formData,
-    });
-
-    if (!uploadResponse.ok) {
-      const error = await uploadResponse.json();
-      throw new Error(`File upload failed: ${error.error?.message || 'Unknown error'}`);
-    }
-
-    const uploadData = await uploadResponse.json();
-    const fileId = uploadData.id;
-
-    // Create fine-tuning job
-    const jobResponse = await fetch('https://api.openai.com/v1/fine_tuning/jobs', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        training_file: fileId,
-        model: 'gpt-4o-mini-2024-07-18',
-        suffix: modelName.toLowerCase().replace(/\s+/g, '-'),
+        displayName: modelName,
+        baseModel: "models/gemini-1.5-flash-001-tuning",
+        tuningTask: {
+          hyperparameters: {
+            batchSize: 4,
+            learningRate: 0.001,
+            epochCount: 5,
+          },
+          trainingData: trainingData
+        }
       }),
     });
 
-    if (!jobResponse.ok) {
-      const error = await jobResponse.json();
-      throw new Error(`Fine-tuning job creation failed: ${error.error?.message || 'Unknown error'}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `Fine-tuning failed: ${response.status} ${response.statusText}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error?.message || errorMessage;
+      } catch (e) {
+        // ignore json parse error
+      }
+      throw new Error(errorMessage);
     }
 
-    const jobData = await jobResponse.json();
+    const data = await response.json();
+    
+    // The API returns an Operation object or the TunedModel if immediate (unlikely)
+    // Typically: { name: "tunedModels/...", metadata: { ... } }
+    // Actually for 'create', it returns metadata about the operation.
+    // Wait, the v1beta returns metadata including 'name' (operation name) and 'metadata.tunedModel' (the future model name).
+    
+    // Let's assume standard Operation format: "operations/..."
+    if (!data.name) throw new Error("No operation name returned from Gemini API");
 
-    // Update model with job info
+    // The 'metadata' field usually contains the 'tunedModel' name being created
+    const pendingModelName = data.metadata?.tunedModel || ""; 
+
     await updateTrainingModel(model.id, {
       status: 'training',
-      openaiJobId: jobData.id,
+      geminiOperationName: data.name,
+      geminiModelId: pendingModelName 
     });
 
     return model;
+
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error during fine-tuning";
     await updateTrainingModel(model.id, {
@@ -252,32 +246,63 @@ export async function checkTrainingStatus(modelId: string, apiKey: string): Prom
   const model = await db.get('trainingModels', modelId);
 
   if (!model) throw new Error('Model not found');
-  if (!model.openaiJobId) throw new Error('No training job found');
+  if (!model.geminiOperationName && !model.geminiModelId) throw new Error('No training operation found');
 
-  const response = await fetch(`https://api.openai.com/v1/fine_tuning/jobs/${model.openaiJobId}`, {
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to check training status');
+  // If we already have a model ID and it's marked completed, just return it.
+  // But maybe we want to refresh status if we pressed "Check Status".
+  
+  // 1. If we have an operation name, check that first.
+  if (model.geminiOperationName) {
+    const opResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${model.geminiOperationName}?key=${apiKey}`);
+    
+    if (opResponse.ok) {
+        const opData = await opResponse.json();
+        
+        // Check if done
+        if (opData.done) {
+            if (opData.error) {
+                 await updateTrainingModel(modelId, {
+                    status: 'failed',
+                    error: opData.error.message || "Training failed",
+                    geminiOperationName: undefined // Clear op to stop checking
+                });
+            } else {
+                 // Success!
+                 // The result usually contains the TunedModel resource
+                 const tunedModelName = opData.response?.name || opData.metadata?.tunedModel;
+                 
+                 await updateTrainingModel(modelId, {
+                    status: 'completed',
+                    geminiModelId: tunedModelName, 
+                    completedAt: Date.now(),
+                    geminiOperationName: undefined // Clear op
+                });
+            }
+             return (await db.get('trainingModels', modelId))!;
+        } else {
+            // Still running
+            return model;
+        }
+    }
   }
 
-  const jobData = await response.json();
-
-  // Update model based on job status
-  if (jobData.status === 'succeeded' && jobData.fine_tuned_model) {
-    await updateTrainingModel(modelId, {
-      status: 'completed',
-      openaiModelId: jobData.fine_tuned_model,
-      completedAt: Date.now(),
-    });
-  } else if (jobData.status === 'failed') {
-    await updateTrainingModel(modelId, {
-      status: 'failed',
-      error: jobData.error?.message || 'Training failed',
-    });
+  // 2. If we only have a model ID (or operation check failed/expired), check the model resource directly
+  if (model.geminiModelId) {
+      const modelResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${model.geminiModelId}?key=${apiKey}`);
+      if (modelResponse.ok) {
+          const modelData = await modelResponse.json();
+          if (modelData.state === "ACTIVE") {
+               await updateTrainingModel(modelId, {
+                  status: 'completed',
+                  completedAt: model.completedAt || Date.now()
+              });
+          } else if (modelData.state === "FAILED") {
+               await updateTrainingModel(modelId, {
+                  status: 'failed',
+                  error: "Model state is FAILED"
+              });
+          }
+      }
   }
 
   return (await db.get('trainingModels', modelId))!;
@@ -292,8 +317,8 @@ export function validateTrainingPost(content: string): { valid: boolean; error?:
     return { valid: false, error: 'Post must be at least 100 characters' };
   }
 
-  if (trimmed.length > 3000) {
-    return { valid: false, error: 'Post must be less than 3000 characters' };
+  if (trimmed.length > 50000) { // Gemini can handle more ctx
+    return { valid: false, error: 'Post must be less than 50000 characters' };
   }
 
   return { valid: true };

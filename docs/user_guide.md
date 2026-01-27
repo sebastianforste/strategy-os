@@ -91,6 +91,18 @@
 5. **Image Test**: Click the **Image** tab to see the mock image result.
 6. **History Test**: Click the **Clock Icon**. The "Nvidia" draft will be saved there. Click it to reload.
 
+### LinkedIn App Setup
+To use the "Connect LinkedIn" feature, you must create a LinkedIn App:
+1. Go to the [LinkedIn Developer Portal](https://www.linkedin.com/developers/apps) and click **Create App**.
+2. Fill in the name and link to your Company Page (required).
+3. Once created, go to the **Auth** tab.
+4. Copy the **Client ID** and **Client Secret**.
+5. Under **OAuth 2.0 settings**, add `http://localhost:3000` to the **Authorized redirect URLs for your app**.
+6. **CRITICAL**: Go to the **Products** tab and click "Request Access" for:
+   - **Sign In with LinkedIn using OpenID Connect** (Required for login)
+   - **Share on LinkedIn** (Required for posting)
+7. Save your Client ID and Secret in the StrategyOS Settings.
+
 ![History Feature](/Users/sebastian/.gemini/antigravity/brain/1726a640-0c29-4d8e-97c9-48a3ac38a4eb/history_verification_1769163380142.png)
 
 ## 4. Verification Results

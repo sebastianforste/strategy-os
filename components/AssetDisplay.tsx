@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Copy, Check, Image as ImageIcon, Video, FileText, Layers, Bookmark, TrendingUp, ThumbsUp, Minus, ThumbsDown, RefreshCw, Sparkles, Eye, MessageSquare, Calendar } from "lucide-react";
+import { Copy, Check, Image as ImageIcon, Video, FileText, Layers, Bookmark, TrendingUp, ThumbsUp, Minus, ThumbsDown, RefreshCw, Sparkles, Eye, MessageSquare, Calendar, Mic } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { GeneratedAssets } from "../utils/ai-service";
@@ -16,13 +16,8 @@ import CommentsPanel from "./CommentsPanel";
 import { schedulePost } from "../utils/schedule-service";
 import { saveTemplate } from "../utils/template-service";
 
-// Lazy load heavy PDF components (saves ~400KB on initial load)
-const CarouselPDF = dynamic(() => import("./CarouselPDF"), { 
-  ssr: false,
-  loading: () => <div className="animate-pulse bg-neutral-800 h-40 rounded-lg" />
-});
-
-const PDFDownloadButton = dynamic(() => import("./PDFDownloadButton"), { 
+// Consolidated PDF Download Button (lazy loaded)
+const CarouselDownloadButton = dynamic(() => import("./CarouselDownloadButton"), { 
   ssr: false,
   loading: () => <div className="w-32 h-10 bg-neutral-800 rounded animate-pulse" />
 });
@@ -125,14 +120,16 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
     { id: "preview", label: "PREVIEW", icon: Eye },
     { id: "image", label: "IMAGE PROMPT", icon: ImageIcon },
     { id: "video", label: "VIDEO SCRIPT", icon: Video },
+    { id: "audio", label: "VOICE NOTE", icon: Mic },
     { id: "carousel", label: "CAROUSEL PDF", icon: Layers },
   ] as const;
 
   const content = {
-    text: assets.textPost,
-    preview: assets.textPost,
-    image: assets.imagePrompt,
-    video: assets.videoScript,
+    text: assets.textPost || "No text generated.",
+    preview: assets.textPost || "",
+    image: assets.imagePrompt || "No image prompt generated.",
+    video: assets.videoScript || "No video script generated.",
+    audio: assets.audioScript || "[Audio script not generated. Re-generate to include voice note script.]",
     carousel: "", // Placeholder, derived from text
   };
   
@@ -159,7 +156,7 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
             </div>
         )}
 
-      <div className="flex border-b border-neutral-800 mb-6 overflow-x-auto">
+      <div className="flex p-1 bg-black/40 backdrop-blur-sm border border-white/10 rounded-full mb-8 overflow-x-auto w-fit mx-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -167,13 +164,13 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`flex items-center gap-2 px-6 py-4 text-xs font-bold tracking-widest transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-full transition-all whitespace-nowrap ${
                 isActive
-                  ? "text-white border-b-2 border-white"
-                  : "text-neutral-500 hover:text-neutral-300"
+                  ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.3)]"
+                  : "text-neutral-500 hover:text-white hover:bg-white/5"
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-3.5 h-3.5" />
               {tab.label}
             </button>
           );
@@ -182,11 +179,14 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
 
       <motion.div
         key={activeTab}
-        initial={{ opacity: 0, x: 10 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.2 }}
-        className="bg-[#0A0A0A] border border-neutral-800 rounded-lg p-8 relative min-h-[300px]"
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+        className="glass-panel rounded-2xl p-8 relative min-h-[400px] border border-white/5 bg-black/40 shadow-2xl overflow-hidden"
       >
+        {/* Specular Highlight */}
+        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-80" />
+        <div className="absolute top-0 left-0 w-full h-[200px] bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
         {activeTab === "image" && assets.imageUrl ? (
           <div className="space-y-4">
             <div className="relative group">
@@ -228,8 +228,8 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                         </p>
                     </div>
                     {isClient && (
-                         <PDFDownloadButton 
-                            document={<CarouselPDF slides={slides} />} 
+                         <CarouselDownloadButton 
+                            slides={slides}
                             fileName="strategy_os_carousel.pdf" 
                          />
                     )}
@@ -237,21 +237,44 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                 
                 {/* Visual Preview Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {slides.map((slide) => (
-                        <div key={slide.id} className="aspect-[4/5] bg-black border border-neutral-800 rounded flex flex-col p-4 relative overflow-hidden group">
-                           <div className="flex-1 flex items-center justify-center">
-                                <p className={`text-white text-center font-bold ${slide.type === 'cover' ? 'text-lg' : 'text-xs'}`}>
-                                    {slide.content.length > 50 && slide.type !== 'cover' 
-                                        ? slide.content.substring(0, 50) + "..." 
-                                        : slide.content}
-                                </p>
-                           </div>
-                           <div className="absolute top-2 left-2 text-[10px] text-neutral-600 font-mono">
-                               {slide.id}
-                           </div>
-                           <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                        </div>
-                    ))}
+                    {slides.map((slide, index) => {
+                        const accentColors = ['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b'];
+                        const accentColor = accentColors[index % accentColors.length];
+                        
+                        return (
+                            <div key={slide.id} className="aspect-[4/5] bg-black/40 border border-white/10 rounded-xl flex flex-col relative overflow-hidden group backdrop-blur-md">
+                                {/* Accent bar */}
+                                <div className="h-1 w-full" style={{ backgroundColor: accentColor }} />
+                                
+                                {/* Corner decorations */}
+                                <div className="absolute top-4 left-4 w-6 h-6">
+                                    <div className="absolute top-0 left-0 w-4 h-0.5" style={{ backgroundColor: accentColor }} />
+                                    <div className="absolute top-0 left-0 w-0.5 h-4" style={{ backgroundColor: accentColor }} />
+                                </div>
+                                <div className="absolute bottom-4 right-4 w-6 h-6">
+                                    <div className="absolute bottom-0 right-0 w-4 h-0.5" style={{ backgroundColor: accentColor }} />
+                                    <div className="absolute bottom-0 right-0 w-0.5 h-4" style={{ backgroundColor: accentColor }} />
+                                </div>
+                                
+                                {/* Content */}
+                                <div className="flex-1 flex items-center justify-center p-4">
+                                    <p className={`text-white text-center font-bold ${slide.type === 'cover' ? 'text-lg' : 'text-xs'}`}>
+                                        {slide.content.length > 50 && slide.type !== 'cover' 
+                                            ? slide.content.substring(0, 50) + "..." 
+                                            : slide.content}
+                                    </p>
+                                </div>
+                                
+                                {/* Slide number */}
+                                <div className="absolute bottom-2 left-4 text-[10px] font-mono" style={{ color: accentColor }}>
+                                    {slide.id} / {slides.length}
+                                </div>
+                                
+                                {/* Hover overlay */}
+                                <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         ) : (

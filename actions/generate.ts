@@ -39,6 +39,24 @@ export async function deepDiveAction(
     return await generateTrendReport(topic, geminiKey);
 }
 
+export async function generateSideAssetsAction(
+    textPost: string,
+    apiKeys: { gemini: string },
+    personaId: PersonaId
+) {
+    if (!apiKeys.gemini) throw new Error("API Key missing");
+    // Dynamic import to avoid cycles/use server issues if checking
+    const { generateSideAssetsFromText } = await import("../utils/ai-service");
+    return await generateSideAssetsFromText(textPost, apiKeys.gemini, personaId);
+
+}
+
+export async function runGhostAgentAction(apiKey: string) {
+    if (!apiKey) throw new Error("API Key required");
+    const { runGhostAgent } = await import("../utils/ghost-agent");
+    return await runGhostAgent(apiKey);
+}
+
 
 /**
  * SERVER ACTION: PROCESS INPUT
@@ -79,15 +97,20 @@ export async function constructEnrichedPrompt(
     forceTrends: boolean,
     adapter: PlatformAdapter,
     useRAG: boolean = true, // Default ON
-    useFewShot: boolean = true // New flag
+    fewShotExamples: string = "", // PASS IN CONTEXT instead of fetching it
+    rlhfContext: string = "" // RLHF learning loop context
 ): Promise<{ prompt: string; mode: string }> {
-    console.log(`[Prompt Construction] Persona: ${personaId}, Newsjack: ${forceTrends}, RAG: ${useRAG}, FewShot: ${useFewShot}, Platform: ${adapter.name}`);
+    const startTime = Date.now();
+    console.log(`[Prompt Construction] START Persona: ${personaId}, Newsjack: ${forceTrends}`);
 
     // RAG RETRIEVAL (Strategy Concepts)
     let ragContext = "";
     if (useRAG) {
         try {
+            const ragStart = Date.now();
             const concepts = await findRelevantConcepts(input, geminiKey);
+            console.log(`[RAG] Found ${concepts.length} concepts in ${Date.now() - ragStart}ms`);
+            
             if (concepts.length > 0) {
                 ragContext = `
                 STRATEGY CONTEXT (From Gunnercooke Library):
@@ -95,41 +118,30 @@ export async function constructEnrichedPrompt(
                 
                 USE THESE MENTAL MODELS.
                 `;
-                console.log(`[RAG] Found ${concepts.length} relevant concepts.`);
             }
         } catch (e) {
             console.warn("[RAG] Retrieval failed:", e);
         }
-    } else {
-        console.log("[RAG] Skipped by user.");
     }
 
-    // FEW-SHOT EXAMPLES (From user's best posts)
+    // FEW-SHOT EXAMPLES (Provided by caller)
     let fewShotContext = "";
-    if (useFewShot) {
-        try {
-            // Import dynamically to avoid server/client issues
-            const { getTopRatedPosts } = await import("../utils/history-service");
-            const topPosts = getTopRatedPosts(personaId, 3);
-            if (topPosts.length > 0) {
-                fewShotContext = `
-                YOUR BEST PERFORMING POSTS (Write in this exact style):
-                ${topPosts.map((p, i) => `
-                Example ${i + 1} (Rated ${p.performance?.rating}):
-                """
-                ${p.assets.textPost.substring(0, 500)}${p.assets.textPost.length > 500 ? '...' : ''}
-                """
-                `).join("\n")}
-                
-                MIMIC THIS VOICE AND STRUCTURE.
-                `;
-                console.log(`[Few-Shot] Injected ${topPosts.length} examples.`);
-            }
-        } catch (e) {
-            console.warn("[Few-Shot] Failed to retrieve examples:", e);
-        }
-    } else {
-        console.log("[Few-Shot] Skipped by user.");
+    if (fewShotExamples) {
+        fewShotContext = `
+        YOUR BEST PERFORMING POSTS (Write in this exact style):
+        ${fewShotExamples}
+        
+        MIMIC THIS VOICE AND STRUCTURE.
+        `;
+    }
+
+    // RLHF CONTEXT (Learning from ratings)
+    let rlhfSection = "";
+    if (rlhfContext) {
+        rlhfSection = `
+        PERSONALIZED LEARNING (From your feedback):
+        ${rlhfContext}
+        `;
     }
 
     let enrichedInput = input;
@@ -145,7 +157,8 @@ export async function constructEnrichedPrompt(
         enrichedInput = `
         ${platformInstr}
         ${ragContext}
-        ${useFewShot ? fewShotContext : ""}
+        ${fewShotContext}
+        ${rlhfSection}
 
         MODE: THE TRANSLATOR (Document/URL Analysis)
         INPUT SOURCE: ${input}
@@ -158,16 +171,19 @@ export async function constructEnrichedPrompt(
         `;
     } else {
         // Trend Hunting Check (Newsjacker Mode)
-        // If Force Trends is ON OR input is short (< 100 chars)
         if (forceTrends || (input.length < 100 && !input.includes("\n"))) {
             try {
+                const searchStart = Date.now();
                 const trends = await findTrends(input, geminiKey);
+                console.log(`[Search] Found ${trends.length} trends in ${Date.now() - searchStart}ms`);
+
                 if (trends.length > 0) {
                     const primaryTrend = trends[0];
                     enrichedInput = `
                     ${platformInstr}
                     ${ragContext}
                     ${fewShotContext}
+                    ${rlhfSection}
 
                     MODE: THE NEWSJACKER (Trend Hunter)
                     TOPIC: ${input}
@@ -182,11 +198,11 @@ export async function constructEnrichedPrompt(
                 }
             } catch (e) {
                 console.warn("Trend hunting failed or skipped:", e);
-                // Fallback to treating input as the prompt directly
                 enrichedInput = `
                     ${platformInstr}
                     ${ragContext}
                     ${fewShotContext}
+                    ${rlhfSection}
 
                     MODE: THE NEWSJACKER (Standard)
                     TOPIC: ${input}
@@ -196,11 +212,11 @@ export async function constructEnrichedPrompt(
                 `;
             }
         } else {
-            // Standard Newsjacker for longer inputs provided directly
             enrichedInput = `
                 ${platformInstr}
                 ${ragContext}
                 ${fewShotContext}
+                ${rlhfSection}
 
                 MODE: THE NEWSJACKER (Standard)
                 TOPIC: ${input}
@@ -211,12 +227,13 @@ export async function constructEnrichedPrompt(
         }
     }
     
+    console.log(`[Prompt Construction] DONE in ${Date.now() - startTime}ms. Mode: ${mode}`);
     return { prompt: enrichedInput, mode };
 }
 
 export async function processInput(
   input: string,
-  apiKeys: { gemini: string; serper?: string; openai?: string },
+  apiKeys: { gemini: string; serper?: string },
   personaId: PersonaId = "cso",
   forceTrends: boolean = false,
   platform: "linkedin" | "twitter" = "linkedin",
@@ -232,6 +249,9 @@ export async function processInput(
   const geminiKey = apiKeys.gemini.trim();
 
   // 1. Construct Prompt (Refactored)
+  // For Server Action (Legacy): We can't easily access localStorage.
+  // We'll skip few-shot unless we refactor processInput to accept it too.
+  // For now, passing empty string to fix the crash.
   const { prompt: enrichedInput, mode } = await constructEnrichedPrompt(
       input, 
       geminiKey, 
@@ -239,17 +259,17 @@ export async function processInput(
       forceTrends, 
       adapter,
       true, // useRAG default
-      useFewShot
+      "" // fewShotExamples - skipped in legacy server action used by test scripts, fix later if needed
   );
 
   // 2. AI Generation
-  const rawAssets = await generateContent(enrichedInput, geminiKey, personaId, apiKeys.openai);
+  const rawAssets = await generateContent(enrichedInput, geminiKey, personaId);
 
   // 2b. Image Generation (Optional if Gemini key present - reusing main key)
   let imageUrl = "";
   if (geminiKey && rawAssets.imagePrompt) {
     try {
-        console.log("Generating Real Image with Imagen 3...");
+        console.log("Generating Real Image with Imagen 4...");
         imageUrl = await generateImage(rawAssets.imagePrompt, geminiKey);
     } catch (e) {
         console.error("Image generation failed:", e);

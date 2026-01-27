@@ -15,67 +15,10 @@ export interface GeneratedAssets {
   imagePrompt: string;
   /** 60-second video script for vertical video content. */
   videoScript: string;
+  /** Voice note script optimized for audio delivery. */
+  audioScript?: string;
   /** Optional URL of the generated image (if image generation was successful). */
   imageUrl?: string;
-}
-
-// OpenAI generation for custom voice
-async function generateWithOpenAI(
-  input: string, 
-  apiKey: string, 
-  modelId: string
-): Promise<GeneratedAssets> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: modelId,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a LinkedIn content creator. Write in this exact style and voice. Generate a LinkedIn post, an image prompt, and a video script in JSON format.'
-        },
-        {
-          role: 'user',
-          content: `Create content about: ${input}
-
-Return JSON with these keys:
-- textPost: The LinkedIn post
-- imagePrompt: A "Visualize Value" style image prompt (minimalist, white on black)
-- videoScript: A 60-second video script`
-        }
-      ],
-      temperature: 0.7,
-      response_format: { type: "json_object" },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`OpenAI generation failed: ${error.error?.message || 'Unknown error'}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices[0].message.content;
-  
-  try {
-    const parsed = JSON.parse(content);
-    return {
-      textPost: parsed.textPost || parsed.text_post || parsed.post || "",
-      imagePrompt: parsed.imagePrompt || parsed.image_prompt || "Minimalist vector line art. White on black. High contrast.",
-      videoScript: parsed.videoScript || parsed.video_script || parsed.script || "",
-    };
-  } catch {
-    // Fallback if JSON parsing fails
-    return {
-      textPost: content,
-      imagePrompt: "Minimalist vector line art. White on black. High contrast.",
-      videoScript: `Script based on: ${content.substring(0, 100)}...`,
-    };
-  }
 }
 
 /**
@@ -85,7 +28,7 @@ Return JSON with these keys:
  * 
  * Flow:
  * 1. Selects the System Prompt based on `personaId`.
- * 2. Configures the Gemini Model (currently using `gemini-3-flash-preview`).
+ * 2. Configures the Gemini Model (currently using `gemini-flash-latest`).
  * 3. Constructs the User Prompt with specific instructions.
  * 4. Calls the LLM and parses the JSON response.
  * 5. Validates the output against constraints (Length, Formatting).
@@ -98,8 +41,7 @@ Return JSON with these keys:
 export async function generateContent(
   input: string,
   apiKey: string,
-  personaId: PersonaId = "cso",
-  openaiKey?: string
+  personaId: PersonaId = "cso"
 ): Promise<GeneratedAssets> {
   // MOCK MODE for Testing/Demo if key is 'demo'
   if (apiKey.toLowerCase().trim() === "demo") {
@@ -112,32 +54,33 @@ export async function generateContent(
     };
   }
 
+  // MODEL PRIORITY: Try gemini-flash-latest first, fallback to gemini-1.5-flash on rate limit
+  const PRIMARY_MODEL = "gemini-flash-latest";
+  const FALLBACK_MODEL = "gemini-1.5-flash";
+  
+  let modelName = PRIMARY_MODEL;
+  const persona = PERSONAS[personaId];
+  let systemInstruction = (persona?.basePrompt || "") + "\n" + (persona?.jsonSchema || "");
+
   // Check if using custom voice with fine-tuned model
-  if (personaId === "custom" && openaiKey && openaiKey !== "demo") {
+  if (personaId === "custom") {
     try {
       const activeModel = await getActiveModel();
       
-      if (activeModel && activeModel.openaiModelId) {
-        console.log(`Using custom voice model: ${activeModel.openaiModelId}`);
-        return await generateWithOpenAI(input, openaiKey, activeModel.openaiModelId);
+      if (activeModel && activeModel.geminiModelId) {
+        console.log(`Using custom voice model: ${activeModel.geminiModelId}`);
+        // For tuned models, the model name is the tuned model resource name
+        modelName = activeModel.geminiModelId;
+        // Tuned models often have the system prompt baked in or we can provide one
+        // Usually good to provide the persona context still
+        systemInstruction = "You are a LinkedIn creator with a unique voice. Maintain this voice strictly.";
       } else {
-        console.warn("Custom persona selected but no trained model found, falling back to Gemini");
+        console.warn("Custom persona selected but no trained model found, falling back to base Gemini");
       }
     } catch (e) {
       console.warn("Failed to load custom voice model, falling back to Gemini:", e);
     }
   }
-
-  // Default: Use Gemini
-  const genAI = new GoogleGenerativeAI(apiKey);
-  
-  // Select the correct system prompt
-  const selectedPersona = PERSONAS[personaId] || PERSONAS.cso;
-  // Use gemini-3-flash-preview as it successfully bypasses current rate limits
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-3-flash-preview", 
-    systemInstruction: selectedPersona.systemPrompt 
-  });
 
   const prompt = `
     Analyze this input and generate 3 assets:
@@ -151,71 +94,157 @@ export async function generateContent(
     Ensure the response is valid JSON.
   `;
 
-    // RETRY LOOP: Enforce Constraints
-    let attempts = 0;
-    const MAX_ATTEMPTS = 2; // Original + 2 Retries
+  // Helper function to attempt generation with a specific model
+  async function attemptGeneration(useModel: string): Promise<GeneratedAssets | null> {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ 
+      model: useModel, 
+      systemInstruction: systemInstruction 
+    });
 
+    let attempts = 0;
+    const MAX_ATTEMPTS = 2;
     let currentPrompt = prompt;
 
     while (attempts <= MAX_ATTEMPTS) {
-        attempts++;
-        try {
-            console.log(`[AI Service] Generation Attempt ${attempts}...`);
-            const result = await model.generateContent({
-                contents: [{ role: "user", parts: [{ text: currentPrompt }] }],
-                generationConfig: { responseMimeType: "application/json" }
-            });
+      attempts++;
+      try {
+        console.log(`[AI Service] Generation Attempt ${attempts} with ${useModel}...`);
+        const result = await model.generateContent({
+          contents: [{ role: "user", parts: [{ text: currentPrompt }] }],
+          generationConfig: { responseMimeType: "application/json" }
+        });
 
-            const content = result.response.text();
-            if (!content) throw new Error("No content generated");
-            
-            const parsed = JSON.parse(content);
-            const textPost = parsed.textPost || parsed.text_post || "";
+        const content = result.response.text();
+        if (!content) throw new Error("No content generated");
+        
+        const parsed = JSON.parse(content);
+        const textPost = parsed.textPost || parsed.text_post || "";
 
-            // VERIFY CONSTRAINTS
-            const validation = verifyConstraints(textPost);
+        // VERIFY CONSTRAINTS
+        const validation = verifyConstraints(textPost);
 
-            if (validation.valid) {
-                console.log("[AI Service] Constraint Check Passed ✅");
-                return {
-                    textPost,
-                    imagePrompt: parsed.imagePrompt || parsed.image_prompt || "",
-                    videoScript: parsed.videoScript || parsed.video_script || "",
-                };
-            }
-
-            console.warn(`[AI Service] Constraint Failed ❌: ${validation.reason}`);
-            
-            // If failed, assume we need to retry unless we run out of attempts
-            if (attempts <= MAX_ATTEMPTS) {
-                currentPrompt += `\n\nCRITICAL SYSTEM ALERT: The previous output failed verification. \nREASON: ${validation.reason}\n\nFIX: Rewrite the hook to be shorter. Strict limit: 210 chars.`;
-            } else {
-                 console.warn("[AI Service] Max attempts reached. Returning best effort.");
-                 return {
-                    textPost: `[CONSTRAINT FAILED] ${textPost}`, // Mark it visibly for debugging, or just return it.
-                    imagePrompt: parsed.imagePrompt || parsed.image_prompt || "",
-                    videoScript: parsed.videoScript || parsed.video_script || "",
-                };
-            }
-
-        } catch (e: unknown) {
-             const errorMessage = e instanceof Error ? e.message : "Unknown error";
-             console.error(`[AI Service] Attempt ${attempts} Error`, e);
-             
-             // GRACEFUL FALLBACK FOR 429 / QUOTA / NETWORK ERRORS
-             // This ensures the app "runs perfectly" even if Google API is unstable or rate-limited.
-             if (errorMessage.includes("429") || errorMessage.includes("503") || errorMessage.includes("500") || errorMessage.includes("fetch failed")) {
-                console.warn("[AI Service] Hit API Limit or Network Error. Switching to Backup Content.");
-                return {
-                    textPost: `[BACKUP MODE: API BUSY]\n\nConsistency beats intensity.\n\nEveryone starts strong.\nFew finish.\n\nThe secret isn't a hack.\nIt's showing up when you don't want to.\n\nDon't break the chain.`,
-                    imagePrompt: "Minimalist vector lines showing a consistent upward trend vs erratic spikes. White on black.",
-                    videoScript: "HOOK: Why do 99% of people fail?\n\nCUT TO: Graph showing jagged spikes then a crash.\n\nVO: They rely on motivation.\n\nCUT TO: Straight rising line.\n\nVO: Winners rely on discipline.",
-                };
-             }
-
-             if (attempts > MAX_ATTEMPTS) throw e;
+        if (validation.valid) {
+          console.log(`[AI Service] Constraint Check Passed ✅ (Model: ${useModel})`);
+          return {
+            textPost,
+            imagePrompt: parsed.imagePrompt || parsed.image_prompt || "",
+            videoScript: parsed.videoScript || parsed.video_script || "",
+          };
         }
+
+        console.warn(`[AI Service] Constraint Failed ❌: ${validation.reason}`);
+        
+        if (attempts <= MAX_ATTEMPTS) {
+          currentPrompt += `\n\nCRITICAL SYSTEM ALERT: The previous output failed verification. \nREASON: ${validation.reason}\n\nFIX: Rewrite the hook to be shorter. Strict limit: 210 chars.`;
+        } else {
+          console.warn("[AI Service] Max attempts reached. Returning best effort.");
+          return {
+            textPost: `[CONSTRAINT FAILED] ${textPost}`,
+            imagePrompt: parsed.imagePrompt || parsed.image_prompt || "",
+            videoScript: parsed.videoScript || parsed.video_script || "",
+          };
+        }
+      } catch (e: unknown) {
+        const errorMessage = e instanceof Error ? e.message : "Unknown error";
+        console.error(`[AI Service] Attempt ${attempts} Error with ${useModel}:`, e);
+        
+        // RATE LIMIT: Return null to trigger fallback to different model
+        if (errorMessage.includes("429") || errorMessage.includes("Quota") || errorMessage.includes("quota")) {
+          console.warn(`[AI Service] Rate limit hit on ${useModel}. Will try fallback model.`);
+          return null; // Signal to try fallback
+        }
+        
+        // NETWORK/SERVER ERRORS: Return backup content
+        if (errorMessage.includes("503") || errorMessage.includes("500") || errorMessage.includes("fetch failed")) {
+          console.warn("[AI Service] Network/Server Error. Switching to Backup Content.");
+          return {
+            textPost: `[BACKUP MODE: API BUSY]\n\nConsistency beats intensity.\n\nEveryone starts strong.\nFew finish.\n\nThe secret isn't a hack.\nIt's showing up when you don't want to.\n\nDon't break the chain.`,
+            imagePrompt: "Minimalist vector lines showing a consistent upward trend vs erratic spikes. White on black.",
+            videoScript: "HOOK: Why do 99% of people fail?\n\nCUT TO: Graph showing jagged spikes then a crash.\n\nVO: They rely on motivation.\n\nCUT TO: Straight rising line.\n\nVO: Winners rely on discipline.",
+          };
+        }
+
+        if (attempts > MAX_ATTEMPTS) throw e;
+      }
+    }
+    return null;
+  }
+
+  // TRY PRIMARY MODEL FIRST
+  console.log(`[AI Service] Trying primary model: ${modelName}`);
+  let result = await attemptGeneration(modelName);
+  
+  // IF RATE LIMITED, TRY FALLBACK MODEL
+  if (result === null && modelName === PRIMARY_MODEL) {
+    console.log(`[AI Service] Falling back to: ${FALLBACK_MODEL}`);
+    result = await attemptGeneration(FALLBACK_MODEL);
+  }
+  
+  if (result) {
+    return result;
+  }
+
+  throw new Error("AI Generation failed after trying all models.");
+}
+
+/**
+ * SIDE ASSET GENERATION
+ * ---------------------
+ * Generates secondary assets (Image Prompt, Video Script) based on the already generated text.
+ * Used for the streaming workflow where we first stream text, then fill in the rest.
+ */
+export async function generateSideAssetsFromText(
+  textPost: string,
+  apiKey: string,
+  personaId: PersonaId = "cso"
+): Promise<Pick<GeneratedAssets, "imagePrompt" | "videoScript">> {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ 
+    model: "gemini-flash-latest",
+    generationConfig: { responseMimeType: "application/json" }
+  });
+
+  const prompt = `
+    Analyze this LinkedIn text post and generate the complementary assets:
+    1. "Visualize Value" Image Prompt (Minimalist vector line art, white on black).
+    2. 60s Video Script (Cinematic, viral hook).
+
+    TEXT POST:
+    """
+    ${textPost}
+    """
+
+    Return JSON with keys: "imagePrompt", "videoScript".
+  `;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const content = result.response.text();
+    const parsed = JSON.parse(content);
+
+    let videoScript = parsed.videoScript || parsed.video_script || "Script generation failed.";
+    
+    // Safety: If videoScript is an object (common with complex schemas), format it as readable string
+    if (typeof videoScript === 'object') {
+        // Use JSON.stringify with indentation for readable nested content
+        videoScript = JSON.stringify(videoScript, null, 2)
+            .replace(/[{}\[\]",]/g, '')  // Remove JSON syntax characters
+            .split('\n')
+            .filter(line => line.trim())  // Remove empty lines
+            .map(line => line.trim())
+            .join('\n');
     }
 
-    throw new Error("AI Generation failed after max retries.");
+    return {
+      imagePrompt: parsed.imagePrompt || parsed.image_prompt || "Minimalist geometric abstraction.",
+      videoScript: String(videoScript),
+    };
+  } catch (e) {
+    console.error("Side asset generation failed:", e);
+    return {
+      imagePrompt: "Error generating image prompt.",
+      videoScript: "Error generating video script."
+    };
   }
+}
