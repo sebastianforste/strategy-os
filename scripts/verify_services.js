@@ -1,16 +1,17 @@
 
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const API_KEY = "AIzaSyCjdqsYkIJEcQEi9LRV4H0v_GwXtjUeNSg"; 
+const { GoogleGenAI } = require("@google/genai");
+const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY; 
 
 async function verifyService(name, prompt) {
     console.log(`\n🧪 Verifying Service: ${name}...`);
     try {
-        const genAI = new GoogleGenerativeAI(API_KEY);
-        // Using "gemini-flash-latest" as updated in the codebase
-        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
-        
-        const result = await model.generateContent(prompt);
-        console.log(`✅ Success! Length: ${result.response.text().length}`);
+        const genAI = new GoogleGenAI({ apiKey: API_KEY });
+        const result = await genAI.models.generateContent({
+            model: "models/gemini-flash-latest",
+            contents: prompt
+        });
+        const text = result.text || "";
+        console.log(`✅ Success! Length: ${text.length}`);
     } catch (e) {
         console.error(`❌ Failed: ${e.message}`);
     }

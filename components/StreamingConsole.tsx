@@ -3,21 +3,25 @@ import { useCompletion } from "@ai-sdk/react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, UserCircle2, Square, Linkedin, Twitter, Brain, Zap, Sparkles, X, Image as ImageIcon } from "lucide-react";
+import { ArrowRight, UserCircle2, Square, Linkedin, Twitter, Brain, Zap, Sparkles, X, Image as ImageIcon, HelpCircle } from "lucide-react";
 import { PERSONAS, PersonaId } from "../utils/personas";
 import { GeneratedAssets } from "../utils/ai-service";
 import { generateSideAssetsAction } from "../actions/generate";
 import TemplateLibraryModal from "./TemplateLibraryModal";
 import { ApiKeys } from "./SettingsModal";
+import { fetchSignals, Signal } from "../utils/signal-service";
+import { predictImpact, PredictionResult } from "../utils/predictive-service";
 import { getSuggestions, Suggestion } from "../utils/suggestion-service";
 import { buildRLHFContext } from "../utils/feedback-service";
 import ReactMarkdown from "react-markdown";
+import { Gauge, TrendingUp, AlertCircle } from "lucide-react";
 import LinkedInPreview from "./previews/LinkedInPreview";
 import TwitterPreview from "./previews/TwitterPreview";
 import SkeletonLoader from "./SkeletonLoader";
 import SwotWidget, { SwotData } from "./widgets/SwotWidget";
 import TrendWidget, { TrendData } from "./widgets/TrendWidget";
 import { extractWidgets } from "../utils/widget-parser";
+import Tooltip from "./Tooltip"; // Assuming a Tooltip component exists or we build simple one
 
 interface StreamingConsoleProps {
   initialValue: string;
@@ -35,6 +39,12 @@ interface StreamingConsoleProps {
   setPlatform: (val: "linkedin" | "twitter") => void;
   onError?: (msg: string) => void;
 }
+
+const STARTER_CHIPS = [
+  { label: "Analyze a Trend", icon: Zap, prompt: "Analyze the latest trend in [Industry]..." },
+  { label: "Strategic Pivot", icon: Brain, prompt: "Why most companies fail at [Strategy]..." },
+  { label: "Contrarian Take", icon: Sparkles, prompt: "Everyone thinks [X] is good, but actually..." },
+];
 
 export default function StreamingConsole({
   initialValue,
@@ -57,7 +67,12 @@ export default function StreamingConsole({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [images, setImages] = useState<string[]>([]); // Base64 strings
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [prediction, setPrediction] = useState<PredictionResult | null>(null);
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [isFetchingSignals, setIsFetchingSignals] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const signalDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Debounced suggestion fetching
   useEffect(() => {
@@ -80,6 +95,31 @@ export default function StreamingConsole({
     debounceRef.current = timer;
     return () => clearTimeout(timer);
   }, [input, apiKeys.gemini]);
+
+  // Debounced Signal Fetching (Newsjacking)
+  useEffect(() => {
+    if (!useNewsjack || !apiKeys.serper || !apiKeys.gemini) {
+      setSignals([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      if (input.length >= 4 && !input.includes("\n")) {
+         setIsFetchingSignals(true);
+         try {
+           const results = await fetchSignals(input, { serper: apiKeys.serper, gemini: apiKeys.gemini });
+           setSignals(results);
+         } catch (e) {
+           console.error("Signal fetch failed", e);
+         } finally {
+           setIsFetchingSignals(false);
+         }
+      }
+    }, 1500); // 1.5s debounce to avoid spamming Serper
+
+    signalDebounceRef.current = timer;
+    return () => clearTimeout(timer);
+  }, [input, useNewsjack, apiKeys.serper, apiKeys.gemini]);
 
   // Sync with prop updates
   useEffect(() => {
@@ -105,7 +145,8 @@ export default function StreamingConsole({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
       onDrop, 
       accept: { 'image/*': [] },
-      maxFiles: 3 
+      maxFiles: 3,
+      noClick: true // Disable click-to-upload, drag only
   });
 
   const removeImage = (index: number, e: React.MouseEvent) => {
@@ -132,6 +173,7 @@ export default function StreamingConsole({
         useRAG, 
         platform,
         images, // Pass images to API
+        signals // Pass signals to API
     },
     onFinish: (_prompt: string, result: string) => {
         // ... onFinish logic
@@ -207,61 +249,250 @@ export default function StreamingConsole({
               platform,
               fewShotExamples: fewShotContent,
               rlhfContext: buildRLHFContext(),
-              images // Ensure images are sent
+              images, // Ensure images are sent
+              signals // Ensure signals are sent
           }
       });
   };
 
+  const handlePredict = async () => {
+      if (!input || input.length < 50) {
+          setLocalError("Draft is too short to predict impact (min 50 chars).");
+          return;
+      }
+      setIsPredicting(true);
+      try {
+          const result = await predictImpact(input, apiKeys.gemini);
+          setPrediction(result);
+      } catch (e) {
+          console.error("Prediction failed:", e);
+      } finally {
+          setIsPredicting(false);
+      }
+  };
+
   return (
-    <div className="w-full max-w-3xl mx-auto space-y-4">
+    <div className="w-full max-w-3xl mx-auto space-y-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative group"
       >
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-1000 animate-tilt"></div>
-        <div className="relative glass-panel rounded-xl p-1 min-h-[12rem] bg-black/40 overflow-hidden">
-          {/* Specular Highlight */}
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-70" />
-          <div className="absolute top-0 left-0 w-full h-[40%] bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-3xl blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
+        <div className={`relative liquid-panel rounded-3xl p-1 overflow-hidden transition-all duration-700 ${!isLoading && completion ? 'highlight-flash' : ''}`}>
           
           {!isLoading && !completion && !localError ? (
-              <div {...getRootProps()} className="relative h-full flex flex-col">
-                <input {...getInputProps()} />
-                <textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-                  placeholder="What strategy do you want to build today? (Or drop an image)"
-                  className="w-full h-48 bg-transparent text-white p-6 outline-none resize-none font-mono text-base leading-relaxed placeholder:text-neutral-700 selection:bg-purple-500/30 z-10"
-                />
-                
-                {/* Drag Overlay */}
-                {isDragActive && (
-                    <div className="absolute inset-0 bg-indigo-500/10 backdrop-blur-sm flex items-center justify-center border-2 border-indigo-500 border-dashed rounded-lg z-20">
-                        <div className="text-center text-indigo-400 font-bold">
-                            <ImageIcon className="w-8 h-8 mx-auto mb-2" />
-                            <p>Drop to Analyze</p>
-                        </div>
-                    </div>
-                )}
-                
-                {/* Image Previews */}
-                {images.length > 0 && (
-                    <div className="absolute bottom-4 left-6 flex gap-2 z-20">
-                        {images.map((img, i) => (
-                            <div key={i} className="relative group/img">
-                                <img src={img} alt="Upload" className="w-12 h-12 object-cover rounded-lg border border-white/20" />
-                                <button 
-                                    onClick={(e) => removeImage(i, e)}
-                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover/img:opacity-100 transition-opacity"
-                                >
-                                    <X className="w-3 h-3" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                )}
+              <div className="relative flex flex-col min-h-[16rem]">
+                <div {...getRootProps()} className="relative flex-1 flex flex-col">
+                  <input {...getInputProps()} />
+                  <textarea
+                    value={input}
+                    onChange={(e) => { setInput(e.target.value); if(prediction) setPrediction(null); }}
+                    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                    placeholder=" " // Empty placeholder to control custom empty state
+                    className="w-full flex-1 bg-transparent text-white p-6 outline-none resize-none font-mono text-base leading-relaxed z-10 peer"
+                  />
+                  
+                  {/* Signals Area */}
+                  {useNewsjack && (signals.length > 0 || isFetchingSignals) && (
+                      <div className="px-6 pb-4 z-20">
+                          <div className="flex flex-wrap gap-2">
+                              {isFetchingSignals && (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-white/5 border border-white/5 rounded text-[10px] text-neutral-400 animate-pulse">
+                                    <Zap className="w-3 h-3" /> Scanning...
+                                </span>
+                              )}
+                              {signals.map((s, i) => (
+                                  <motion.div
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    key={i}
+                                    className="group/signal relative inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 hover:border-red-500/40 rounded-full cursor-help transition-colors"
+                                  >
+                                      <Zap className="w-3 h-3 text-red-400" />
+                                      <span className="text-xs font-medium text-red-200">{s.value}</span>
+                                      
+                                      {/* Hover Tooltip */}
+                                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-neutral-900 border border-white/10 rounded-lg shadow-xl opacity-0 group-hover/signal:opacity-100 pointer-events-none transition-opacity z-50">
+                                          <p className="text-[10px] text-neutral-500 uppercase tracking-widest">{s.source}</p>
+                                          <p className="text-xs text-white leading-tight mt-1 truncate">{s.url}</p>
+                                      </div>
+                                  </motion.div>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+
+                  {/* PREDICTION RESULTS */}
+                  {prediction && (
+                      <div className="mb-6 mx-6 mt-2 p-4 bg-neutral-900/50 border border-purple-500/20 rounded-xl relative overflow-hidden group/prediction">
+                           <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-indigo-500" />
+                           <div className="flex items-start justify-between gap-4">
+                               <div>
+                                   <div className="flex items-center gap-2 mb-1">
+                                       <TrendingUp className="w-4 h-4 text-purple-400" />
+                                       <span className="text-xs font-bold text-white uppercase tracking-wider">Predictive Score</span>
+                                   </div>
+                                   <div className="flex items-baseline gap-1">
+                                       <span className="text-3xl font-black text-white">{prediction.score}</span>
+                                       <span className="text-sm text-neutral-500">/100</span>
+                                   </div>
+                               </div>
+                               
+                               <div className="text-right">
+                                   <button onClick={() => setPrediction(null)} className="text-neutral-600 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+                               </div>
+                           </div>
+
+                           <div className="mt-3 grid grid-cols-3 gap-2">
+                               <div className="bg-white/5 p-2 rounded text-center">
+                                   <div className="text-[10px] text-neutral-500 uppercase">Hook</div>
+                                   <div className={`font-mono text-sm ${prediction.breakdown.hookStrength > 70 ? 'text-green-400' : 'text-yellow-400'}`}>{prediction.breakdown.hookStrength}%</div>
+                               </div>
+                               <div className="bg-white/5 p-2 rounded text-center">
+                                   <div className="text-[10px] text-neutral-500 uppercase">Retain</div>
+                                   <div className={`font-mono text-sm ${prediction.breakdown.retainability > 70 ? 'text-green-400' : 'text-yellow-400'}`}>{prediction.breakdown.retainability}%</div>
+                               </div>
+                               <div className="bg-white/5 p-2 rounded text-center">
+                                   <div className="text-[10px] text-neutral-500 uppercase">Viral</div>
+                                   <div className={`font-mono text-sm ${prediction.breakdown.viralityPotential > 70 ? 'text-green-400' : 'text-yellow-400'}`}>{prediction.breakdown.viralityPotential}%</div>
+                               </div>
+                           </div>
+                           
+                           {prediction.score < 80 && (
+                               <div className="mt-3 pt-3 border-t border-white/5">
+                                   <div className="flex items-center gap-1.5 mb-2 text-amber-400/80 text-xs font-semibold">
+                                       <AlertCircle className="w-3 h-3" />
+                                       Optimization Tips
+                                   </div>
+                                   <ul className="space-y-1">
+                                       {prediction.improvementTips.map((tip, i) => (
+                                           <li key={i} className="text-xs text-neutral-300 pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-neutral-500">{tip}</li>
+                                       ))}
+                                   </ul>
+                               </div>
+                           )}
+                      </div>
+                  )}
+
+                  {/* Custom Empty State / Placeholder */}
+                  {!input && images.length === 0 && (
+                      <div className="absolute inset-0 p-6 pointer-events-none flex flex-col gap-4 z-20">
+                          <p className="text-neutral-500 text-lg">What strategy are we building today?</p>
+                          <div className="flex flex-wrap gap-2 mt-2 pointer-events-auto">
+                              {STARTER_CHIPS.map((chip) => (
+                                  <button
+                                     key={chip.label}
+                                     onClick={(e) => { e.stopPropagation(); setInput(chip.prompt); }}
+                                     className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full text-xs text-neutral-400 hover:text-white transition-colors"
+                                  >
+                                      <chip.icon className="w-3 h-3" />
+                                      {chip.label}
+                                  </button>
+                              ))}
+                          </div>
+                          
+                          <div className="mt-auto flex items-center gap-2 text-neutral-600 text-xs">
+                              <ImageIcon className="w-4 h-4" />
+                              <span>Drop images here to analyze</span>
+                          </div>
+                      </div>
+                  )}
+
+                  
+                  {/* Drag Overlay */}
+                  {isDragActive && (
+                      <div className="absolute inset-0 bg-indigo-500/10 backdrop-blur-sm flex items-center justify-center border-2 border-indigo-500 border-dashed rounded-xl z-20">
+                          <div className="text-center text-indigo-400 font-bold">
+                              <ImageIcon className="w-8 h-8 mx-auto mb-2" />
+                              <p>Drop to Analyze</p>
+                          </div>
+                      </div>
+                  )}
+                  
+                  {/* Image Previews */}
+                  {images.length > 0 && (
+                      <div className="px-6 pb-2 flex gap-2 z-20">
+                          {images.map((img, i) => (
+                              <div key={i} className="relative group/img">
+                                  <img src={img} alt="Upload" className="w-12 h-12 object-cover rounded-lg border border-white/20" />
+                                  <button 
+                                      onClick={(e) => removeImage(i, e)}
+                                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover/img:opacity-100 transition-opacity"
+                                  >
+                                      <X className="w-3 h-3" />
+                                  </button>
+                              </div>
+                          ))}
+                      </div>
+                  )}
+
+                  {/* CONTROL BAR */}
+                  <div className="border-t border-white/5 bg-white/5 p-3 flex flex-wrap items-center justify-between gap-4 rounded-b-xl backdrop-blur-md">
+                      
+                      <div className="flex items-center gap-4">
+                          {/* Persona Selector */}
+                          <div className="flex items-center gap-2">
+                              <UserCircle2 className="w-4 h-4 text-neutral-400" />
+                              <select
+                                  value={personaId}
+                                  onChange={(e) => setPersonaId(e.target.value as PersonaId)}
+                                  className="bg-transparent text-sm text-neutral-300 font-medium outline-none cursor-pointer hover:text-white transition-colors"
+                              >
+                                  {Object.values(PERSONAS).map((p) => (
+                                  <option key={p.id} value={p.id} className="bg-neutral-900">{p.name}</option>
+                                  ))}
+                              </select>
+                          </div>
+
+                          <div className="w-px h-4 bg-white/10" />
+
+                          {/* Simplified Toggles */}
+                          <div className="flex items-center gap-1">
+                              <button 
+                                  onClick={() => setUseNewsjack(!useNewsjack)}
+                                  className={`p-2 rounded-lg transition-all ${useNewsjack ? 'bg-red-500/20 text-red-400 shadow-[0_0_10px_rgba(248,113,113,0.3)]' : 'text-neutral-500 hover:text-neutral-300 hover:bg-white/5'}`}
+                                  title="Newsjack: Inject trending news"
+                              >
+                                  <Zap className="w-4 h-4" />
+                              </button>
+                              <button 
+                                  onClick={() => setUseRAG(!useRAG)}
+                                  className={`p-2 rounded-lg transition-all ${useRAG ? 'bg-purple-500/20 text-purple-400 shadow-[0_0_10px_rgba(192,132,252,0.3)]' : 'text-neutral-500 hover:text-neutral-300 hover:bg-white/5'}`}
+                                  title="Strategy Brain: Use internal knowledge"
+                              >
+                                  <Brain className="w-4 h-4" />
+                              </button>
+                              <button 
+                                  onClick={() => setUseFewShot(!useFewShot)}
+                                  className={`p-2 rounded-lg transition-all ${useFewShot ? 'bg-amber-500/20 text-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.3)]' : 'text-neutral-500 hover:text-neutral-300 hover:bg-white/5'}`}
+                                  title="Mirroring: Mimic best performing style"
+                              >
+                                  <Sparkles className="w-4 h-4" />
+                              </button>
+                          </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                           {/* Platform Switcher */}
+                           <div className="flex items-center bg-black/40 rounded-lg p-0.5 border border-white/5">
+                              <button onClick={() => setPlatform("linkedin")} className={`p-1.5 rounded-md transition-all ${platform === "linkedin" ? "bg-blue-600 text-white" : "text-neutral-500 hover:text-white"}`} title="LinkedIn"><Linkedin className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setPlatform("twitter")} className={`p-1.5 rounded-md transition-all ${platform === "twitter" ? "bg-white text-black" : "text-neutral-500 hover:text-white"}`} title="X (Twitter)"><Twitter className="w-3.5 h-3.5" /></button>
+                           </div>
+
+                           <button
+                              onClick={handleGenerate}
+                              disabled={!input.trim() && images.length === 0}
+                              className="group relative flex items-center gap-2 px-5 py-2 bg-white text-black font-bold rounded-lg text-xs hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                           >
+                              <span>GENERATE</span>
+                              <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                           </button>
+                      </div>
+
+                  </div>
+
+                </div>
               </div>
           ) : (
               // ... Loading/Error/Result view (unchanged structure)
@@ -374,83 +605,9 @@ export default function StreamingConsole({
         </div>
       </motion.div>
       
-      {/* ... Footer logic remains the same */}
-      <div className="flex justify-between items-center px-2">
-         {/* ... (Unchanged footer content) */}
-         <div className="flex items-center gap-4">
-             {/* Platform Selector */}
-             <div className="flex items-center bg-black/40 backdrop-blur-md rounded-full p-1 border border-white/10">
-                <button onClick={() => setPlatform("linkedin")} className={`p-2 rounded-full transition-all ${platform === "linkedin" ? "bg-blue-600 text-white shadow-[0_0_10px_rgba(37,99,235,0.5)]" : "text-neutral-500 hover:text-white"}`} title="LinkedIn"><Linkedin className="w-4 h-4" /></button>
-                <button onClick={() => setPlatform("twitter")} className={`p-2 rounded-full transition-all ${platform === "twitter" ? "bg-white text-black shadow-[0_0_10px_rgba(255,255,255,0.5)]" : "text-neutral-500 hover:text-white"}`} title="X (Twitter)"><Twitter className="w-4 h-4" /></button>
-             </div>
-             
-             {/* Toggles */}
-             <div className="flex items-center gap-2 pl-4">
-                {/* Newsjacker */}
-                <button 
-                    onClick={() => setUseNewsjack(!useNewsjack)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium transition-all border ${useNewsjack ? "bg-red-500/10 text-red-400 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]" : "bg-black/40 text-neutral-500 border-white/5 hover:border-white/20"}`}
-                >
-                    <Zap className="w-3 h-3" />
-                    Newsjack
-                </button>
-
-                {/* RAG Toggle */}
-                <button 
-                    onClick={() => setUseRAG(!useRAG)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium transition-all border ${useRAG ? "bg-purple-500/10 text-purple-400 border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.2)]" : "bg-black/40 text-neutral-500 border-white/5 hover:border-white/20"}`}
-                >
-                    <Brain className="w-3 h-3" />
-                    Strategy Brain
-                </button>
-
-                {/* Mirroring Toggle */}
-                <button 
-                    onClick={() => setUseFewShot(!useFewShot)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium transition-all border ${useFewShot ? "bg-amber-500/10 text-amber-400 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]" : "bg-black/40 text-neutral-500 border-white/5 hover:border-white/20"}`}
-                >
-                    <Sparkles className="w-3 h-3" />
-                    Mirroring
-                </button>
-             </div>
-             
-             {/* Persona Selector */}
-             <div className="relative group">
-                <div className="absolute inset-0 bg-neutral-800/50 rounded-full blur-sm group-hover:bg-neutral-700/50 transition-all" />
-                <UserCircle2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 z-10" />
-                <select
-                    value={personaId}
-                    onChange={(e) => setPersonaId(e.target.value as PersonaId)}
-                    className="relative z-10 bg-black/40 border border-white/10 text-white text-xs font-mono rounded-full pl-9 pr-8 py-2 appearance-none outline-none focus:border-white/30 hover:border-white/30 transition-all cursor-pointer min-w-[140px]"
-                >
-                    {Object.values(PERSONAS).map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                </select>
-            </div>
-         </div>
-
-         {isLoading ? (
-             <button
-               onClick={() => stop()}
-               className="flex items-center gap-2 px-6 py-3 bg-red-600/20 text-red-500 border border-red-500/50 font-bold rounded-full text-xs hover:bg-red-600/30 transition-colors backdrop-blur-sm"
-             >
-                 <Square className="w-3 h-3 fill-current" />
-                 ABORT
-             </button>
-         ) : (
-            <motion.button
-                whileHover={{ scale: 1.05, boxShadow: "0 0 25px rgba(255, 255, 255, 0.3)" }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleGenerate}
-                disabled={!input.trim() && images.length === 0}
-                className="group relative flex items-center gap-3 px-8 py-3 bg-white text-black font-bold rounded-full text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all tracking-wider overflow-hidden"
-            >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent translate-x-[-200%] group-hover:animate-[shimmer_1.5s_infinite]" />
-                <span className="relative z-10">INITIATE SEQUENCE</span>
-                <ArrowRight className="w-4 h-4 relative z-10 group-hover:translate-x-1 transition-transform" />
-            </motion.button>
-         )}
+      {/* Settings / Footer links can go here if needed, but primary controls are now in the bar */}
+      <div className="px-2 text-center">
+         <p className="text-[10px] text-neutral-600 uppercase tracking-widest font-mono">StrategyOS v2.0</p>
       </div>
 
       <TemplateLibraryModal 

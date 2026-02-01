@@ -1,7 +1,6 @@
+import { GoogleGenAI } from "@google/genai";
 
-
-
-const key = "AIzaSyCjdqsYkIJEcQEi9LRV4H0v_GwXtjUeNSg";
+const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
 
 async function list() {
   console.log("Checking models for key ending in:", key.slice(-4));

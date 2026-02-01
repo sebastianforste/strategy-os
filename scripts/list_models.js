@@ -1,12 +1,12 @@
 
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 
-const API_KEY = "AIzaSyCjdqsYkIJEcQEi9LRV4H0v_GwXtjUeNSg"; // Hardcoded for diagnostic
+const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY; // Loaded from env
 
 async function list() {
     console.log("Listing models...");
     try {
-        const genAI = new GoogleGenerativeAI(API_KEY);
+        const genAI = new GoogleGenAI({ apiKey: API_KEY });
         // We can't list models directly via the helper easily without a model instance, 
         // but we can try to hit the API url manually or use the model manager if available.
         // Actually, the SDK has a 'getGenerativeModel' but not 'listModels' on the main class in some versions.

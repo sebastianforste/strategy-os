@@ -10,7 +10,7 @@ This file is the connection between our app and Google's Gemini AI. It's respons
 
 ### The Setup
 ```typescript
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 ```
 **What it does:** Imports the official Google toolset. Think of this as opening the toolbox so we can use the `GoogleGenerativeAI` wrench.
 
@@ -36,7 +36,13 @@ export async function generateContent(input: string, apiKey: string) {
 **What it does:**
 1.  **Demo Check:** First, it looks at the API key. If you typed "demo", it skips Google entirely and returns pre-written "Mock" text. This ensures you can test the app even if your key works.
 2.  **Configuration:** It sets up the `gemini-flash-latest` model.
-3.  **The Prompt:** It wraps your simple input (e.g., "AI is dangerous") into a detailed instruction: *"Analyze this input... generate 3 assets... ensure JSON format."*
+3.  **The Prompt**: It wraps your simple input (e.g., "AI is dangerous") into a detailed instruction: *"Analyze this input... generate 3 assets... ensure JSON format."*
+
+### Reply Guy Logic: `generateComment`
+**What it does:** This is a specialized function for responding to *other* people's content.
+- **Persona Context**: It pulls your active persona (like "The Strategist") so your replies match your posts.
+- **Reply protocols**: It forces the AI to acknowledge the original post and add value, rather than just talking about itself.
+- **Pasting**: Works with the "Paste from Clipboard" button for maximum speed.
 
 ---
 
@@ -172,6 +178,7 @@ We added several components to make the app feel premium:
 - **`components/ShareButton.tsx`**: Uses "Smart Intent" to open LinkedIn with your post pre-filled.
 - **`components/GlitchLogo.tsx`**: Adds a "Chromatic Aberration" effect to the logo on hover.
 - **`components/Toast.tsx`**: Replaces ugly browser alerts with sleek, animated notifications.
+- **`components/CommentGeneratorModal.tsx`**: A dedicated workspace for generating replies. It handles the clipboard pasting logic and tone selection.
 
 This is the webpage you actually see.
 

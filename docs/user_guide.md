@@ -15,6 +15,11 @@
 - **UI**: Added a dedicated "Generated Image" tab with a **Download** button.
 - **Settings**: Uses the main `Gemini API Key`.
 
+### Comment Generator (NEW)
+- **Engine**: Specialized "Reply Mode" AI logic.
+- **Integration**: Paste external posts to generate strategic, persona-aligned comments.
+- **UI**: Added a "Reply" button in the header and a dedicated modal with tone selection.
+
 ### The "Trend Hunter" Engine (NEW)
 - **Engine**: Google Search Grounding (via Gemini API).
 - **Trigger**: Automatically detects short topics (e.g., "Nvidia", "Interest Rates").

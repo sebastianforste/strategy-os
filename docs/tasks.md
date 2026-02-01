@@ -188,3 +188,9 @@
     - [x] Set up Playwright for E2E testing
     - [x] Create "Golden Set" of inputs to test regarding regressions (Covered by E2E)
     - [x] GitHub Actions workflow for automated checks
+
+## Phase 21: Comment Generation Engine (COMPLETE ✅)
+- [x] Specialized "Reply Mode" AI logic
+- [x] Persona integration for replies
+- [x] Clipboard pasting support
+- [x] UI/UX: Reply Modal with Tone Selection

@@ -1,14 +1,14 @@
 "use server";
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 export interface Suggestion {
   id: string;
   angle: string;
 }
 
-const PRIMARY_MODEL = "gemini-flash-latest";
-const FALLBACK_MODEL = "gemini-1.5-flash";
+const PRIMARY_MODEL = "models/gemini-flash-latest";
+const FALLBACK_MODEL = "models/gemini-1.5-flash";
 
 /**
  * Generates 3 provocative LinkedIn post angles for a given topic.
@@ -36,19 +36,34 @@ ONLY return the JSON array. No markdown.`;
 
   async function tryWithModel(modelName: string): Promise<Suggestion[] | null> {
     try {
-      const genAI = new GoogleGenerativeAI(geminiKey);
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const response = await model.generateContent(prompt);
-      const text = response.response.text() || "";
-      
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) return [];
+      const genAI = new GoogleGenAI({ apiKey: geminiKey });
+      const response = await genAI.models.generateContent({
+        model: modelName,
+        contents: prompt
+      });
+      let cleanText = (response.text || "").trim();
+      // Strip markdown code blocks if present
+      if (cleanText.startsWith("```json")) {
+        cleanText = cleanText.replace(/^```json\n?/, "").replace(/\n?```$/, "");
+      } else if (cleanText.startsWith("```")) {
+        cleanText = cleanText.replace(/^```\n?/, "").replace(/\n?```$/, "");
+      }
 
-      const parsed: string[] = JSON.parse(jsonMatch[0]);
+      const jsonMatch = cleanText.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+          console.warn("[Suggestions] No JSON array found in response:", response.text);
+          return [];
+      }
+
+      let jsonStr = jsonMatch[0];
+      // Basic cleaning for trailing commas which break JSON.parse
+      jsonStr = jsonStr.replace(/,\s*\]/g, ']');
+
+      const parsed: string[] = JSON.parse(jsonStr);
       
       return parsed.slice(0, 3).map((angle, i) => ({
         id: `suggestion-${i}`,
-        angle: angle.trim(),
+        angle: String(angle).trim(),
       }));
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : "";

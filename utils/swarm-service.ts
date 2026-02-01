@@ -6,7 +6,7 @@
  * 2. The Simulator: Parallel feedback from synthetic audience members.
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 // --- TYPES ---
 
@@ -29,6 +29,7 @@ export interface AudienceMember {
   role: string;
   avatar: string;
   bias: string;
+  isCustom?: boolean; // Added to track custom personas
 }
 
 export interface SimulationFeedback {
@@ -79,34 +80,39 @@ export async function runCouncilTurn(
   nextSpeakerId: string,
   apiKey: string
 ): Promise<string> {
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const genAI = new GoogleGenAI({ apiKey });
+  const member = COUNCIL.find(m => m.id === nextSpeakerId);
+  if (!member) throw new Error("Agent not found");
 
-  const speaker = COUNCIL.find(m => m.id === nextSpeakerId);
-  if (!speaker) throw new Error("Unknown speaker");
-
-  const context = history.map(h => {
-    const m = COUNCIL.find(x => x.id === h.memberId);
-    return `${m?.name} (${m?.role}): ${h.content}`;
+  const conversation = history.map(msg => {
+    const speaker = COUNCIL.find(m => m.id === msg.memberId);
+    return `${speaker?.name} (${speaker?.role}): ${msg.content}`;
   }).join("\n\n");
 
   const prompt = `
-    THE DEBATE TOPIC: "${topic}"
-
-    PREVIOUS CONVERSATION:
-    ${context}
-
-    YOUR ROLE:
-    ${speaker.systemPrompt}
-
-    INSTRUCTION:
-    Respond to the conversation. Keep it under 50 words. Be in character.
-    If you are the Editor, synthesize the previous points into a final recommendation.
-  `;
+    THE COUNCIL CHAMBER
+    Topic: ${topic}
+    
+    PERSONA:
+    ${member.systemPrompt}
+    
+    PREVIOUS ARGUMENTS:
+    ${conversation || "No arguments yet. You are starting the debate."}
+    
+    INSTRUCTIONS:
+    1. Stay in character.
+    2. Be concise (max 3 sentences).
+    3. If you are Hemingway (The Editor), your goal is to synthesize the best points into a final, high-status "Master Draft".
+    4. Respond as ${member.name}.
+    `;
 
   try {
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    const result = await genAI.models.generateContent({
+        model: "models/gemini-flash-latest",
+        contents: prompt
+    });
+
+    return result.text || "";
   } catch (e) {
     console.warn("Council Agent failed, using mock", e);
     // Mock responses based on persona
@@ -120,34 +126,79 @@ export async function runCouncilTurn(
 /**
  * Run 'The Simulator' - Parallel feedback generation
  */
-export async function runSimulation(draft: string, apiKey: string): Promise<SimulationFeedback[]> {
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-  // In a real app, we'd Promise.all() these. For rate limits, we might mock or batch.
-  // Let's do a single batch call asking for JSON to save tokens/requests.
-  
+/**
+ * Generate a dynamic persona based on user description
+ */
+export async function createDynamicPersona(description: string, apiKey: string): Promise<AudienceMember | null> {
+  const genAI = new GoogleGenAI({ apiKey });
   const prompt = `
-    CONTENT TO REVIEW:
-    "${draft}"
-
-    SIMULATED AUDIENCE:
-    ${AUDIENCE.map(a => `- ${a.name} (${a.role}): ${a.bias}`).join("\n")}
-
-    INSTRUCTION:
-    Act as EACH of these audience members. Provide a reaction (love/hate/confused/bored) and a 1-sentence comment for each.
+    Create a detailed USER PERSONA based on this description: "${description}".
     
-    OUTPUT JSON FORMAT:
-    [
-      { "memberId": "vc", "reaction": "bored", "comment": "..." },
-      ...
-    ]
+    Return a JSON object:
+    {
+      "id": "custom_${Date.now()}",
+      "name": "First Name Only",
+      "role": "Job Title / Role",
+      "avatar": "Single Emoji",
+      "bias": "What they hate, what they love, their attention span."
+    }
   `;
 
   try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    // Clean code blocks if present
+    const result = await genAI.models.generateContent({
+        model: "models/gemini-flash-latest",
+        contents: prompt,
+        config: { responseMimeType: "application/json" }
+    });
+    
+    const text = result.text || "";
+    const member = JSON.parse(text);
+    return { ...member, isCustom: true };
+  } catch (e) {
+    console.error("Persona generation failed", e);
+    return null;
+  }
+}
+
+/**
+ * Run 'The Simulator' - Parallel feedback generation
+ */
+export async function runSimulation(
+  draft: string, 
+  apiKey: string, 
+  customAudience: AudienceMember[] = []
+): Promise<SimulationFeedback[]> {
+  const genAI = new GoogleGenAI({ apiKey });
+  
+  // Use custom audience if provided, otherwise default
+  const targetAudience = customAudience.length > 0 ? customAudience : AUDIENCE;
+
+  // Build the persona list string
+  const audienceList = targetAudience.map((m, i) => 
+    `${i+1}. ${m.name} (${m.role}): ${m.bias} (ID: ${m.id})`
+  ).join("\n    ");
+
+  const prompt = `
+    AUDIENCE SIMULATOR (Closed Testing)
+    Draft: "${draft}"
+    
+    AUDIENCE MEMBERS:
+    ${audienceList}
+    
+    TASK:
+    Generate a reaction for each member. 
+    Format as JSON array: [{"memberId": "ID", "reaction": "love/hate/confused/bored", "comment": "..."}, ...]
+    `;
+
+  try {
+    const result = await genAI.models.generateContent({
+        model: "models/gemini-flash-latest", 
+        contents: prompt,
+        config: { responseMimeType: "application/json" }
+    });
+    
+    const text = result.text || "";
+    // Clean code blocks if present (though responseMimeType usually handles it)
     const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
     return JSON.parse(jsonStr) as SimulationFeedback[];
   } catch (e) {

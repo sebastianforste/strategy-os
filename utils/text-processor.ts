@@ -9,6 +9,7 @@ export const BANNED_WORDS = [
   "Facilitate",
   "Optimize",
   "Revolutionize",
+  "Revolutionary",
   "Transform",
   "Spearhead",
   "Tapestry",
@@ -19,6 +20,7 @@ export const BANNED_WORDS = [
   "Intricate",
   "Myriad",
   "Plethora",
+  "Crucial",
 ];
 
 export const BANNED_PHRASES = [
@@ -88,25 +90,16 @@ export function applyAntiRobotFilter(text: string): string {
   // Normalize line breaks: Windows \r\n -> \n
   processed = processed.replace(/\r\n/g, "\n");
   
-  // Clean up extra spaces created by deletions
-  processed = processed.replace(/\s+/g, " "); 
+  // Clean up extra spaces created by deletions (Target only horizontal space, NOT newlines)
+  processed = processed.replace(/[ \t]+/g, " "); 
   
   // Enforce Double Line Breaks ("Bro-etry")
-  // Strategy: 
-  // 1. Ensure periods/exclamations/questions at end of sentences are followed by newlines.
-  // 2. Ensure all newlines are double newlines.
-  
-  // First, let's restore the structure. 
-  // We assume the AI generated reasonably good line breaks, but we want to force "white space".
-  // If the text is a block, we might want to split it. 
-  // For now, let's respect existing newlines but ensure they are doubled.
-  
-  // Replace single newlines with double newlines (but don't triple them)
-  // Step A: Replace all sequence of newlines with a generic marker
+  // 1. Ensure all existing newlines become double newlines
   processed = processed.replace(/(\n\s*)+/g, "\n\n");
   
-  // Step B: If there are really long blocks (e.g. > 150 chars) without a newline, 
-  // we might want to split near a period. (Optional, maybe too aggressive for now).
+  // 2. Clean up any punctuation weirdness created by removals (e.g. "word .")
+  processed = processed.replace(/\s+([.,!?;])/g, "$1");
+  processed = processed.replace(/([.,!?;])\s*([.,!?;])/g, "$1"); // Resolve double punctuation
 
   return processed.trim();
 }

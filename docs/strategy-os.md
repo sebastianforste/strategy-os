@@ -60,7 +60,7 @@ The app follows a **Server Action** architecture. The client handles input/state
 
 ### `utils/ai-service.ts`
 -   **Purpose**: The LLM Client.
--   **Logic**: Wrapper around `@google/generative-ai`. Handles retry logic for JSON parsing and selects the specific model (`gemini-3-flash-preview`).
+-   **Logic**: Wrapper around `@google/genai` (formerly `@google/generative-ai`). Handles retry logic for JSON parsing and selects the specific model (`gemini-flash-latest`).
 
 ### `utils/text-processor.ts`
 -   **Purpose**: The "Editor".

@@ -1,148 +1,147 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Copy, Check, Image as ImageIcon, Video, FileText, Layers, Bookmark, TrendingUp, ThumbsUp, Minus, ThumbsDown, RefreshCw, Sparkles, Eye, MessageSquare, Calendar, Mic } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { Copy, RefreshCw, ThumbsUp, ThumbsDown, Minus, ArrowRight, Eye, FileText, Check, MessageSquare, LayoutGrid, ImageIcon, Sparkles, Video, Layers, Mic } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import ReactMarkdown from "react-markdown";
 import dynamic from "next/dynamic";
 import { GeneratedAssets } from "../utils/ai-service";
-import PostButton from "./PostButton";
-import { transformTextToSlides } from "../utils/carousel-generator";
-import ExportMenu from "./ExportMenu";
-import { PerformanceRating } from "../utils/history-service";
-import RemixModal from "./RemixModal";
-import { generateRemixes, RemixResult } from "../utils/remix-service";
 import LinkedInPreview from "./LinkedInPreview";
-import CommentsPanel from "./CommentsPanel";
-import { schedulePost } from "../utils/schedule-service";
-import { saveTemplate } from "../utils/template-service";
 
-// Consolidated PDF Download Button (lazy loaded)
-const CarouselDownloadButton = dynamic(() => import("./CarouselDownloadButton"), { 
-  ssr: false,
-  loading: () => <div className="w-32 h-10 bg-neutral-800 rounded animate-pulse" />
-});
+// Lazy loaded feature components
+const CarouselGenerator = dynamic(() => import("./CarouselGenerator"), { ssr: false, loading: () => <div className="w-full h-20 bg-neutral-900 animate-pulse rounded-xl" /> });
+const VisualGenerator = dynamic(() => import("./VisualGenerator"), { ssr: false, loading: () => <div className="w-full aspect-square bg-neutral-900 animate-pulse rounded-xl" /> });
+const VideoDirector = dynamic(() => import("./VideoDirector"), { ssr: false, loading: () => <div className="w-full h-[600px] bg-neutral-900 animate-pulse rounded-xl" /> });
+const AudioStudio = dynamic(() => import("./AudioStudio"), { ssr: false, loading: () => <div className="w-full h-64 bg-neutral-900 animate-pulse rounded-xl" /> });
+const ThumbnailFactory = dynamic(() => import("./ThumbnailFactory"), { ssr: false, loading: () => <div className="w-full aspect-video bg-neutral-900 animate-pulse rounded-xl" /> });
+const PublishingControl = dynamic(() => import("./PublishingControl"), { ssr: false });
+import { getReachForecast, ReachForecast } from "../utils/reach-service";
 
 interface AssetDisplayProps {
   assets: GeneratedAssets;
-  linkedinClientId?: string;
-  onRate?: (rating: PerformanceRating) => void;
-  onUpdateAssets?: (assets: GeneratedAssets) => void;
+  linkedinClientId: string;
+  onRate: (rating: "viral" | "good" | "meh" | "flopped") => void;
+  onUpdateAssets: (newAssets: GeneratedAssets) => void;
   geminiKey?: string;
 }
+
+type PerformanceRating = "viral" | "good" | "meh" | "flopped" | null;
 
 import { explainPost, Explanation } from "../utils/explainer-service";
 
 export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdateAssets, geminiKey }: AssetDisplayProps) {
-  const [activeTab, setActiveTab] = useState<"text" | "preview" | "image" | "video" | "carousel">("text");
+  const [activeTab, setActiveTab] = useState<"text" | "preview" | "image" | "video" | "carousel" | "visual" | "x" | "substack" | "audio" | "thumbnail">("text");
   const [isClient, setIsClient] = useState(false);
   const [userRating, setUserRating] = useState<PerformanceRating>(null);
   const [remixModalOpen, setRemixModalOpen] = useState(false);
-  const [remixes, setRemixes] = useState<RemixResult[]>([]);
   const [isRemixing, setIsRemixing] = useState(false);
-  const [explanations, setExplanations] = useState<Explanation[]>([]);
+  const [remixType, setRemixType] = useState<"punchier" | "story" | "contrarian">("punchier");
+  
+  // Explanation State
+  const [explanation, setExplanation] = useState<Explanation[] | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
-  const [showExplainer, setShowExplainer] = useState(false);
-  const [commentsOpen, setCommentsOpen] = useState(false);
 
-  useEffect(() => {
+  // Reach Forecast State
+  const [reachForecast, setReachForecast] = useState<ReachForecast | null>(null);
+
+  useState(() => {
     setIsClient(true);
-  }, []);
-
-  const handleExplain = useCallback(async () => {
-    if (!geminiKey) return;
-    setIsExplaining(true);
-    try {
-      const results = await explainPost(assets.textPost, geminiKey);
-      setExplanations(results);
-      setShowExplainer(results.length > 0);
-    } catch (e) {
-      console.error("Explain failed:", e);
-    } finally {
-      setIsExplaining(false);
+    // Auto-fetch forecast
+    if (assets.textPost && geminiKey) {
+        getReachForecast(assets.textPost, geminiKey).then(setReachForecast);
     }
-  }, [assets.textPost, geminiKey]);
+  });
 
-  // Auto-explain on first load
-  useEffect(() => {
-    if (geminiKey && assets.textPost && !explanations.length && !isExplaining) {
-      handleExplain();
-    }
-  }, [assets.textPost, geminiKey, explanations.length, handleExplain, isExplaining]);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(content[activeTab as keyof typeof content] || "");
+  };
 
   const handleRate = (rating: PerformanceRating) => {
-      setUserRating(rating);
-      if (onRate) onRate(rating);
+    setUserRating(rating);
+    if (rating) onRate(rating);
   };
-
+    
+  const handleExplain = async () => {
+      if (!geminiKey) return;
+      setIsExplaining(true);
+      const expl = await explainPost(assets.textPost, geminiKey);
+      setExplanation(expl);
+      setIsExplaining(false);
+  };
 
   const handleRemix = async () => {
-    if (!geminiKey) {
-      alert("Gemini API key required for remixing.");
-      return;
-    }
-    setRemixModalOpen(true);
     setIsRemixing(true);
-    try {
-      const results = await generateRemixes(assets.textPost, geminiKey);
-      setRemixes(results);
-    } catch (e) {
-      console.error("Remix failed:", e);
-    } finally {
-      setIsRemixing(false);
-    }
-  };
-
-  const handleSelectRemix = (content: string) => {
-    if (onUpdateAssets) {
-      onUpdateAssets({ ...assets, textPost: content });
-    }
-  };
-
-  const handleSchedule = () => {
-    const dateTimeStr = prompt("When do you want to schedule this post? (YYYY-MM-DD HH:MM)", 
-      new Date(Date.now() + 86400000).toISOString().slice(0, 16).replace('T', ' ')
-    );
-    
-    if (dateTimeStr) {
-      const timestamp = Date.parse(dateTimeStr.replace(' ', 'T'));
-      if (isNaN(timestamp)) {
-        alert("Invalid date format. Please use YYYY-MM-DD HH:MM");
-        return;
-      }
-      
-      schedulePost(assets, timestamp);
-      alert("Post scheduled for " + new Date(timestamp).toLocaleString());
-    }
+    // Mock remix delay for now, or hook up remix-service later
+    setTimeout(() => setIsRemixing(false), 2000);
   };
 
   const tabs = [
-    { id: "text", label: "LINKEDIN POST", icon: FileText },
+    { id: "text", label: "LINKEDIN", icon: FileText },
+    { id: "x", label: "X THREAD", icon: MessageSquare },
+    { id: "substack", label: "SUBSTACK", icon: LayoutGrid },
     { id: "preview", label: "PREVIEW", icon: Eye },
-    { id: "image", label: "IMAGE PROMPT", icon: ImageIcon },
-    { id: "video", label: "VIDEO SCRIPT", icon: Video },
-    { id: "audio", label: "VOICE NOTE", icon: Mic },
-    { id: "carousel", label: "CAROUSEL PDF", icon: Layers },
+    { id: "video", label: "VIDEO DIRECTOR", icon: Video },
+    { id: "audio", label: "AUDIO STUDIO", icon: Mic },
+    { id: "thumbnail", label: "THUMBNAIL", icon: ImageIcon },
+    { id: "visual", label: "DIAGRAM", icon: Sparkles },
+    { id: "carousel", label: "CAROUSEL", icon: Layers },
   ] as const;
 
   const content = {
-    text: assets.textPost || "No text generated.",
-    preview: assets.textPost || "",
-    image: assets.imagePrompt || "No image prompt generated.",
+    text: assets.textPost,
+    preview: assets.textPost,
+    image: "", // Placeholder logic
+    carousel: "",
     video: assets.videoScript || "No video script generated.",
-    audio: assets.audioScript || "[Audio script not generated. Re-generate to include voice note script.]",
-    carousel: "", // Placeholder, derived from text
+    x: assets.xThread?.join("\n\n---\n\n") || "No thread generated.",
+    substack: assets.substackEssay || "No essay generated.",
+    visual: "",
+    thumbnail: assets.thumbnailPrompt || "No concept generated.",
+    audio: assets.textPost || "",
   };
   
   // Generate slides for preview/PDF
-  const slides = transformTextToSlides(assets.textPost);
+  const slides = assets.textPost.split("\n\n").map((text) => ({
+    title: text.length > 50 ? text.substring(0, 50) + "..." : text,
+    content: text
+  }));
+
+  if (!isClient) return null;
 
   return (
-    <div className="w-full max-w-3xl mx-auto mt-12">
-        {/* Rating Bar */}
-        {onRate && (
-            <div className="flex justify-center mb-8 gap-3">
-                <button onClick={() => handleRate("viral")} className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${userRating === "viral" ? "bg-green-500/20 border-green-500 text-green-400" : "bg-neutral-900 border-neutral-800 text-neutral-500 hover:border-green-900 hover:text-green-400"}`}>
-                    <TrendingUp className="w-4 h-4" /> <span className="text-xs font-bold">VIRAL</span>
+    <div className="w-full max-w-4xl mx-auto space-y-8 animate-in fade-in duration-700">
+      
+      {/* 2028 Reach Forecast Header */}
+      {reachForecast && (
+        <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-panel p-6 rounded-xl border border-white/5 bg-gradient-to-r from-indigo-900/20 to-purple-900/20 flex items-center justify-between"
+        >
+            <div className="flex items-center gap-4">
+                 <div className="p-3 bg-indigo-500/20 rounded-full border border-indigo-500/30">
+                    <Sparkles className="w-5 h-5 text-indigo-400" />
+                 </div>
+                 <div>
+                    <h4 className="text-sm font-bold text-white tracking-wide">REACH FORECAST</h4>
+                    <p className="text-xs text-indigo-300 font-mono mt-1">
+                        EST. IMPRESSIONS: <span className="text-white font-bold">{reachForecast.estimatedImpressions}</span> • confidence: {reachForecast.confidenceScore}/100
+                    </p>
+                 </div>
+            </div>
+            <div className="text-right">
+                <div className="text-xs text-neutral-400 font-mono uppercase tracking-widest mb-1">Virality Probability</div>
+                <div className="text-xl font-bold text-white">{reachForecast.viralProbability}</div>
+            </div>
+        </motion.div>
+      )}
+
+      {/* Feedback / Rating Section */}
+      {!userRating && (
+            <div className="flex justify-center gap-4 py-4" aria-label="Rate this generation">
+                <span className="text-xs font-mono text-neutral-500 self-center uppercase tracking-widest mr-2">Rate Output:</span>
+                <button onClick={() => handleRate("viral")} className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${userRating === "viral" ? "bg-purple-500/20 border-purple-500 text-purple-400" : "bg-neutral-900 border-neutral-800 text-neutral-500 hover:border-purple-900 hover:text-purple-400"}`}>
+                    <Sparkles className="w-4 h-4" /> <span className="text-xs font-bold">VIRAL</span>
                 </button>
                 <button onClick={() => handleRate("good")} className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${userRating === "good" ? "bg-blue-500/20 border-blue-500 text-blue-400" : "bg-neutral-900 border-neutral-800 text-neutral-500 hover:border-blue-900 hover:text-blue-400"}`}>
                     <ThumbsUp className="w-4 h-4" /> <span className="text-xs font-bold">GOOD</span>
@@ -156,7 +155,7 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
             </div>
         )}
 
-      <div className="flex p-1 bg-black/40 backdrop-blur-sm border border-white/10 rounded-full mb-8 overflow-x-auto w-fit mx-auto">
+      <div className="flex p-1 bg-black/40 backdrop-blur-sm border border-white/10 rounded-full mb-8 overflow-x-auto w-fit mx-auto custom-scrollbar">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -187,6 +186,7 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
         {/* Specular Highlight */}
         <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-80" />
         <div className="absolute top-0 left-0 w-full h-[200px] bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+        
         {activeTab === "image" && assets.imageUrl ? (
           <div className="space-y-4">
             <div className="relative group">
@@ -219,69 +219,33 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                 <LinkedInPreview content={assets.textPost} />
             </div>
         ) : activeTab === "carousel" ? (
-            <div className="space-y-8">
-                <div className="flex items-center justify-between pb-4 border-b border-neutral-900">
-                    <div>
-                        <h3 className="text-white font-bold text-lg">PDF Carousel</h3>
-                        <p className="text-neutral-500 text-xs mt-1">
-                            {slides.length} slides generated from your post.
-                        </p>
-                    </div>
-                    {isClient && (
-                         <CarouselDownloadButton 
-                            slides={slides}
-                            fileName="strategy_os_carousel.pdf" 
-                         />
-                    )}
-                </div>
-                
-                {/* Visual Preview Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {slides.map((slide, index) => {
-                        const accentColors = ['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b'];
-                        const accentColor = accentColors[index % accentColors.length];
-                        
-                        return (
-                            <div key={slide.id} className="aspect-[4/5] bg-black/40 border border-white/10 rounded-xl flex flex-col relative overflow-hidden group backdrop-blur-md">
-                                {/* Accent bar */}
-                                <div className="h-1 w-full" style={{ backgroundColor: accentColor }} />
-                                
-                                {/* Corner decorations */}
-                                <div className="absolute top-4 left-4 w-6 h-6">
-                                    <div className="absolute top-0 left-0 w-4 h-0.5" style={{ backgroundColor: accentColor }} />
-                                    <div className="absolute top-0 left-0 w-0.5 h-4" style={{ backgroundColor: accentColor }} />
-                                </div>
-                                <div className="absolute bottom-4 right-4 w-6 h-6">
-                                    <div className="absolute bottom-0 right-0 w-4 h-0.5" style={{ backgroundColor: accentColor }} />
-                                    <div className="absolute bottom-0 right-0 w-0.5 h-4" style={{ backgroundColor: accentColor }} />
-                                </div>
-                                
-                                {/* Content */}
-                                <div className="flex-1 flex items-center justify-center p-4">
-                                    <p className={`text-white text-center font-bold ${slide.type === 'cover' ? 'text-lg' : 'text-xs'}`}>
-                                        {slide.content.length > 50 && slide.type !== 'cover' 
-                                            ? slide.content.substring(0, 50) + "..." 
-                                            : slide.content}
-                                    </p>
-                                </div>
-                                
-                                {/* Slide number */}
-                                <div className="absolute bottom-2 left-4 text-[10px] font-mono" style={{ color: accentColor }}>
-                                    {slide.id} / {slides.length}
-                                </div>
-                                
-                                {/* Hover overlay */}
-                                <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                            </div>
-                        );
-                    })}
-                </div>
+             <div className="space-y-4">
+                  <h3 className="text-white font-bold text-lg mb-2">PDF Carousel Factory</h3>
+                  <p className="text-neutral-500 text-xs mb-4">Auto-convert your post into a high-design carousel document.</p>
+                  <CarouselGenerator post={assets.textPost} apiKey={geminiKey || ""} />
+             </div>
+        ) : activeTab === "video" ? (
+             <VideoDirector script={content.video || assets.videoScript || "No script available."} />
+        ) : activeTab === "audio" ? (
+             <AudioStudio script={content.video || assets.videoScript || assets.textPost || "No script available."} />
+        ) : activeTab === "thumbnail" ? (
+             <ThumbnailFactory 
+                title={assets.textPost ? assets.textPost.split('\n')[0].substring(0, 30) : "REVOLUTIONARY STRATEGY"} 
+                prompt={assets.thumbnailPrompt || "High contrast"} 
+             />
+        ) : activeTab === "visual" ? (
+            <div className="space-y-4">
+                <h3 className="text-white font-bold text-lg mb-2">Visual Factory</h3>
+                 <p className="text-neutral-500 text-xs mb-4">Generate minimalist "Visualize Value" style diagrams.</p>
+                <VisualGenerator concept={assets.textPost.substring(0, 50)} apiKey={geminiKey || ""} />
             </div>
         ) : (
             <>
                 <div className="absolute top-4 right-4 flex items-center gap-2">
                     {activeTab === "text" && (
                         <div className="flex items-center gap-2">
+                             <PublishingControl />
+                             <div className="w-px h-6 bg-white/10 mx-2" />
                             {/* Remix Button */}
                             <button
                                 onClick={handleRemix}
@@ -292,121 +256,67 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                                 <RefreshCw className={`w-4 h-4 ${isRemixing ? 'animate-spin' : ''}`} />
                             </button>
                             <button
-                                onClick={() => {
-                                    const name = prompt("Enter a name for this template:");
-                                    if(name) {
-                                        saveTemplate({ name, content: content.text, tags: [] });
-                                        alert("Template saved!");
-                                    }
-                                }}
-                                className="p-2 text-neutral-500 hover:text-white transition-colors rounded-md bg-neutral-900 border border-neutral-800"
-                                title="Save as Template"
+                                onClick={handleCopy}
+                                className="p-2 text-neutral-500 hover:text-white transition-colors rounded-md bg-neutral-900 border border-neutral-800 hover:border-neutral-700"
+                                title="Copy to Clipboard"
                             >
-                                <Bookmark className="w-4 h-4" />
+                                <Copy className="w-4 h-4" />
                             </button>
-                            <button
-                                onClick={() => setCommentsOpen(!commentsOpen)}
-                                className={`p-2 transition-colors rounded-md bg-neutral-900 border border-neutral-800 ${commentsOpen ? 'text-blue-400 border-blue-900' : 'text-neutral-500 hover:text-white'}`}
-                                title="Comments"
-                            >
-                                <MessageSquare className="w-4 h-4" />
-                            </button>
-                            <button
-                                onClick={handleSchedule}
-                                className="p-2 text-neutral-500 hover:text-green-400 transition-colors rounded-md bg-neutral-900 border border-neutral-800 hover:border-green-900"
-                                title="Schedule Post"
-                            >
-                                <Calendar className="w-4 h-4" />
-                            </button>
-                            <PostButton 
-                                text={content.text} 
-                                clientId={linkedinClientId}
-                            />
                         </div>
                     )}
-                     {/* Replaced simple CopyButton with full ExportMenu for Text Tab */}
-                     {activeTab === "text" ? (
-                        <ExportMenu content={content.text} />
-                     ) : (
-                        <CopyButton text={content[activeTab]} />
-                     )}
                 </div>
-                <pre className="font-mono text-sm text-neutral-300 whitespace-pre-wrap leading-relaxed mt-2 p-2">
-                    {content[activeTab]}
-                </pre>
+
+                <div className="prose prose-invert max-w-none">
+                    <ReactMarkdown
+                        components={{
+                            h1: ({node, ...props}) => <h1 className="text-xl font-bold text-white mb-4" {...props} />,
+                            h2: ({node, ...props}) => <h2 className="text-lg font-bold text-white mt-6 mb-3" {...props} />,
+                            p: ({node, ...props}) => <p className="text-neutral-300 leading-relaxed mb-4 text-sm" {...props} />,
+                            ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-2 mb-4 text-neutral-300 text-sm" {...props} />,
+                            li: ({node, ...props}) => <li className="" {...props} />,
+                            strong: ({node, ...props}) => <strong className="font-bold text-white" {...props} />,
+                        }}
+                    >
+                        {content[activeTab as keyof typeof content] || "No content generated."}
+                    </ReactMarkdown>
+                </div>
+                
+                 {/* Explain Logic Section */}
+                 {activeTab === "text" && (
+                    <div className="mt-8 pt-6 border-t border-white/5">
+                        <button 
+                            onClick={handleExplain}
+                            className="text-xs font-mono text-neutral-500 hover:text-white flex items-center gap-2 transition-colors mb-4"
+                        >
+                            <Sparkles className="w-3 h-3" />
+                            {isExplaining ? "ANALYZING PSYCHOLOGY..." : "REVEAL BEHIND-THE-SCENES LOGIC"}
+                        </button>
+                        
+                        <AnimatePresence>
+                        {explanation && (
+                            <motion.div 
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="space-y-4"
+                            >
+                                {explanation.map((item, idx) => (
+                                    <div key={idx} className="bg-indigo-900/20 border border-indigo-500/20 rounded-lg p-4">
+                                        <h4 className="text-indigo-400 text-xs font-bold uppercase tracking-wider mb-2">{item.pattern}</h4>
+                                        <div className="flex items-start gap-2 text-xs text-neutral-400">
+                                            <Check className="w-3 h-3 text-green-500 mt-0.5" />
+                                            <span>{item.reason}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </motion.div>
+                        )}
+                        </AnimatePresence>
+                    </div>
+                )}
             </>
         )}
       </motion.div>
-
-      {/* Why This Works Explainer */}
-      {activeTab === "text" && (showExplainer || isExplaining) && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-6 bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-800/50 rounded-lg p-5"
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="w-4 h-4 text-purple-400" />
-            <h4 className="text-sm font-bold text-white">Why This Works</h4>
-            {isExplaining && <span className="text-xs text-neutral-500 ml-2">Analyzing...</span>}
-          </div>
-          
-          {explanations.length > 0 ? (
-            <div className="space-y-3">
-              {explanations.map((exp, i) => (
-                <div key={i} className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center">
-                    <span className="text-xs font-bold text-purple-400">{i + 1}</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-white">{exp.pattern}</p>
-                    <p className="text-xs text-neutral-400 mt-0.5">{exp.reason}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex justify-center py-4">
-              <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
-        </motion.div>
-      )}
-
-      {/* Remix Modal */}
-      <RemixModal
-        isOpen={remixModalOpen}
-        onClose={() => setRemixModalOpen(false)}
-        remixes={remixes}
-        onSelect={handleSelectRemix}
-        isLoading={isRemixing}
-      />
-
-      {/* Comments Panel */}
-      <CommentsPanel 
-        assetId={assets.textPost.substring(0, 50)} // Using a snippet of text as assetId proxy
-        isOpen={commentsOpen}
-        onClose={() => setCommentsOpen(false)}
-      />
     </div>
-  );
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="p-2 text-neutral-500 hover:text-white transition-colors rounded-md bg-neutral-900 border border-neutral-800"
-    >
-      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-    </button>
   );
 }

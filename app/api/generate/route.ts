@@ -16,10 +16,9 @@ export async function POST(req: Request) {
     const logFile = path.join(process.cwd(), 'server-debug.log');
     const log = (msg: string) => fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
     
-    // MODEL PRIORITY: Try gemini-flash-latest first, fallback to gemini-1.5-flash on rate limit
-    // Both 1.5-flash and 1.5-pro are multimodal.
-    const PRIMARY_MODEL = "gemini-flash-latest";
-    const FALLBACK_MODEL = "gemini-1.5-flash";
+    // MODEL PRIORITY: Try models/gemini-flash-latest first, fallback to models/gemini-2.5-flash-preview-09-2025 on rate limit
+    const PRIMARY_MODEL = "models/gemini-flash-latest";
+    const FALLBACK_MODEL = "models/gemini-2.5-flash-preview-09-2025";
     
     log(`Incoming Request: InputLen=${input?.length || 0}, Persona=${personaId}, Model=${PRIMARY_MODEL}, Images=${images?.length || 0}`);
     
@@ -158,6 +157,7 @@ Data tells better lies than people do.
     try {
       const result = await tryStreamWithModel(PRIMARY_MODEL);
       log("Returning stream response (primary model)...");
+      if (!result) throw new Error("Stream initialization failed (primary)");
       return result.toTextStreamResponse();
     } catch (primaryError: unknown) {
       const errorMessage = primaryError instanceof Error ? primaryError.message : "";

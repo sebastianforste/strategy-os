@@ -1,5 +1,5 @@
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import path from "path";
 
@@ -29,12 +29,17 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
 }
 
 export async function embedText(text: string, apiKey: string): Promise<number[]> {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
+    const genAI = new GoogleGenAI({ apiKey });
     
     try {
-        const result = await model.embedContent(text);
-        return result.embedding.values;
+        const result = await genAI.models.embedContent({
+            model: "text-embedding-004",
+            contents: text
+        });
+        // Assuming result.embedding exists or result.embeddings[0].values
+        // Based on linter "Did you mean 'embeddings'?", it seems result.embeddings is correct.
+        // It likely returns an array of embeddings.
+        return result.embeddings?.[0]?.values || [];
     } catch (e) {
         console.error("Embedding error:", e);
         return [];

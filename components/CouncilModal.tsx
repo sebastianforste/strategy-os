@@ -2,20 +2,20 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Play, RefreshCw, MessageSquare, Mic, User } from "lucide-react";
+import { X, Play, RefreshCw, Mic, Zap } from "lucide-react";
 import { COUNCIL, CouncilMessage, runCouncilTurn } from "../utils/swarm-service";
 
 interface CouncilModalProps {
   isOpen: boolean;
   onClose: () => void;
   apiKey: string;
+  onAdoptStrategy?: (draft: string) => void;
 }
 
-export default function CouncilModal({ isOpen, onClose, apiKey }: CouncilModalProps) {
+export default function CouncilModal({ isOpen, onClose, apiKey, onAdoptStrategy }: CouncilModalProps) {
   const [topic, setTopic] = useState("");
   const [isDebating, setIsDebating] = useState(false);
   const [messages, setMessages] = useState<CouncilMessage[]>([]);
-  const [turnIndex, setTurnIndex] = useState(0); 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll
@@ -27,12 +27,11 @@ export default function CouncilModal({ isOpen, onClose, apiKey }: CouncilModalPr
     if (!topic || !apiKey) return;
     setIsDebating(true);
     setMessages([]);
-    setTurnIndex(0);
 
     // Sequence: Visionary -> Skeptic -> Visionary -> Skeptic -> Editor
     const turns = ["visionary", "skeptic", "visionary", "skeptic", "editor"];
     
-    let currentHistory: CouncilMessage[] = [];
+    const currentHistory: CouncilMessage[] = [];
 
     for (const speakerId of turns) {
       // Small delay for "thinking" effect
@@ -139,6 +138,15 @@ export default function CouncilModal({ isOpen, onClose, apiKey }: CouncilModalPr
                                     <p className="text-sm text-neutral-200 leading-relaxed">
                                         {msg.content}
                                     </p>
+                                    {isEditor && onAdoptStrategy && (
+                                        <button 
+                                            onClick={() => onAdoptStrategy(msg.content)}
+                                            className="mt-4 px-4 py-2 bg-purple-500 text-white text-[10px] font-bold rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-2"
+                                        >
+                                            <Zap className="w-3 h-3" />
+                                            ADOPT THIS STRATEGY
+                                        </button>
+                                    )}
                                 </div>
                             </motion.div>
                         );

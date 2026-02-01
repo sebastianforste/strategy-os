@@ -14,7 +14,7 @@ import TeamSettingsModal from "../components/TeamSettingsModal";
 import ScheduleCalendar from "../components/ScheduleCalendar";
 import GhostInboxModal from "../components/GhostInboxModal";
 import CommentGeneratorModal from "../components/CommentGeneratorModal";
-import { Settings as SettingsIcon, Clock, Mic, BarChart3, Users, Calendar, Ghost, Activity, MessageSquare } from "lucide-react";
+import { Settings as SettingsIcon, Clock, Mic, BarChart3, Users, Calendar, Ghost, Activity, MessageSquare, LayoutGrid, Dna } from "lucide-react";
 import { GeneratedAssets } from "../utils/ai-service";
 import { saveHistory, getHistory, clearHistory, HistoryItem, updateHistoryPerformance, PerformanceRating } from "../utils/history-service";
 import { PersonaId } from "../utils/personas";
@@ -23,6 +23,11 @@ import BoardroomModal from "../components/BoardroomModal";
 import CouncilModal from "../components/CouncilModal";
 import SimulatorModal from "../components/SimulatorModal";
 import VoiceConversationModal from "../components/VoiceConversationModal";
+import VoiceLabModal from "../components/VoiceLabModal";
+import NetworkHub from "../components/NetworkHub";
+import InterceptionPanel from "../components/InterceptionPanel";
+import { getDNA, buildDNAPrompt } from "../utils/dna-service";
+import { PERSONAS } from "../utils/personas";
 
 export default function Home() {
   const [input, setInput] = useState("");
@@ -38,6 +43,9 @@ export default function Home() {
   const [councilOpen, setCouncilOpen] = useState(false);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
   const [voiceModeOpen, setVoiceModeOpen] = useState(false);
+  const [voiceLabOpen, setVoiceLabOpen] = useState(false);
+  const [networkHubOpen, setNetworkHubOpen] = useState(false);
+  const [appsMenuOpen, setAppsMenuOpen] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKeys>({ gemini: "", serper: "" });
   const [personaId, setPersonaId] = useState<PersonaId>("cso");
@@ -70,6 +78,12 @@ export default function Home() {
     showToast(`Loaded draft: ${draft.trend}`, "success");
   };
 
+  const handleIntercept = (signal: import("../utils/ghost-service").Signal) => {
+    setInput(`Write a contrarian take on: "${signal.topic}".\nContext: ${signal.summary}\nAngle: ${signal.suggestedAngle}\n\nMake it viral.`);
+    showToast("Signal Intercepted. Auto-Drafting...", "success");
+    // Ideally this would auto-trigger generation, but pre-filling input is good for now.
+  };
+
   // Load keys and history on mount (Hydration-safe)
   useEffect(() => {
     const savedGemini = localStorage.getItem("strategyos_gemini_key");
@@ -89,6 +103,16 @@ export default function Home() {
     }
     
     setHistory(getHistory());
+
+    // Initialize Voice DNA Integration
+    const dna = getDNA();
+    if (dna) {
+        console.log("🧬 Loading Voice DNA...");
+        // Inject the DNA into the Custom Persona
+        PERSONAS.custom.basePrompt = buildDNAPrompt(dna);
+        PERSONAS.custom.description = "Your Unique Voice Clone";
+        // Optionally auto-select custom if available? No, stick to default CSo to avoid confusion.
+    }
   }, []);
 
   // Update virality score when input changes
@@ -254,7 +278,7 @@ export default function Home() {
             <GlitchLogo />
             <WorkspaceSwitcher />
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
             <button
             onClick={() => setGhostOpen(true)}
             className="text-purple-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-bold bg-purple-500/10 px-3 py-1.5 rounded-full border border-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]"
@@ -273,83 +297,105 @@ export default function Home() {
             </button>
             <button
             onClick={() => setBoardroomOpen(true)}
-            className="text-indigo-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-bold bg-indigo-500/10 px-3 py-1.5 rounded-full border border-indigo-500/20 shadow-[0_0_10px_rgba(99,102,241,0.2)] mr-2"
+            className="text-indigo-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-bold bg-indigo-500/10 px-3 py-1.5 rounded-full border border-indigo-500/20 shadow-[0_0_10px_rgba(99,102,241,0.2)]"
             aria-label="Boardroom"
             >
             <Mic className="w-4 h-4" />
             <span className="hidden md:inline">Boardroom</span>
             </button>
-            <button
-            onClick={() => setAnalyticsOpen(true)}
-            className="text-neutral-500 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium"
-            aria-label="Analytics"
-            >
-            <BarChart3 className="w-5 h-5" />
-            <span className="hidden md:inline">Analytics</span>
-            </button>
-            <button
-            onClick={() => setCouncilOpen(true)}
-            className="text-neutral-500 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium"
-            title="The Digital Council (Swarm)"
-            aria-label="Council"
-            >
-            <Users className="w-5 h-5" />
-            <span className="hidden md:inline">Council</span>
-            </button>
-            <button
-            onClick={() => setSimulatorOpen(true)}
-            className="text-neutral-500 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium"
-            title="Audience Simulator"
-            aria-label="Audience Simulator"
-            >
-            <Activity className="w-5 h-5" />
-            <span className="hidden md:inline">Sim</span>
-            </button>
-            <button
-            onClick={() => setVoiceTrainingOpen(true)}
-            className="text-neutral-500 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium"
-            title="Train Your Voice"
-            aria-label="Voice Training"
-            >
-            <Mic className="w-5 h-5" />
-            <span className="hidden md:inline">Voice</span>
-            </button>
-            <button
-            onClick={() => setHistoryOpen(true)}
-            className="text-neutral-500 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium"
-            aria-label="History"
-            >
-            <Clock className="w-5 h-5" />
-            <span className="hidden md:inline">History</span>
-            </button>
-            <button
-            onClick={() => setScheduleOpen(true)}
-            className="text-neutral-500 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium"
-            aria-label="Schedule"
-            >
-            <Calendar className="w-5 h-5" />
-            <span className="hidden md:inline">Schedule</span>
-            </button>
+            
             <button
             onClick={() => setVoiceModeOpen(true)}
-            className="text-white hover:text-white transition-all flex items-center gap-2 text-sm font-bold bg-gradient-to-r from-blue-500/20 to-purple-500/20 px-4 py-1.5 rounded-full border border-blue-400/30 shadow-[0_0_15px_rgba(59,130,246,0.3)] animate-pulse hover:animate-none"
+            className="text-white hover:text-white transition-all flex items-center gap-2 text-sm font-bold bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2 rounded-full border border-cyan-400/30 shadow-[0_0_20px_rgba(6,182,212,0.4)] animate-pulse hover:animate-none hover:shadow-[0_0_30px_rgba(6,182,212,0.6)] mr-2 group"
             title="Chat with StrategyOS"
             aria-label="Voice Mode"
             >
-            <Mic className="w-4 h-4" />
-            <span className="hidden md:inline">Conversation</span>
+            <div className="w-2 h-2 rounded-full bg-white animate-ping mr-1" />
+            <span className="hidden md:inline">SYSTEM ONLINE</span>
             </button>
-            <button
-            onClick={() => setTeamSettingsOpen(true)}
-            className="text-neutral-500 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium"
-            aria-label="Team"
-            >
-            <Users className="w-5 h-5" />
-            <span className="hidden md:inline">Team</span>
-            </button>
+            
+            {/* Apps Menu Dropdown */}
+            <div className="relative">
+                <button
+                onClick={() => setAppsMenuOpen(!appsMenuOpen)}
+                className={`text-neutral-300 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-full ${appsMenuOpen ? 'bg-white/10 text-white' : ''}`}
+                aria-label="Apps"
+                >
+                <LayoutGrid className="w-5 h-5" />
+                <span className="hidden md:inline">Apps</span>
+                </button>
+                
+                {appsMenuOpen && (
+                    <>
+                    <div className="fixed inset-0 z-40" onClick={() => setAppsMenuOpen(false)}></div>
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-[#0A0A0A]/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-200">
+                        <button
+                        onClick={() => { setAnalyticsOpen(true); setAppsMenuOpen(false); }}
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
+                        >
+                        <BarChart3 className="w-4 h-4 text-emerald-400" />
+                        Analytics
+                        </button>
+                        <button
+                        onClick={() => { setCouncilOpen(true); setAppsMenuOpen(false); }}
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
+                        >
+                        <Users className="w-4 h-4 text-amber-400" />
+                        The Council
+                        </button>
+                        <button
+                        onClick={() => { setSimulatorOpen(true); setAppsMenuOpen(false); }}
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
+                        >
+                        <Activity className="w-4 h-4 text-rose-400" />
+                        Simulator
+                        </button>
+                         <button
+                        onClick={() => { setNetworkHubOpen(true); setAppsMenuOpen(false); }}
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
+                        >
+                        <Users className="w-4 h-4 text-indigo-400" />
+                        Network Intel
+                        </button>
+                        <div className="h-px bg-white/10 my-1" />
+                        <button
+                        onClick={() => { setVoiceLabOpen(true); setAppsMenuOpen(false); }}
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
+                        >
+                        <Dna className="w-4 h-4 text-pink-400" />
+                        Voice Lab (DNA)
+                        </button>
+                        <button
+                        onClick={() => { setHistoryOpen(true); setAppsMenuOpen(false); }}
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
+                        >
+                        <Clock className="w-4 h-4 text-blue-400" />
+                        History
+                        </button>
+                        <button
+                        onClick={() => { setScheduleOpen(true); setAppsMenuOpen(false); }}
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
+                        >
+                        <Calendar className="w-4 h-4 text-orange-400" />
+                        Schedule
+                        </button>
+                         <button
+                        onClick={() => { setTeamSettingsOpen(true); setAppsMenuOpen(false); }}
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
+                        >
+                        <Users className="w-4 h-4 text-indigo-400" />
+                        Team
+                        </button>
+                    </div>
+                    </>
+                )}
+            </div>
+
+            <div className="h-6 w-px bg-white/10 mx-1"></div>
+
             <button
             onClick={() => setSettingsOpen(true)}
-            className="text-neutral-500 hover:text-white transition-colors"
+            className="text-neutral-400 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full"
             aria-label="Settings"
             >
             <SettingsIcon className="w-5 h-5" />
@@ -359,7 +405,6 @@ export default function Home() {
 
       {/* Main Interface */}
       <div className="max-w-5xl mx-auto">
-        {/* REPLACED InputConsole with StreamingConsole */}
         <StreamingConsole
           initialValue={input}
           onGenerationComplete={handleStreamingComplete}
@@ -376,12 +421,11 @@ export default function Home() {
           setPlatform={setPlatform}
           onError={(msg) => showToast(msg, "error")}
         />
-
         {assets && (
           <div className="w-full max-w-4xl animate-in fade-in slide-in-from-bottom-10 duration-700">
             <AssetDisplay 
                 assets={assets} 
-                linkedinClientId={apiKeys.linkedinClientId}
+                linkedinClientId={apiKeys.linkedinClientId || ""} 
                 onRate={handleRate}
                 geminiKey={apiKeys.gemini}
                 onUpdateAssets={(newAssets) => setAssets(newAssets)}
@@ -439,6 +483,9 @@ export default function Home() {
         apiKey={apiKeys.gemini}
         onLoadDraft={handleLoadDraft}
       />
+      
+      <InterceptionPanel onIntercept={handleIntercept} />
+
 
       <CommentGeneratorModal
         isOpen={commentGenOpen}
@@ -458,10 +505,16 @@ export default function Home() {
         isVisible={toast.isVisible}
         onClose={closeToast}
       />
-      <CouncilModal
-        isOpen={councilOpen}
-        onClose={() => setCouncilOpen(false)}
+      <CouncilModal 
+        isOpen={councilOpen} 
+        onClose={() => setCouncilOpen(false)} 
         apiKey={apiKeys.gemini}
+        onAdoptStrategy={(draft) => {
+          setInput(draft);
+          setAssets(prev => prev ? { ...prev, textPost: draft } : null);
+          setCouncilOpen(false);
+          showToast("Strategy adopted from the Council.", "success");
+        }}
       />
       <SimulatorModal
         isOpen={simulatorOpen}
@@ -471,6 +524,16 @@ export default function Home() {
       <VoiceConversationModal
         isOpen={voiceModeOpen}
         onClose={() => setVoiceModeOpen(false)}
+        apiKey={apiKeys.gemini}
+      />
+      <VoiceLabModal
+        isOpen={voiceLabOpen}
+        onClose={() => setVoiceLabOpen(false)}
+        apiKey={apiKeys.gemini}
+      />
+      <NetworkHub
+        isOpen={networkHubOpen}
+        onClose={() => setNetworkHubOpen(false)}
         apiKey={apiKeys.gemini}
       />
     </main>

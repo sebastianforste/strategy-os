@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 export interface CompetitorContent {
   title: string;
@@ -70,8 +70,8 @@ export async function searchCompetitorContent(
   }
 }
 
-const PRIMARY_MODEL = "gemini-flash-latest";
-const FALLBACK_MODEL = "gemini-1.5-flash";
+const PRIMARY_MODEL = "models/gemini-flash-latest";
+const FALLBACK_MODEL = "models/gemini-1.5-flash";
 
 /**
  * TREND REPORT GENERATOR
@@ -101,14 +101,14 @@ export async function generateTrendReport(
 
   async function tryWithModel(modelName: string): Promise<TrendReport | null> {
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: "application/json" }
+      const genAI = new GoogleGenAI({ apiKey });
+      const result = await genAI.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: { responseMimeType: "application/json" }
       });
       
-      const text = result.response.text();
+      const text = result.text || "";
       return JSON.parse(text);
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : "";

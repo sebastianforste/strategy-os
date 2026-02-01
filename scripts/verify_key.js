@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 
 const SYSTEM_PROMPT = `
 You are the Chief Strategy Officer for a Fortune 500 firm. 
@@ -19,14 +19,10 @@ Return a JSON object with keys: "textPost", "imagePrompt", "videoScript".
 `;
 
 async function verify() {
-  const key = "AIzaSyCjdqsYkIJEcQEi9LRV4H0v_GwXtjUeNSg";
+  const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   console.log(`Testing Key: ${key} with FULL APP LOGIC`);
   
-  const genAI = new GoogleGenerativeAI(key);
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-flash-latest",
-    systemInstruction: SYSTEM_PROMPT
-  });
+  const genAI = new GoogleGenAI({ apiKey: key });
 
   const prompt = `
     Analyze this input and generate 3 assets:
@@ -39,13 +35,18 @@ async function verify() {
 
     Ensure the response is valid JSON.
   `;
-
+  
   try {
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json" }
+    const result = await genAI.models.generateContent({
+      model: "models/gemini-flash-latest",
+      contents: prompt,
+      config: {
+          systemInstruction: SYSTEM_PROMPT,
+          responseMimeType: "application/json"
+      }
     });
-    console.log(`✅ Success! Response: ${result.response.text()}\n`);
+
+    console.log(`✅ Success! Response: ${result.text || ""}\n`);
   } catch (e) {
     console.log(`❌ Failed: ${e.message}\n`);
     if (e.response) {

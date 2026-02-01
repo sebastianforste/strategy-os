@@ -40,30 +40,32 @@ export function useSpeech() {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         recognitionRef.current = new SpeechRecognition();
-        recognitionRef.current.continuous = true;
-        recognitionRef.current.interimResults = true;
-        recognitionRef.current.lang = 'en-US';
+        if (recognitionRef.current) {
+            recognitionRef.current.continuous = true;
+            recognitionRef.current.interimResults = true;
+            recognitionRef.current.lang = 'en-US';
 
-        recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
-            let finalTranscript = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-              if (event.results[i].isFinal) {
-                finalTranscript += event.results[i][0].transcript;
-              }
-            }
-            if (finalTranscript) {
-                setTranscript(finalTranscript);
-            }
-        };
-
-        recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
-          console.error("Speech recognition error", event.error);
-          setIsListening(false);
-        };
-        
-        recognitionRef.current.onend = () => {
-             // Optional: auto-restart
-        };
+            recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
+                let finalTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                }
+                }
+                if (finalTranscript) {
+                    setTranscript(finalTranscript);
+                }
+            };
+            
+            recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
+              console.error("Speech recognition error", event.error);
+              setIsListening(false);
+            };
+            
+            recognitionRef.current.onend = () => {
+                 // Optional: auto-restart
+            };
+        }
       }
       
       synthesisRef.current = window.speechSynthesis;

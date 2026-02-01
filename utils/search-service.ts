@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 export interface TrendResult {
   title: string;
@@ -7,8 +7,8 @@ export interface TrendResult {
   url: string;
 }
 
-const PRIMARY_MODEL = "gemini-flash-latest";
-const FALLBACK_MODEL = "gemini-1.5-flash";
+const PRIMARY_MODEL = "models/gemini-flash-latest";
+const FALLBACK_MODEL = "models/gemini-1.5-flash";
 
 export async function findTrends(topic: string, apiKey?: string): Promise<TrendResult[]> {
   // Check for Demo Mode
@@ -51,18 +51,17 @@ export async function findTrends(topic: string, apiKey?: string): Promise<TrendR
 
   async function tryWithModel(modelName: string): Promise<TrendResult[] | null> {
     try {
-      const genAI = new GoogleGenerativeAI(apiKey!);
-      const model = genAI.getGenerativeModel({ 
-          model: modelName, 
-          // @ts-expect-error - googleSearch is a valid tool but types might lag
-          tools: [{ googleSearch: {} }] 
+      const genAI = new GoogleGenAI({ apiKey: apiKey! });
+      
+      const result = await genAI.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+             tools: [{ googleSearch: {} }]
+          }
       });
 
-      const result = await model.generateContent({
-          contents: [{ role: "user", parts: [{ text: prompt }]}],
-      });
-
-      let responseText = result.response.text();
+      let responseText = result.text || "";
       
       // Clean up potential markdown code blocks
       responseText = responseText.replace(/```json/g, "").replace(/```/g, "").trim();

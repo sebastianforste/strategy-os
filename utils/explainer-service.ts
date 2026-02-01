@@ -1,14 +1,14 @@
 "use server";
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 export interface Explanation {
   pattern: string;
   reason: string;
 }
 
-const PRIMARY_MODEL = "gemini-flash-latest";
-const FALLBACK_MODEL = "gemini-1.5-flash";
+const PRIMARY_MODEL = "models/gemini-flash-latest";
+const FALLBACK_MODEL = "models/gemini-1.5-flash";
 
 /**
  * Analyzes a post and explains why it will perform well.
@@ -41,10 +41,12 @@ ONLY return the JSON array. No markdown.`;
 
   async function tryWithModel(modelName: string): Promise<Explanation[] | null> {
     try {
-      const genAI = new GoogleGenerativeAI(geminiKey);
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const response = await model.generateContent(prompt);
-      const text = response.response.text() || "";
+      const genAI = new GoogleGenAI({ apiKey: geminiKey });
+      const response = await genAI.models.generateContent({
+        model: modelName,
+        contents: prompt
+      });
+      const text = response.text || "";
       
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (!jsonMatch) return [];

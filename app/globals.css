@@ -1,86 +1,193 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #050505;
-  --foreground: #ffffff;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Sidebar & Chart Variables Preserved */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
   
-  --animate-aurora: aurora 60s linear infinite;
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+/* 
+  CINEMATIC WORLD CLASS THEME 
+  Overwriting base variables for a deep, rich dark mode by default.
+*/
+:root {
+  --radius: 0.75rem;
   
-  @keyframes aurora {
-    from {
-      background-position: 50% 50%, 50% 50%;
-    }
-    to {
-      background-position: 350% 50%, 350% 50%;
-    }
+  /* Aurora Dark Theme Base */
+  --background: #000000;
+  --foreground: #ffffff;
+  
+  --card: #09090b; /* Zinc 950 */
+  --card-foreground: #ffffff;
+  
+  --popover: #09090b;
+  --popover-foreground: #ffffff;
+  
+  --primary: #ffffff;
+  --primary-foreground: #000000;
+  
+  --secondary: #27272a; /* Zinc 800 */
+  --secondary-foreground: #ffffff;
+  
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa; /* Zinc 400 */
+  
+  --accent: #27272a;
+  --accent-foreground: #ffffff;
+  
+  --destructive: #7f1d1d;
+  --destructive-foreground: #ffffff;
+  
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #ffffff;
+}
+
+/* Force dark mode styles everywhere for the cinematic feel */
+.dark {
+  --background: #000000;
+  --foreground: #ffffff;
+}
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    /* Aurora Background Setup */
+    background: radial-gradient(circle at 50% 0%, rgba(120, 119, 198, 0.15), transparent 60%),
+                radial-gradient(circle at 0% 50%, rgba(50, 50, 80, 0.3), transparent 50%),
+                #000000;
+    
+    /* Subtle noise texture */
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+    background-attachment: fixed;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* 2026 Utilities */
 @layer utilities {
-  .bg-noise {
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
-  }
-  
-  /* New Liquid Glass (Apple-style) */
-  .liquid-glass {
-    @apply bg-white/5 backdrop-blur-2xl border border-white/20 shadow-[0_8px_32px_0_rgba(31,38,135,0.37)];
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
-  }
-
-  .liquid-panel, .glass-panel {
-    background: rgba( 255, 255, 255, 0.05 );
-    box-shadow: 0 8px 32px 0 rgba( 0, 0, 0, 0.37 );
-    backdrop-filter: blur( 20px );
-    -webkit-backdrop-filter: blur( 20px );
-    border-radius: 24px;
-    border: 1px solid rgba( 255, 255, 255, 0.18 );
-  }
-  
   .text-glow {
     text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
   }
-}
+  
+  /* Matches StrategyOS "Liquid Glass" for better legibility */
+  .liquid-glass {
+    @apply bg-white/5 backdrop-blur-3xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)];
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
 
-/* Theme Overrides */
-.theme-crisis .glass-panel {
-    background: rgba(50, 0, 0, 0.4);
-    border-color: rgba(255, 0, 0, 0.3);
-    box-shadow: 0 0 30px rgba(255, 0, 0, 0.15);
-}
-.theme-crisis {
-    --foreground: #ffcccc;
-}
+  .liquid-panel {
+    background: rgba( 20, 20, 20, 0.6 ); /* Darker, more solid for better contrast */
+    box-shadow: 0 8px 32px 0 rgba( 0, 0, 0, 0.5 );
+    backdrop-filter: blur( 40px );
+    -webkit-backdrop-filter: blur( 40px );
+    border-radius: 24px;
+    border: 1px solid rgba( 255, 255, 255, 0.08 );
+  }
 
-.theme-creative .glass-panel {
-    background: rgba(255, 255, 255, 0.05); /* Lighter glass */
-    border-color: rgba(255, 255, 255, 0.1);
-}
+  .glass-panel {
+    /* Updated to be slightly more legible than the previous mostly-transparent version */
+    background: rgba( 10, 10, 10, 0.7 ); 
+    box-shadow: 0 8px 32px 0 rgba( 0, 0, 0, 0.5 );
+    backdrop-filter: blur( 40px );
+    -webkit-backdrop-filter: blur( 40px );
+    border-radius: 20px;
+    border: 1px solid rgba( 255, 255, 255, 0.08 );
+  }
 
-/* Liquid Voice Animation */
-@keyframes blob {
-  0% { transform: translate(0px, 0px) scale(1); border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
-  33% { transform: translate(10px, -20px) scale(1.1); border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; }
-  66% { transform: translate(-10px, 10px) scale(0.9); border-radius: 70% 30% 30% 70% / 60% 40% 60% 40%; }
-  100% { transform: translate(0px, 0px) scale(1); border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
-}
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(300%); }
+  }
 
-.animate-liquid-blob {
-  animation: blob 8s infinite ease-in-out;
-}
+  .animate-shimmer {
+    animation: shimmer 2s infinite linear;
+  }
 
+  @keyframes flash-green {
+    0% { background-color: rgba(34, 197, 94, 0.4); box-shadow: 0 0 20px rgba(34, 197, 94, 0.5); border-color: rgba(34, 197, 94, 0.8); }
+    100% { background-color: rgba(34, 197, 94, 0.05); box-shadow: none; border-color: rgba(34, 197, 94, 0.1); }
+  }
+
+  .highlight-flash {
+    animation: flash-green 1s ease-out forwards;
+  }
+  
+  /* Strategy Design System - Preserved & Integrated */
+  .strategy-card {
+    @apply relative overflow-hidden rounded-2xl border border-white/10 shadow-2xl;
+    background: rgba(20, 20, 20, 0.6);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 20px 40px -12px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Inner light gradient for strategy card */
+  .strategy-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      800px circle at top center, 
+      rgba(120, 50, 255, 0.08), 
+      transparent 40%
+    );
+    pointer-events: none;
+  }
+
+  .btn-primary {
+    @apply relative flex items-center justify-center gap-2 px-8 py-3 rounded-xl font-medium transition-all duration-300;
+    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    color: white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    box-shadow: 
+      0 0 0 1px rgba(139, 92, 246, 0.5),
+      0 4px 12px rgba(124, 58, 237, 0.3),
+      inset 0 1px 1px rgba(255,255,255,0.2);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 
+      0 0 0 1px rgba(167, 139, 250, 0.6),
+      0 8px 24px rgba(124, 58, 237, 0.5),
+      inset 0 1px 1px rgba(255,255,255,0.3);
+  }
+
+  .btn-primary:active {
+    transform: translateY(1px);
+    box-shadow: 
+      0 0 0 1px rgba(139, 92, 246, 0.4),
+      0 2px 4px rgba(124, 58, 237, 0.2),
+      inset 0 1px 2px rgba(0,0,0,0.2);
+  }
+}

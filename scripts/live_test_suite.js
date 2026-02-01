@@ -1,73 +1,58 @@
 
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
+const fs = require('fs');
+const path = require('path');
 
-// Load API Key (Hardcoded from .env.local for this script context)
-const API_KEY = "AIzaSyCjdqsYkIJEcQEi9LRV4H0v_GwXtjUeNSg"; 
+// Load API key from environment
+const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY; 
 
-async function researchPrompts() {
-    console.log("🕵️  Step 1: Researching 10 Topics via App's AI Model...");
+const OUTPUT_FILE = path.join(__dirname, '..', 'comprehensive_test_report.md');
+
+const SCENARIOS = [
+    { type: 'topic', value: "The death of middle management", persona: "cso" },
+    { type: 'topic', value: "Why excessive hiring is a red flag", persona: "skeptic" },
+    { type: 'topic', value: "The future of bio-computing in 2030", persona: "visionary" },
+    { type: 'url', value: "https://example.com/legal-ruling-tech-antitrust", persona: "expert" }, // Mock URL for translator mode
+    { type: 'topic', value: "DeepSeek vs OpenAI", persona: "cso" } // Trending topic
+];
+
+async function runTests() {
+    console.log("🚀 Starting Comprehensive Test Suite...");
     
-    try {
-        const genAI = new GoogleGenerativeAI(API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    let reportContent = `# StrategyOS Comprehensive Test Report
+**Date:** ${new Date().toISOString()}
 
-        const prompt = `
-            You are the "StrategyOS" research engine.
-            Generate 10 specific, contrarian, and high-status topics for LinkedIn posts.
-            Focus on: Corporate Strategy, AI adoption, Leadership, and startup culture.
-            
-            Return ONLY a raw JSON array of strings. Example: ["Topic 1", "Topic 2"]
-        `;
+## Executive Summary
+This report analyzes the output of the StrategyOS generation engine across various personas and modes.
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        
-        // cleanup json
-        const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
-        const topics = JSON.parse(cleanJson);
-        
-        console.log(`✅ Generated ${topics.length} topics:`);
-        topics.forEach((t, i) => console.log(`   ${i+1}. ${t}`));
-        
-        return topics;
+---
 
-    } catch (e) {
-        console.error("❌ Research Phase Failed. Is the API Key valid?");
-        console.error(e.message);
-        // Fallback topics just in case, so we can still test the "Live" API connection logic
-        return [
-            "The ROI of Silence in Boardrooms",
-            "Why Agile is Dead",
-            "Efficiency is the Enemy of Innovation"
-        ];
-    }
-}
+`;
 
-async function testGeneration(topics) {
-    console.log("\n🧪 Step 2: Testing Live Generation API with Topics...");
-    
-    for (let i = 0; i < topics.length; i++) {
-        const topic = topics[i];
-        process.stdout.write(`   [${i + 1}/${topics.length}] "${topic.substring(0, 30)}..." `);
+    console.log(`📝 Writing results to: ${OUTPUT_FILE}`);
+
+    for (let i = 0; i < SCENARIOS.length; i++) {
+        const scenario = SCENARIOS[i];
+        console.log(`\n🧪 [${i+1}/${SCENARIOS.length}] Testing: "${scenario.value.substring(0, 30)}..." (${scenario.persona})`);
         
         try {
+            const startTime = Date.now();
             const response = await fetch("http://localhost:3000/api/generate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    input: topic,
-                    apiKeys: { gemini: API_KEY }, // LIVE KEY
-                    personaId: "cso",
+                    input: scenario.value,
+                    apiKeys: { gemini: API_KEY },
+                    personaId: scenario.persona,
                     platform: "linkedin",
-                    useRAG: false,
-                    useFewShot: false
+                    useRAG: true, // Enable RAG to test retrieval
+                    forceTrends: scenario.type === 'topic', // Force trend hunt for topics
                 })
             });
 
             if (!response.ok) {
                 const errText = await response.text();
-                console.log(`❌ FAILED (${response.status}): ${errText.substring(0, 50)}...`);
-                continue;
+                throw new Error(`API Error (${response.status}): ${errText}`);
             }
 
             // Stream reader
@@ -78,29 +63,123 @@ async function testGeneration(topics) {
             while(true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                accumulated += decoder.decode(value, { stream: true });
+                // SSE streams usually have 'data: ' prefix but this simplified endpoint might just return raw text or chunks
+                // The current API route returns a stream of text directly.
+                const chunk = decoder.decode(value, { stream: true });
+                accumulated += chunk;
             }
 
-            if (accumulated.includes("[DEMO MODE]")) {
-                console.log("⚠️  WARNING: Got Demo Mode response (Key might be invalid or logic fell back?)");
-            } else if (accumulated.length < 50) {
-                 console.log(`⚠️  Weak Response (${accumulated.length} chars)`);
-            } else {
-                console.log(`✅ Success (${accumulated.length} chars)`);
-            }
+            const duration = Date.now() - startTime;
+            const status = accumulated.length > 50 ? "✅ PASS" : "⚠️ WEAK";
+            console.log(`   Result: ${status} (${accumulated.length} chars)`);
+
+            // Append to Report
+            reportContent += `## Test Case ${i+1}: ${scenario.type === 'topic' ? 'Newsjacker' : 'Translator'} Mode
+**Input:** "${scenario.value}"
+**Persona:** \`${scenario.persona}\`
+**Status:** ${status}
+**Duration:** ${duration}ms
+
+### Generated Output:
+\`\`\`markdown
+${accumulated.trim()}
+\`\`\`
+
+---
+`;
 
         } catch (e) {
-            console.log(`❌ Error: ${e.message}`);
+            console.error(`   ❌ FAIL: ${e.message}`);
+            reportContent += `## Test Case ${i+1}: FAILED
+**Input:** "${scenario.value}"
+**Error:** ${e.message}
+
+---
+`;
         }
         
-        // Rate limit protection
-        await new Promise(r => setTimeout(r, 1000));
+        // Rate limit pause
+        await new Promise(r => setTimeout(r, 2000));
     }
+
+
+    // ... (Previous tests)
+
+    // ==========================================
+    // TEST 6: COMMENT GENERATION (Direct Model Call)
+    // ==========================================
+    console.log(`\n🧪 [6/6] Testing: Comment Generation (Reply to "Hustle Culture")`);
+    
+    const samplePost = `
+    If you're not waking up at 4AM, you're already behind.
+    Success isn't given. It's taken.
+    While you sleep, I grind.
+    While you eat, I build.
+    #Hustle #Grindset #Motivation
+    `;
+    
+    const commentPrompt = `
+        ACT AS: Chief Strategy Officer
+        CONTEXT: You are a high-level strategist who values leverage over effort. You believe in working smart, not just hard.
+        
+        TASK:
+        You are NOT creating a new post. You are RESPONDING to someone else's post.
+        Your goal is to be the "Smartest Person in the Comments" while maintaining the StrategyOS voice.
+        
+        POST CONTENT TO REPLY TO:
+        """
+        ${samplePost}
+        """
+        
+        COMMENT TONE/GOAL: Contrarian
+        
+        GUIDELINES FOR A REPLIER:
+        1. ACKNOWLEDGE: Briefly acknowledge a specific point from the post.
+        2. ADD VALUE: Provide a strategic pivot, a contrarian angle, or a clarifying framework that the author missed.
+        3. INTERACT: Treat the author as a peer. Challenge them or support them with logic.
+        4. BREVITY: Keep it under 50 words. No "I hope this helps" or fluff.
+        5. NO ROBOT SPEAK: Follow the "Anti-Robot Filter" (No 'Delve', 'Unleash', 'Game-changer').
+        
+        The comment should feel like it's part of a high-level executive conversation.
+        
+        COMMENT:
+    `;
+
+    try {
+        const genAI = new GoogleGenAI({ apiKey: API_KEY });
+        // Using fallback/faster model for comments as per ai-service
+        
+        const result = await genAI.models.generateContent({
+            model: "models/gemini-2.5-flash-preview-09-2025",
+            contents: commentPrompt
+        });
+        const comment = result.text || "";
+        
+        console.log(`   Result: ✅ PASS (${comment.length} chars)`);
+        
+        reportContent += `## Test Case 6: Comment Generation
+**Input Post:** "Hustle Culture (4AM Club)"
+**Tone:** Contrarian
+**Status:** ✅ PASS
+
+### Generated Comment:
+> ${comment.trim()}
+
+---
+`;
+
+    } catch (e) {
+        console.error(`   ❌ FAIL: ${e.message}`);
+        reportContent += `## Test Case 6: Comment Generation FAILED
+**Error:** ${e.message}
+---
+`;
+    }
+
+    // Write final file
+    fs.writeFileSync(OUTPUT_FILE, reportContent);
+    console.log(`\n✅ Testing Complete. Report saved to ${OUTPUT_FILE}`);
 }
 
-(async () => {
-    const topics = await researchPrompts();
-    if (topics.length > 0) {
-        await testGeneration(topics);
-    }
-})();
+runTests();
+

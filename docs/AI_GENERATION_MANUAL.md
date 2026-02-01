@@ -52,7 +52,18 @@ StrategyOS currently supports four primary personas, each with a distinct psycho
 
 ---
 
-## 3. The "Anti-Robot" Protocols
+## 3.1 The Reply Generation Engine (NEW)
+StrategyOS now features a dedicated engine for generating status-enhancing comments to other users' posts.
+
+**Reply Protocols**:
+- **Role Transformation**: The AI is explicitly instructed NOT to create a new post but to RESPOND to an existing one.
+- **Strategic Pivot**: Every reply must either support the author with a new framework or challenge them with a contrarian angle.
+- **Brevity Constraint**: Replies are strictly limited to 50 words to maintain high engagement velocity.
+- **Tone Control**: Support for 6 distinct tones (Insightful, Contrarian, Funny, etc.).
+
+---
+
+## 3. The "Anti-Robot" Protocols (RENUMBERED TO 4)
 To ensure content doesn't feel "AI-generated," StrategyOS enforces these strict filters:
 
 ### Banned Words & Phrases
