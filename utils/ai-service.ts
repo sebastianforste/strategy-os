@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { PERSONAS, PersonaId } from "./personas";
 import { getActiveModel } from "./voice-training-service";
 import { verifyConstraints } from "./constraint-service";
+import { optimizeContent } from "./refinement-service";
 
 /**
  * GENERATED ASSETS SCHEMA
@@ -152,8 +153,12 @@ export async function generateContent(
         if (!content) throw new Error("No content generated");
         
         const parsed = JSON.parse(content);
-        const textPost = parsed.textPost || parsed.text_post || "";
+        let textPost = parsed.textPost || parsed.text_post || "";
 
+        // --- PHASE 3: VIRAL OPTIMIZATION ---
+        console.log("📝 Running Adversarial Refinement Loop...");
+        textPost = await optimizeContent(textPost, apiKey);
+        
         // VERIFY CONSTRAINTS
         const validation = verifyConstraints(textPost);
 
