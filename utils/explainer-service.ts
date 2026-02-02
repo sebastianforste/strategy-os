@@ -7,8 +7,8 @@ export interface Explanation {
   reason: string;
 }
 
-const PRIMARY_MODEL = "models/gemini-flash-latest";
-const FALLBACK_MODEL = "models/gemini-1.5-flash";
+const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest";
+const FALLBACK_MODEL = process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "models/gemini-3-flash-preview";
 
 /**
  * Analyzes a post and explains why it will perform well.

@@ -29,7 +29,8 @@ export default function SimulatorModal({ isOpen, onClose, apiKey }: SimulatorMod
     setFeedback([]); // Clear previous
 
     try {
-        const results = await runSimulation(draft, apiKey, activeTab === "custom" ? customMembers : []);
+        const audience = activeTab === "custom" ? customMembers : AUDIENCE;
+        const results = await runSimulation(draft, audience, apiKey);
         
         // Staggered reveal effect
         for (const res of results) {

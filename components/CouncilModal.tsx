@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Play, RefreshCw, Mic, Zap } from "lucide-react";
-import { COUNCIL, CouncilMessage, runCouncilTurn } from "../utils/swarm-service";
+import { COUNCIL, CouncilMessage, runCouncilTurn, synthesizeDebate } from "../utils/swarm-service";
 
 interface CouncilModalProps {
   isOpen: boolean;
@@ -47,6 +47,12 @@ export default function CouncilModal({ isOpen, onClose, apiKey, onAdoptStrategy 
         console.error("Debate error", e);
         break;
       }
+    }
+
+    // FINAL SYNTHESIS STEP
+    const synthesis = await synthesizeDebate(topic, currentHistory, apiKey);
+    if (synthesis) {
+        setMessages(prev => [...prev, { memberId: "editor", content: synthesis }]);
     }
 
     setIsDebating(false);

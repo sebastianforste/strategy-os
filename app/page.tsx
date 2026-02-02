@@ -12,7 +12,7 @@ import VoiceTrainingModal from "../components/VoiceTrainingModal";
 import WorkspaceSwitcher from "../components/WorkspaceSwitcher";
 import TeamSettingsModal from "../components/TeamSettingsModal";
 import ScheduleCalendar from "../components/ScheduleCalendar";
-import GhostInboxModal from "../components/GhostInboxModal";
+import GhostAgentDashboard from "../components/GhostAgentDashboard";
 import CommentGeneratorModal from "../components/CommentGeneratorModal";
 import { Settings as SettingsIcon, Clock, Mic, BarChart3, Users, Calendar, Ghost, Activity, MessageSquare, LayoutGrid, Dna } from "lucide-react";
 import { GeneratedAssets } from "../utils/ai-service";
@@ -22,7 +22,7 @@ import { GhostDraft } from "../utils/ghost-agent";
 import BoardroomModal from "../components/BoardroomModal";
 import CouncilModal from "../components/CouncilModal";
 import SimulatorModal from "../components/SimulatorModal";
-import VoiceConversationModal from "../components/VoiceConversationModal";
+import LiveVoiceConsole from "../components/LiveVoiceConsole";
 import VoiceLabModal from "../components/VoiceLabModal";
 import NetworkHub from "../components/NetworkHub";
 import InterceptionPanel from "../components/InterceptionPanel";
@@ -53,8 +53,11 @@ export default function Home() {
   const [useNewsjack, setUseNewsjack] = useState(false);
   const [useRAG, setUseRAG] = useState(true);
   const [useFewShot, setUseFewShot] = useState(true);
+  const [useSwarm, setUseSwarm] = useState(false);
   const [platform, setPlatform] = useState<"linkedin" | "twitter">("linkedin");
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
+  
+  const [preloadedCommentSignals, setPreloadedCommentSignals] = useState<any[]>([]);
   
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: ToastType; isVisible: boolean }>({
@@ -81,23 +84,42 @@ export default function Home() {
   const handleIntercept = (signal: import("../utils/ghost-service").Signal) => {
     setInput(`Write a contrarian take on: "${signal.topic}".\nContext: ${signal.summary}\nAngle: ${signal.suggestedAngle}\n\nMake it viral.`);
     showToast("Signal Intercepted. Auto-Drafting...", "success");
-    // Ideally this would auto-trigger generation, but pre-filling input is good for now.
+  };
+
+  const handleInterceptComment = (signal: import("../utils/ghost-service").Signal) => {
+    setPreloadedCommentSignals([{
+        title: signal.topic,
+        source: signal.source,
+        snippet: signal.summary
+    }]);
+    setCommentGenOpen(true);
+    showToast("Opening Comment Generator with Signal Context", "success");
   };
 
   // Load keys and history on mount (Hydration-safe)
   useEffect(() => {
-    const savedGemini = localStorage.getItem("strategyos_gemini_key");
+    // PRIORITY: Environment variable > localStorage cache
+    // This ensures .env.local updates take effect without clearing browser storage
+    const envGemini = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+    const savedGemini = localStorage.getItem("strategyos_gemini_key") || "";
     const savedSerper = localStorage.getItem("strategyos_serper_key");
     const savedLinkedInId = localStorage.getItem("strategyos_linkedin_client_id");
     const savedLinkedInSecret = localStorage.getItem("strategyos_linkedin_client_secret");
     
-    if (savedGemini || savedSerper) {
+    // Use env var if available, otherwise fall back to localStorage
+    const geminiKey = envGemini || savedGemini;
+    
+    if (geminiKey || savedSerper) {
       setApiKeys({
-        gemini: savedGemini || "",
+        gemini: geminiKey,
         serper: savedSerper || "",
         linkedinClientId: savedLinkedInId || "",
         linkedinClientSecret: savedLinkedInSecret || "",
       });
+      // Also update localStorage with the env var if it was used
+      if (envGemini && envGemini !== savedGemini) {
+        localStorage.setItem("strategyos_gemini_key", envGemini);
+      }
     } else {
       setSettingsOpen(true);
     }
@@ -306,12 +328,12 @@ export default function Home() {
             
             <button
             onClick={() => setVoiceModeOpen(true)}
-            className="text-white hover:text-white transition-all flex items-center gap-2 text-sm font-bold bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2 rounded-full border border-cyan-400/30 shadow-[0_0_20px_rgba(6,182,212,0.4)] animate-pulse hover:animate-none hover:shadow-[0_0_30px_rgba(6,182,212,0.6)] mr-2 group"
-            title="Chat with StrategyOS"
-            aria-label="Voice Mode"
+            className="text-red-400 hover:text-white transition-all flex items-center gap-2 text-sm font-bold bg-red-500/10 px-5 py-2 rounded-full border border-red-500/30 shadow-[0_0_20px_rgba(220,38,38,0.2)] animate-pulse hover:animate-none hover:shadow-[0_0_30px_rgba(220,38,38,0.4)] mr-2 group"
+            title="Secure Line to The Council"
+            aria-label="Red Phone"
             >
-            <div className="w-2 h-2 rounded-full bg-white animate-ping mr-1" />
-            <span className="hidden md:inline">SYSTEM ONLINE</span>
+            <Activity className="w-4 h-4 animate-pulse" />
+            <span className="hidden md:inline">RED PHONE</span>
             </button>
             
             {/* Apps Menu Dropdown */}
@@ -417,6 +439,8 @@ export default function Home() {
           setUseRAG={setUseRAG}
           useFewShot={useFewShot}
           setUseFewShot={setUseFewShot}
+          useSwarm={useSwarm}
+          setUseSwarm={setUseSwarm}
           platform={platform}
           setPlatform={setPlatform}
           onError={(msg) => showToast(msg, "error")}
@@ -429,6 +453,7 @@ export default function Home() {
                 onRate={handleRate}
                 geminiKey={apiKeys.gemini}
                 onUpdateAssets={(newAssets) => setAssets(newAssets)}
+                personaId={personaId}
             />
           </div>
         )}
@@ -444,6 +469,7 @@ export default function Home() {
       <AnalyticsDashboard
         isOpen={analyticsOpen}
         onClose={() => setAnalyticsOpen(false)}
+        apiKey={apiKeys.gemini || ""}
       />
 
       <HistorySidebar 
@@ -477,21 +503,29 @@ export default function Home() {
         onClose={() => setScheduleOpen(false)}
       />
 
-      <GhostInboxModal
+      <GhostAgentDashboard
         isOpen={ghostOpen}
         onClose={() => setGhostOpen(false)}
         apiKey={apiKeys.gemini}
         onLoadDraft={handleLoadDraft}
       />
       
-      <InterceptionPanel onIntercept={handleIntercept} />
+      <InterceptionPanel 
+        onIntercept={handleIntercept} 
+        onComment={handleInterceptComment}
+        apiKey={apiKeys.gemini} 
+      />
 
 
       <CommentGeneratorModal
         isOpen={commentGenOpen}
-        onClose={() => setCommentGenOpen(false)}
+        onClose={() => {
+            setCommentGenOpen(false);
+            setPreloadedCommentSignals([]);
+        }}
         apiKey={apiKeys.gemini}
         personaId={personaId}
+        initialSignals={preloadedCommentSignals}
       />
 
       <BoardroomModal
@@ -521,7 +555,7 @@ export default function Home() {
         onClose={() => setSimulatorOpen(false)}
         apiKey={apiKeys.gemini}
       />
-      <VoiceConversationModal
+      <LiveVoiceConsole
         isOpen={voiceModeOpen}
         onClose={() => setVoiceModeOpen(false)}
         apiKey={apiKeys.gemini}

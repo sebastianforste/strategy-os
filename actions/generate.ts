@@ -1,12 +1,13 @@
 "use server";
 
-import { generateContent, GeneratedAssets } from "../utils/ai-service";
+import { generateContent } from "../utils/ai-service-server";
+import { GeneratedAssets } from "../utils/ai-service";
 import { findRelevantConcepts } from "../utils/rag-service";
 import { applyAntiRobotFilter } from "../utils/text-processor";
 import { findTrends } from "../utils/search-service";
 import { generateImage } from "../utils/image-service";
 import { PersonaId } from "../utils/personas";
-import { searchCompetitorContent, generateTrendReport, CompetitorContent, TrendReport } from "../utils/trend-service";
+import { searchCompetitorContent, generateTrendReport, fetchTrendingNews, CompetitorContent, TrendReport } from "../utils/trend-service";
 import fs from "fs";
 import path from "path";
 import { LinkedInAdapter } from "../utils/platforms/linkedin";
@@ -46,7 +47,7 @@ export async function generateSideAssetsAction(
 ) {
     if (!apiKeys.gemini) throw new Error("API Key missing");
     // Dynamic import to avoid cycles/use server issues if checking
-    const { generateSideAssetsFromText } = await import("../utils/ai-service");
+    const { generateSideAssetsFromText } = await import("../utils/ai-service-server");
     return await generateSideAssetsFromText(textPost, apiKeys.gemini, personaId);
 
 }
@@ -55,6 +56,28 @@ export async function runGhostAgentAction(apiKey: string) {
     if (!apiKey) throw new Error("API Key required");
     const { runGhostAgent } = await import("../utils/ghost-agent");
     return await runGhostAgent(apiKey);
+}
+
+export async function findTrendsAction(topic: string, apiKey: string) {
+    if (!apiKey) throw new Error("API Key required");
+    return await findTrends(topic, apiKey);
+}
+
+export async function generateCommentAction(
+    postContent: string,
+    tone: string,
+    apiKey: string,
+    personaId: PersonaId,
+    options: {
+        useV2?: boolean;
+        industryContext?: string;
+        authorContext?: string;
+        relatedSignals?: any[];
+    } = {}
+) {
+    if (!apiKey) throw new Error("API Key required");
+    const { generateComment } = await import("../utils/ai-service-server");
+    return await generateComment(postContent, tone, apiKey, personaId, options);
 }
 
 
@@ -211,8 +234,11 @@ export async function constructEnrichedPrompt(
         if (forceTrends || (input.length < 100 && !input.includes("\n"))) {
             try {
                 const searchStart = Date.now();
-                const trends = await findTrends(input, geminiKey);
-                console.log(`[Search] Found ${trends.length} trends in ${Date.now() - searchStart}ms`);
+                const [trends, rawNews] = await Promise.all([
+                    findTrends(input, geminiKey),
+                    fetchTrendingNews(input, geminiKey)
+                ]);
+                console.log(`[Search] Found ${trends.length} AI trends and ${rawNews.length} raw headlines in ${Date.now() - searchStart}ms`);
 
                 if (trends.length > 0) {
                     const primaryTrend = trends[0];
@@ -225,7 +251,11 @@ export async function constructEnrichedPrompt(
 
                     MODE: THE NEWSJACKER (Trend Hunter)
                     TOPIC: ${input}
-                    CONTEXT FROM NEWS: "${primaryTrend.title}" - ${primaryTrend.snippet} (${primaryTrend.source})
+                    MODE: THE NEWSJACKER (Trend Hunter)
+                    TOPIC: ${input}
+                    CONTEXT FROM NEWS ANALYST: "${primaryTrend.title}" - ${primaryTrend.snippet} (${primaryTrend.source})
+                    REAL-TIME HEADLINES:
+                    ${rawNews.slice(0, 3).map(n => `- ${n}`).join("\n")}
                     
                     INSTRUCTIONS:
                     1. Find the "Counter-Narrative" (e.g., "It's a silent layoff").
@@ -277,7 +307,8 @@ export async function processInput(
   personaId: PersonaId = "cso",
   forceTrends: boolean = false,
   platform: "linkedin" | "twitter" = "linkedin",
-  useFewShot: boolean = true // New flag
+  useFewShot: boolean = true,
+  customPersona?: any
 ): Promise<GeneratedAssets> { // GeneratedAssets is { textPost, imagePrompt, videoScript, imageUrl? }
   if (!input) throw new Error("Input required");
   if (!apiKeys.gemini) throw new Error("Gemini API Key required");
@@ -303,7 +334,7 @@ export async function processInput(
   );
 
   // 2. AI Generation
-  const rawAssets = await generateContent(enrichedInput, geminiKey, personaId);
+  const rawAssets = await generateContent(enrichedInput, geminiKey, personaId, [], customPersona);
 
   // 2b. Image Generation (Optional if Gemini key present - reusing main key)
   let imageUrl = "";
@@ -375,4 +406,133 @@ ${finalAssets.videoScript}
   }
 
   return finalAssets;
+}
+
+// --- 2027 AGENTIC MODE ---
+
+import { runDeepResearch, formatResearchForPrompt, ResearchProgress } from "../utils/research-service";
+import { runAutonomousCouncil, AutonomousProgress } from "../utils/swarm-service";
+
+export interface AgenticOptions {
+  onResearchProgress?: (progress: ResearchProgress) => void;
+  onCouncilProgress?: (progress: AutonomousProgress) => void;
+  viralityThreshold?: number;
+  maxIterations?: number;
+}
+
+/**
+ * AGENTIC MODE: AUTONOMOUS GENERATION
+ * ------------------------------------
+ * 2027-era autonomous workflow:
+ * 1. Deep Research: News, competitor analysis, synthesis
+ * 2. Research-Informed Generation: Inject research context into prompt
+ * 3. Autonomous Council: Self-improving debate loop until virality >= threshold
+ * 
+ * @param topic - The topic to generate content about
+ * @param apiKeys - API keys (gemini required, serper optional for research)
+ * @param options - Agentic options (progress callbacks, thresholds)
+ * @returns The final optimized content with metadata
+ */
+export async function processInputAgentic(
+  topic: string,
+  apiKeys: { gemini: string; serper?: string },
+  personaId: PersonaId = "cso",
+  options: AgenticOptions = {}
+): Promise<{
+  textPost: string;
+  researchBrief: string;
+  iterations: number;
+  finalScore: number;
+  history: { iteration: number; score: number; feedback: string }[];
+}> {
+  const { onResearchProgress, onCouncilProgress, viralityThreshold = 75, maxIterations = 3 } = options;
+  
+  if (!topic) throw new Error("Topic required for agentic mode");
+  if (!apiKeys.gemini) throw new Error("Gemini API Key required");
+
+  console.log(`[Agentic Mode] Starting autonomous workflow for: "${topic}"`);
+  const startTime = Date.now();
+
+  // Phase 1: Deep Research
+  console.log("[Agentic Mode] Phase 1: Deep Research...");
+  const researchBrief = await runDeepResearch(
+    topic,
+    { gemini: apiKeys.gemini, serper: apiKeys.serper },
+    onResearchProgress
+  );
+  
+  console.log(`[Agentic Mode] Research complete. Found ${researchBrief.newsHeadlines.length} news items, ${researchBrief.suggestedAngles.length} angles.`);
+
+  // Phase 2: Prepare enriched topic with research context
+  const researchContext = formatResearchForPrompt(researchBrief);
+  const enrichedTopic = `${topic}\n\n${researchContext}`;
+
+  // Phase 3: Autonomous Council with self-improving loop
+  console.log("[Agentic Mode] Phase 2: Autonomous Council...");
+  const councilResult = await runAutonomousCouncil(
+    enrichedTopic,
+    apiKeys.gemini,
+    {
+      threshold: viralityThreshold,
+      maxIterations: maxIterations,
+      onProgress: onCouncilProgress
+    }
+  );
+
+  console.log(`[Agentic Mode] Complete in ${Date.now() - startTime}ms. Final score: ${councilResult.finalScore}/100 after ${councilResult.iterations} iterations.`);
+
+  // Post-process final content
+  const processedText = applyAntiRobotFilter(councilResult.finalPost);
+  const formattedText = LinkedInAdapter.differentiate(processedText);
+
+  // Save agentic output
+  try {
+    const saveDir = path.join(process.cwd(), "generated_posts");
+    if (!fs.existsSync(saveDir)) {
+      fs.mkdirSync(saveDir);
+    }
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const slug = sanitizeFilename(topic);
+    const filename = `${dateStr}-agentic-${slug}.md`;
+    const filePath = path.join(saveDir, filename);
+
+    const fileContent = `---
+date: ${new Date().toISOString()}
+topic: "${topic.replace(/"/g, '\\"')}"
+persona: "${personaId}"
+mode: "agentic"
+iterations: ${councilResult.iterations}
+finalScore: ${councilResult.finalScore}
+---
+
+# Autonomous Generation
+
+## Research Brief
+${researchBrief.synthesizedContext}
+
+## Suggested Angles
+${researchBrief.suggestedAngles.map((a, i) => `${i + 1}. ${a}`).join("\n")}
+
+## Final Post (Score: ${councilResult.finalScore}/100)
+
+${formattedText}
+
+## Iteration History
+${councilResult.history.map(h => `- Iteration ${h.iteration}: Score ${h.score} - ${h.feedback}`).join("\n")}
+`;
+
+    fs.writeFileSync(filePath, fileContent, "utf8");
+    console.log(`[Agentic Mode] Saved to: ${filePath}`);
+  } catch (fsError) {
+    console.error("[Agentic Mode] Failed to save file:", fsError);
+  }
+
+  return {
+    textPost: formattedText,
+    researchBrief: researchBrief.synthesizedContext,
+    iterations: councilResult.iterations,
+    finalScore: councilResult.finalScore,
+    history: councilResult.history
+  };
 }

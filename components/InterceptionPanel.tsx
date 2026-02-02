@@ -2,14 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Radio, Zap, X, ArrowRight, Activity, Bell } from "lucide-react";
+import { Radio, Zap, X, ArrowRight, Activity, Bell, MessageSquare } from "lucide-react";
 import { scanForSignals, Signal } from "../utils/ghost-service";
 
 interface InterceptionPanelProps {
   onIntercept: (signal: Signal) => void;
+  onComment?: (signal: Signal) => void;
+  apiKey?: string;
 }
 
-export default function InterceptionPanel({ onIntercept }: InterceptionPanelProps) {
+export default function InterceptionPanel({ onIntercept, onComment, apiKey }: InterceptionPanelProps) {
   const [isActive, setIsActive] = useState(false);
   const [activeSignal, setActiveSignal] = useState<Signal | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -17,26 +19,25 @@ export default function InterceptionPanel({ onIntercept }: InterceptionPanelProp
 
   // Auto-scan effect (simulated background agent)
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive || !apiKey) return;
 
     const interval = setInterval(async () => {
       setIsScanning(true);
       setScanCount(c => c + 1);
       
-      const signal = await scanForSignals();
+      const signal = await scanForSignals(apiKey);
       if (signal) {
         setActiveSignal(signal);
-        // Maybe play a sound here?
       }
       
       setTimeout(() => setIsScanning(false), 1000);
-    }, 5000); // Scan every 5 seconds for demo purposes
+    }, 15000); // Scan every 15 seconds to prevent rate limits
 
     return () => clearInterval(interval);
-  }, [isActive]);
+  }, [isActive, apiKey]);
 
   return (
-    <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-4 pointer-events-none">
+    <div className="fixed bottom-8 right-8 z-30 flex flex-col items-end gap-4 pointer-events-none">
       
       {/* Alert Card */}
       <AnimatePresence>
@@ -81,6 +82,16 @@ export default function InterceptionPanel({ onIntercept }: InterceptionPanelProp
                     className="w-full py-2 bg-white text-black font-bold text-xs rounded hover:bg-neutral-200 transition-colors flex items-center justify-center gap-2"
                 >
                     <Zap className="w-3 h-3 fill-current" /> DRAFT TAKE (2 MINS)
+                </button>
+
+                <button 
+                    onClick={() => {
+                        if (onComment) onComment(activeSignal);
+                        setActiveSignal(null);
+                    }}
+                    className="w-full mt-2 py-2 bg-neutral-800 text-white border border-white/10 font-bold text-xs rounded hover:bg-neutral-700 transition-colors flex items-center justify-center gap-2"
+                >
+                    <MessageSquare className="w-3 h-3" /> REPLY AS STRATEGIST
                 </button>
              </div>
           </motion.div>

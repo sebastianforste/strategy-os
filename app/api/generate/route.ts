@@ -7,7 +7,7 @@ import { TwitterAdapter } from "../../../utils/platforms/twitter";
 
 export async function POST(req: Request) {
   try {
-    const { prompt, input: manualInput, apiKeys, personaId, forceTrends, platform, useRAG, fewShotExamples, rlhfContext, images } = await req.json();
+    const { prompt, input: manualInput, apiKeys, personaId, forceTrends, platform, useRAG, fewShotExamples, rlhfContext, images, customPersona } = await req.json();
     const input = prompt || manualInput;
     
     // DEBUG LOGGING
@@ -16,9 +16,9 @@ export async function POST(req: Request) {
     const logFile = path.join(process.cwd(), 'server-debug.log');
     const log = (msg: string) => fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
     
-    // MODEL PRIORITY: Try models/gemini-flash-latest first, fallback to models/gemini-2.5-flash-preview-09-2025 on rate limit
-    const PRIMARY_MODEL = "models/gemini-flash-latest";
-    const FALLBACK_MODEL = "models/gemini-2.5-flash-preview-09-2025";
+    // MODEL AGNOSTICISM: Load from environment variables per global instructions
+    const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest";
+    const FALLBACK_MODEL = process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "models/gemini-3-flash-preview";
     
     log(`Incoming Request: InputLen=${input?.length || 0}, Persona=${personaId}, Model=${PRIMARY_MODEL}, Images=${images?.length || 0}`);
     
@@ -98,7 +98,7 @@ Data tells better lies than people do.
     );
 
     // 2. Select Persona System Prompt
-    const selectedPersona = PERSONAS[personaId as PersonaId] || PERSONAS.cso;
+    const selectedPersona = customPersona || PERSONAS[personaId as PersonaId] || PERSONAS.cso;
 
     // 3. Stream Text
     // We modify the system prompt slightly to ensure it doesn't output JSON, but Markdown directly.

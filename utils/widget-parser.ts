@@ -1,4 +1,3 @@
-import { SwotData } from "../components/widgets/SwotWidget";
 
 export interface WidgetBlock {
   type: string;
@@ -34,7 +33,7 @@ export function extractWidgets(content: string): { cleanContent: string; widgets
               parts.push(content.substring(lastIndex, match.index));
               lastIndex = jsonBlockRegex.lastIndex;
           }
-      } catch (e) {
+      } catch {
           // If parse fails, ignore (it might be incomplete json during streaming)
       }
   }

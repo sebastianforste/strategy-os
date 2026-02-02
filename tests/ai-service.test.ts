@@ -1,5 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
-import { generateContent } from '../utils/ai-service'
+
+// Mock server-only for Vitest
+vi.mock('server-only', () => ({}))
+
+// Mock database
+vi.mock('../utils/db', () => ({
+  prisma: { resource: { findMany: vi.fn(() => Promise.resolve([])) } }
+}))
+
+import { generateContent } from '../utils/ai-service-server'
 
 // Mock the persona config
 vi.mock('../utils/personas', () => ({

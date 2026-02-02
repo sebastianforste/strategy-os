@@ -39,7 +39,7 @@ export default function VisualGenerator({ concept, apiKey }: VisualGeneratorProp
     try {
         const genAI = new GoogleGenAI({ apiKey });
         const result = await genAI.models.generateContent({
-            model: "models/gemini-flash-latest",
+            model: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest",
             contents: prompt
         });
         

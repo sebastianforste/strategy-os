@@ -9,7 +9,9 @@ StrategyOS is a personal tool that helps you write high-status, contrarian Linke
 ## 🚀 Key Features
 
 *   **AI Drafting Engine**: Generates 3 assets (Text, Image Prompt, Video Script) from one topic.
-*   **Comment Generator (NEW)**: Generate high-status, persona-aligned replies to external posts in seconds.
+*   **World-Class Personas (NEW)**: Choose from the Strategist, the Founder, the High-Performer, or the Provocateur—each with unique biographies, emotional arcs, and signature phrases.
+*   **Comment Generator**: Generate high-status, persona-aligned replies to external posts in seconds.
+*   **Anti-Detection Layer (NEW)**: Automatically varies sentence structure, list lengths, and inserts human-like "micro-specifics" to bypass AI detectors.
 *   **Anti-Robot Core**: Automatically filters out "ChatGPT words" (e.g., *delve, unlock, tapestry*) to ensure your content sounds human and premium.
 *   **Trend Hunter**: Scans the web (via Google Grounding) for real-time news to ground your posts in reality.
 *   **Visualize Value Images**: Creates minimalist, high-contrast vector art (via Google Imagen 4).

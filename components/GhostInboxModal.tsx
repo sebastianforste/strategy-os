@@ -37,7 +37,9 @@ export default function GhostInboxModal({ isOpen, onClose, apiKey, onLoadDraft }
 
       const result = await runGhostAgentAction(apiKey);
       
-      setDrafts(prev => [result, ...prev]);
+      // V2 returns array, V1 returned single object - handle both
+      const newDrafts = Array.isArray(result) ? result : [result];
+      setDrafts(prev => [...newDrafts, ...prev]);
       setLog("Agent Asleep.");
     } catch (e) {
       console.error(e);

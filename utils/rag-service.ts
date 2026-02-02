@@ -1,4 +1,4 @@
-
+import "server-only";
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import path from "path";
@@ -32,14 +32,16 @@ export async function embedText(text: string, apiKey: string): Promise<number[]>
     const genAI = new GoogleGenAI({ apiKey });
     
     try {
-        const result = await genAI.models.embedContent({
+        const response = await genAI.models.embedContent({
             model: "text-embedding-004",
             contents: text
         });
-        // Assuming result.embedding exists or result.embeddings[0].values
-        // Based on linter "Did you mean 'embeddings'?", it seems result.embeddings is correct.
-        // It likely returns an array of embeddings.
-        return result.embeddings?.[0]?.values || [];
+        
+        // Handle both single and batch return structures
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const embedding = (response as any).embedding?.values || (response as any).embeddings?.[0]?.values;
+        if (!embedding) throw new Error("No embedding values returned");
+        return embedding;
     } catch (e) {
         console.error("Embedding error:", e);
         return [];

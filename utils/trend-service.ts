@@ -70,8 +70,38 @@ export async function searchCompetitorContent(
   }
 }
 
-const PRIMARY_MODEL = "models/gemini-flash-latest";
-const FALLBACK_MODEL = "models/gemini-1.5-flash";
+/**
+ * Fetch real-time news headlines for Newsjacking.
+ */
+export async function fetchTrendingNews(topic: string, apiKey: string): Promise<string[]> {
+    if (!apiKey) return [];
+    try {
+        const response = await fetch("https://google.serper.dev/news", {
+            method: "POST",
+            headers: {
+                "X-API-KEY": apiKey,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                q: topic,
+                num: 5,
+                tbs: "qdr:d" // past 24 hours
+            }),
+        });
+        
+        const data = await response.json();
+        if (!data.news) return [];
+        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return data.news.map((item: any) => `${item.title} (${item.source})`);
+    } catch (e) {
+        console.error("News fetch failed:", e);
+        return [];
+    }
+}
+
+const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest";
+const FALLBACK_MODEL = process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "models/gemini-3-flash-preview";
 
 /**
  * TREND REPORT GENERATOR
@@ -85,15 +115,24 @@ const FALLBACK_MODEL = "models/gemini-1.5-flash";
  */
 export async function generateTrendReport(
   topic: string,
-  apiKey: string
+  apiKey: string,
+  newsContext: string[] = [] // Optional real-time context
 ): Promise<TrendReport> {
+  const contextBlock = newsContext.length > 0 
+    ? `REAL-TIME NEWS CONTEXT (PAST 24H):\n${newsContext.map(n => `- ${n}`).join("\n")}\n\nUse this context to define the "Mainstream View" accurately.`
+    : "";
+
   const prompt = `
     Analyze the topic: "${topic}" from a business strategy perspective.
+    ${contextBlock}
+    
     Generate a 3-part deep dive report in JSON format:
     
-    1. "mainstreamView": What is the common, generic advice people give about this?
-    2. "contrarianAngle": What is a smart, defensible way to disagree with the mainstream?
+    1. "mainstreamView": What is the common, generic advice or current news narrative about this?
+    2. "contrarianAngle": What is a smart, defensible way to disagree with this narrative? (The "Alpha").
     3. "underratedInsight": What is a specific nuance most people miss?
+    
+    EXTRA: If relevant, inject a specific stock ticker or market indicator (e.g. "Long $NVDA", "Short commercial real estate") into the insight to add "Wall Street" credibility.
 
     Keep each section under 20 words. Concise, punchy, "Wall Street" style.
     Values should be plain strings.

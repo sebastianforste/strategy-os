@@ -6,6 +6,11 @@ export interface ReachForecast {
   bestPlatform: string;
   viralProbability: "Low" | "Moderate" | "High" | "Extremely High";
   reasoning: string;
+  optimalPostingTimes: {
+    platform: string;
+    hour: number; // 0-23
+    engagement: number; // 0-100 score
+  }[];
 }
 
 /**
@@ -36,14 +41,19 @@ export async function getReachForecast(content: string, apiKey: string): Promise
       "confidenceScore": 85,
       "bestPlatform": "LinkedIn",
       "viralProbability": "High",
-      "reasoning": "Strong opening hook, contrarian take on common industry belief."
+      "reasoning": "...",
+      "optimalPostingTimes": [
+        { "platform": "LinkedIn", "hour": 9, "engagement": 95 },
+        { "platform": "LinkedIn", "hour": 13, "engagement": 70 },
+        { "platform": "X", "hour": 18, "engagement": 88 }
+      ]
     }
   `;
 
   try {
     const genAI = new GoogleGenAI({ apiKey });
     const result = await genAI.models.generateContent({
-        model: "models/gemini-flash-latest",
+        model: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest",
         contents: prompt,
         config: { responseMimeType: "application/json" }
     });

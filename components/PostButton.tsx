@@ -1,54 +1,44 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Send, Calendar, Linkedin, ChevronDown, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { isLinkedInConnected, mockPostToLinkedIn, getLinkedInAuthUrl } from "../utils/linkedin-service";
+import { signIn, useSession } from "next-auth/react";
+import { createPostingJob, executePostingJob } from "../utils/posting-agent";
 
 interface PostButtonProps {
   text: string;
-  clientId?: string;
 }
 
-export default function PostButton({ text, clientId }: PostButtonProps) {
-  const [isConnected, setIsConnected] = useState(false);
+export default function PostButton({ text }: PostButtonProps) {
+  const { status } = useSession();
   const [isPosting, setIsPosting] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [postSuccess, setPostSuccess] = useState(false);
 
-  useEffect(() => {
-    setIsConnected(isLinkedInConnected());
-  }, []);
+  const isConnected = status === "authenticated";
 
   const handleConnect = () => {
-    if (clientId) {
-        // Use real OAuth URL if client ID is present
-        // For demo/mock mode, we'll just simulate a successful connection
-        if (clientId === 'demo') {
-            localStorage.setItem("strategyos_linkedin_token", "mock_token");
-            setIsConnected(true);
-            return;
-        }
-
-        const redirectUri = window.location.origin; // Redirect back to home
-        const authUrl = getLinkedInAuthUrl(clientId, redirectUri);
-        window.location.href = authUrl;
-    } else {
-        alert("Please set your LinkedIn Client ID in Settings first.");
-    }
+    signIn("linkedin");
   };
 
   const handlePostNow = async () => {
     setIsPosting(true);
     try {
-      const result = await mockPostToLinkedIn(text);
-      if (result.success) {
+      // Create a transient job for this immediate post
+      const job = createPostingJob(text, "linkedin");
+      
+      const result = await executePostingJob(job.id);
+      
+      if (result.status === "posted") {
         setPostSuccess(true);
         setTimeout(() => setPostSuccess(false), 3000);
+      } else {
+        throw new Error(result.error || "Posting failed");
       }
     } catch (error) {
       console.error("Posting failed", error);
-      alert("Failed to post to LinkedIn.");
+      alert("Failed to post to LinkedIn. " + (error instanceof Error ? error.message : ""));
     } finally {
       setIsPosting(false);
       setShowDropdown(false);

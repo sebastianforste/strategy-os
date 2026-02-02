@@ -7,8 +7,8 @@ export interface TrendResult {
   url: string;
 }
 
-const PRIMARY_MODEL = "models/gemini-flash-latest";
-const FALLBACK_MODEL = "models/gemini-1.5-flash";
+const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest";
+const FALLBACK_MODEL = process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "models/gemini-3-flash-preview";
 
 export async function findTrends(topic: string, apiKey?: string): Promise<TrendResult[]> {
   // Check for Demo Mode

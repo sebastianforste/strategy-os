@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, RefreshCw, ThumbsUp, ThumbsDown, Minus, ArrowRight, Eye, FileText, Check, MessageSquare, LayoutGrid, ImageIcon, Sparkles, Video, Layers, Mic } from "lucide-react";
+import { Copy, RefreshCw, ThumbsUp, ThumbsDown, Minus, ArrowRight, Eye, FileText, Check, MessageSquare, LayoutGrid, ImageIcon, Sparkles, Video, Layers, Mic, Mail, Zap, Loader2, Database } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import dynamic from "next/dynamic";
@@ -16,6 +16,16 @@ const AudioStudio = dynamic(() => import("./AudioStudio"), { ssr: false, loading
 const ThumbnailFactory = dynamic(() => import("./ThumbnailFactory"), { ssr: false, loading: () => <div className="w-full aspect-video bg-neutral-900 animate-pulse rounded-xl" /> });
 const PublishingControl = dynamic(() => import("./PublishingControl"), { ssr: false });
 import { getReachForecast, ReachForecast } from "../utils/reach-service";
+import { transmuteAction } from "../actions/transmute";
+import { parseContentToSlides } from "../utils/carousel-parser";
+import PDFCarouselGenerator from "./PDFCarouselGenerator";
+import SVGDiagramGenerator from "./SVGDiagramGenerator";
+import { generateDiagramData, DiagramData } from "../utils/diagram-service";
+import PostingGraph from "./PostingGraph";
+import { archiveStrategy } from "../utils/archive-service";
+import { VISUAL_THEMES, VisualThemeId } from "../utils/theme-service";
+import { publishToPlatform } from "../utils/platform-api";
+import { Globe } from "lucide-react";
 
 interface AssetDisplayProps {
   assets: GeneratedAssets;
@@ -23,13 +33,14 @@ interface AssetDisplayProps {
   onRate: (rating: "viral" | "good" | "meh" | "flopped") => void;
   onUpdateAssets: (newAssets: GeneratedAssets) => void;
   geminiKey?: string;
+  personaId?: string;
 }
 
 type PerformanceRating = "viral" | "good" | "meh" | "flopped" | null;
 
 import { explainPost, Explanation } from "../utils/explainer-service";
 
-export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdateAssets, geminiKey }: AssetDisplayProps) {
+export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdateAssets, geminiKey, personaId }: AssetDisplayProps) {
   const [activeTab, setActiveTab] = useState<"text" | "preview" | "image" | "video" | "carousel" | "visual" | "x" | "substack" | "audio" | "thumbnail">("text");
   const [isClient, setIsClient] = useState(false);
   const [userRating, setUserRating] = useState<PerformanceRating>(null);
@@ -43,6 +54,12 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
 
   // Reach Forecast State
   const [reachForecast, setReachForecast] = useState<ReachForecast | null>(null);
+
+  // Transmutation & Asset Data State
+  const [isTransmuting, setIsTransmuting] = useState(false);
+  const [diagramData, setDiagramData] = useState<DiagramData | null>(null);
+  const [isDiagramLoading, setIsDiagramLoading] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState<VisualThemeId>("noir");
 
   useState(() => {
     setIsClient(true);
@@ -73,6 +90,87 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
     setIsRemixing(true);
     // Mock remix delay for now, or hook up remix-service later
     setTimeout(() => setIsRemixing(false), 2000);
+  };
+
+  const handleTransmute = async (target: "x" | "substack") => {
+    if (!geminiKey || isTransmuting) return;
+    setIsTransmuting(true);
+    
+    try {
+      const res = await transmuteAction(assets.textPost, "linkedin", target === "x" ? "twitter" : "substack", geminiKey);
+      if (res.success && res.content) {
+        onUpdateAssets({
+          ...assets,
+          [target === "x" ? "xThread" : "substackEssay"]: target === "x" ? res.content.split("\n\n---\n\n") : res.content
+        });
+      }
+    } catch (e) {
+      console.error("Transmutation failed", e);
+    } finally {
+      setIsTransmuting(false);
+    }
+  };
+
+  const handleGenerateDiagram = async () => {
+    if (!geminiKey || isDiagramLoading) return;
+    setIsDiagramLoading(true);
+    try {
+      const data = await generateDiagramData(assets.textPost, geminiKey);
+      setDiagramData(data);
+      await archiveStrategy(data.title, JSON.stringify(data), 'svg');
+    } catch (e) {
+      console.error("Diagram generation failed", e);
+    } finally {
+      setIsDiagramLoading(false);
+    }
+  };
+
+  const handleShareEmail = () => {
+      const subject = encodeURIComponent("Draft Post for Review");
+      const body = encodeURIComponent(`Here is a draft post generated for you:\n\n${assets.textPost}\n\nThinking of posting this? Let me know!`);
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const handleCopySlack = () => {
+      // Format as a quote block
+      const slackText = `> ${assets.textPost.replace(/\n/g, "\n> ")}`;
+      navigator.clipboard.writeText(slackText);
+      showToast("Copied content (Slack format)", "success");
+  };
+
+  function showToast(message: string, type: "success" | "error") {
+      // Simple mock since we don't have access to the context here easily without refactor
+      // Ideally pass toast function down
+      alert(message); 
+  }
+
+  const handlePublishNow = async () => {
+    // Only available for text (LinkedIn) or X/Substack tabs
+    let platform: "linkedin" | "x" | "substack" = "linkedin";
+    let contentToPost = content.text;
+
+    if (activeTab === "x") {
+        platform = "x";
+        contentToPost = content.x;
+    } else if (activeTab === "substack") {
+        platform = "substack";
+        contentToPost = content.substack;
+    }
+
+    if (confirm(`INITIATING GHOST MODE...\n\nPublishing directly to ${platform.toUpperCase()} API?\nPersona: ${personaId || "cso"}`)) {
+        const res = await publishToPlatform(
+            platform, 
+            contentToPost, 
+            undefined, 
+            personaId || "cso",
+            assets.imageUrl
+        );
+        if (res.success) {
+            alert(`SUCCESS: Published to ${platform.toUpperCase()}.\nURL: ${res.url}`);
+        } else {
+            alert(`FAILED: ${res.error}`);
+        }
+    }
   };
 
   const tabs = [
@@ -133,6 +231,17 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                 <div className="text-xs text-neutral-400 font-mono uppercase tracking-widest mb-1">Virality Probability</div>
                 <div className="text-xl font-bold text-white">{reachForecast.viralProbability}</div>
             </div>
+        </motion.div>
+      )}
+
+      {/* 2028 Posting Graph */}
+      {reachForecast && reachForecast.optimalPostingTimes && (
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+        >
+            <PostingGraph times={reachForecast.optimalPostingTimes} />
         </motion.div>
       )}
 
@@ -219,11 +328,81 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                 <LinkedInPreview content={assets.textPost} />
             </div>
         ) : activeTab === "carousel" ? (
-             <div className="space-y-4">
-                  <h3 className="text-white font-bold text-lg mb-2">PDF Carousel Factory</h3>
-                  <p className="text-neutral-500 text-xs mb-4">Auto-convert your post into a high-design carousel document.</p>
-                  <CarouselGenerator post={assets.textPost} apiKey={geminiKey || ""} />
+             <div className="space-y-6 text-left">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-white font-bold text-lg">PDF Carousel Factory</h3>
+                      <p className="text-neutral-500 text-xs">Direct production of high-status LinkedIn documents.</p>
+                    </div>
+                  </div>
+                  
+                  {/* Theme Selector */}
+                  <div className="flex items-center gap-2">
+                       <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-wider mr-2">Esthetique:</span>
+                       {Object.values(VISUAL_THEMES).map(theme => (
+                            <button
+                                key={theme.id}
+                                onClick={() => setSelectedTheme(theme.id)}
+                                className={`px-3 py-1.5 text-[10px] font-bold uppercase rounded-md border transition-all ${
+                                    selectedTheme === theme.id 
+                                    ? "bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.2)]" 
+                                    : "bg-transparent text-neutral-500 border-neutral-800 hover:border-white/30 hover:text-neutral-300"
+                                }`}
+                            >
+                                {theme.id}
+                            </button>
+                       ))}
+                  </div>
+
+                  <div className="h-px w-full bg-white/5" />
+
+                  <PDFCarouselGenerator 
+                    slides={parseContentToSlides(assets.textPost, assets.textPost.split("\n")[0])} 
+                    filename={`strategy_carousel_${Date.now()}.pdf`}
+                    themeId={selectedTheme}
+                  />
+                  <div className="flex justify-center mt-4">
+                     <button 
+                        onClick={async () => {
+                           await archiveStrategy(assets.textPost.split("\n")[0], assets.textPost, 'pdf');
+                           alert("Carousel strategy archived to vault.");
+                        }}
+                        className="text-[10px] font-bold text-neutral-500 hover:text-white flex items-center gap-2 transition-colors"
+                     >
+                        <Database className="w-3 h-3" /> ARCHIVE TO VAULT
+                     </button>
+                  </div>
+                  {/* Traditional preview style generator below */}
+                  <div className="pt-6 border-t border-white/5">
+                    <CarouselGenerator post={assets.textPost} apiKey={geminiKey || ""} />
+                  </div>
              </div>
+        ) : activeTab === "visual" ? (
+            <div className="space-y-6 text-left">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-white font-bold text-lg">Visual Strategy Engine</h3>
+                        <p className="text-neutral-500 text-xs">Generate minimalist "Visualize Value" style diagrams.</p>
+                    </div>
+                </div>
+                
+                {diagramData ? (
+                    <SVGDiagramGenerator data={diagramData} />
+                ) : (
+                    <button 
+                        onClick={handleGenerateDiagram}
+                        disabled={isDiagramLoading}
+                        className="w-full h-40 bg-white/5 border border-white/10 border-dashed rounded-3xl flex flex-col items-center justify-center gap-3 text-neutral-500 hover:text-white hover:bg-white/10 transition-all"
+                    >
+                        {isDiagramLoading ? <Loader2 className="w-8 h-8 animate-spin" /> : <Sparkles className="w-8 h-8" />}
+                        <span className="text-xs font-bold uppercase tracking-widest">Generate Tactical Diagram</span>
+                    </button>
+                )}
+                
+                <div className="pt-6 border-t border-white/5">
+                    <VisualGenerator concept={assets.visualConcept || assets.textPost.substring(0, 20)} apiKey={geminiKey || ""} />
+                </div>
+            </div>
         ) : activeTab === "video" ? (
              <VideoDirector script={content.video || assets.videoScript || "No script available."} />
         ) : activeTab === "audio" ? (
@@ -233,18 +412,33 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                 title={assets.textPost ? assets.textPost.split('\n')[0].substring(0, 30) : "REVOLUTIONARY STRATEGY"} 
                 prompt={assets.thumbnailPrompt || "High contrast"} 
              />
-        ) : activeTab === "visual" ? (
-            <div className="space-y-4">
-                <h3 className="text-white font-bold text-lg mb-2">Visual Factory</h3>
-                 <p className="text-neutral-500 text-xs mb-4">Generate minimalist "Visualize Value" style diagrams.</p>
-                <VisualGenerator concept={assets.textPost.substring(0, 50)} apiKey={geminiKey || ""} />
-            </div>
         ) : (
             <>
                 <div className="absolute top-4 right-4 flex items-center gap-2">
                     {activeTab === "text" && (
                         <div className="flex items-center gap-2">
-                             <PublishingControl />
+                             
+                             {/* GHOST POST BUTTON */}
+                             <button
+                                onClick={handlePublishNow}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/50 rounded-md text-[10px] font-bold uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all animate-pulse"
+                             >
+                                <Globe className="w-3 h-3" />
+                                LIVE POST
+                             </button>
+
+                             <button
+                                onClick={() => {
+                                    const { voiceService } = require("../utils/voice-service");
+                                    voiceService.speak(assets.textPost);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/50 rounded-md text-[10px] font-bold uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-all"
+                                title="Read Strategy Aloud"
+                             >
+                                <Mic className="w-3 h-3" />
+                                LISTEN
+                             </button>
+
                              <div className="w-px h-6 bg-white/10 mx-2" />
                             {/* Remix Button */}
                             <button
@@ -255,30 +449,68 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                             >
                                 <RefreshCw className={`w-4 h-4 ${isRemixing ? 'animate-spin' : ''}`} />
                             </button>
-                            <button
-                                onClick={handleCopy}
-                                className="p-2 text-neutral-500 hover:text-white transition-colors rounded-md bg-neutral-900 border border-neutral-800 hover:border-neutral-700"
-                                title="Copy to Clipboard"
-                            >
-                                <Copy className="w-4 h-4" />
-                            </button>
+                            
+                            {/* Share Menu */}
+                            <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-md">
+                                <button
+                                    onClick={handleCopy}
+                                    className="p-2 text-neutral-500 hover:text-white transition-colors border-r border-neutral-800"
+                                    title="Copy Text"
+                                >
+                                    <Copy className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={handleShareEmail}
+                                    className="p-2 text-neutral-500 hover:text-white transition-colors border-r border-neutral-800"
+                                    title="Send via Email"
+                                >
+                                    <Mail className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={handleCopySlack}
+                                    className="p-2 text-neutral-500 hover:text-white transition-colors"
+                                    title="Copy for Slack (> Quote)"
+                                >
+                                    <MessageSquare className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
 
                 <div className="prose prose-invert max-w-none">
-                    <ReactMarkdown
-                        components={{
-                            h1: ({node, ...props}) => <h1 className="text-xl font-bold text-white mb-4" {...props} />,
-                            h2: ({node, ...props}) => <h2 className="text-lg font-bold text-white mt-6 mb-3" {...props} />,
-                            p: ({node, ...props}) => <p className="text-neutral-300 leading-relaxed mb-4 text-sm" {...props} />,
-                            ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-2 mb-4 text-neutral-300 text-sm" {...props} />,
-                            li: ({node, ...props}) => <li className="" {...props} />,
-                            strong: ({node, ...props}) => <strong className="font-bold text-white" {...props} />,
-                        }}
-                    >
-                        {content[activeTab as keyof typeof content] || "No content generated."}
-                    </ReactMarkdown>
+                    {(activeTab === "x" && !assets.xThread?.length) || (activeTab === "substack" && !assets.substackEssay) ? (
+                        <div className="h-[300px] flex flex-col items-center justify-center gap-6 border-2 border-white/5 border-dashed rounded-3xl">
+                            <div className="p-4 bg-white/5 rounded-full">
+                                <Zap className="w-8 h-8 text-neutral-600" />
+                            </div>
+                            <div className="text-center">
+                                <h4 className="text-white font-bold mb-1">Content Missing</h4>
+                                <p className="text-xs text-neutral-500">Transmute this strategy for {activeTab === "x" ? "X (Twitter)" : "Substack"}</p>
+                            </div>
+                            <button 
+                                onClick={() => handleTransmute(activeTab as any)}
+                                disabled={isTransmuting}
+                                className="px-8 py-3 bg-white text-black font-black rounded-2xl text-[10px] tracking-tighter hover:scale-105 transition-all shadow-xl shadow-white/5 flex items-center gap-2"
+                            >
+                                {isTransmuting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                TRANSMUTE NOW
+                            </button>
+                        </div>
+                    ) : (
+                        <ReactMarkdown
+                            components={{
+                                h1: ({node, ...props}) => <h1 className="text-xl font-bold text-white mb-4" {...props} />,
+                                h2: ({node, ...props}) => <h2 className="text-lg font-bold text-white mt-6 mb-3" {...props} />,
+                                p: ({node, ...props}) => <p className="text-neutral-300 leading-relaxed mb-4 text-sm" {...props} />,
+                                ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-2 mb-4 text-neutral-300 text-sm" {...props} />,
+                                li: ({node, ...props}) => <li className="" {...props} />,
+                                strong: ({node, ...props}) => <strong className="font-bold text-white" {...props} />,
+                            }}
+                        >
+                            {content[activeTab as keyof typeof content] || "No content generated."}
+                        </ReactMarkdown>
+                    )}
                 </div>
                 
                  {/* Explain Logic Section */}

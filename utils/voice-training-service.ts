@@ -204,7 +204,7 @@ export async function startFineTuning(apiKey: string, modelName: string): Promis
       try {
         const errorJson = JSON.parse(errorText);
         errorMessage = errorJson.error?.message || errorMessage;
-      } catch (e) {
+      } catch {
         // ignore json parse error
       }
       throw new Error(errorMessage);

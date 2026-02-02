@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, X, Clipboard, Sparkles, Copy, RefreshCw } from "lucide-react";
-import { generateComment } from "../utils/ai-service";
+import { MessageSquare, X, Clipboard, Sparkles, Copy, RefreshCw, Zap, Search, Globe } from "lucide-react";
+import { generateCommentAction, findTrendsAction } from "../actions/generate";
 import Toast, { ToastType } from "./Toast";
 
 interface CommentGeneratorModalProps {
@@ -11,9 +11,10 @@ interface CommentGeneratorModalProps {
   onClose: () => void;
   apiKey: string;
   personaId: string;
+  initialSignals?: any[];
 }
 
-const TONES = [
+const TONES_V1 = [
   "Insightful",
   "Questioning",
   "Contrarian",
@@ -22,16 +23,40 @@ const TONES = [
   "Brief"
 ];
 
-export default function CommentGeneratorModal({ isOpen, onClose, apiKey, personaId }: CommentGeneratorModalProps) {
+const TONES_V2 = [
+  "Insightful",
+  "Supportive",
+  "Questioning",
+  "Contrarian",
+  "Witty",
+  "Data-driven"
+];
+
+export default function CommentGeneratorModal({ isOpen, onClose, apiKey, personaId, initialSignals }: CommentGeneratorModalProps) {
   const [postContent, setPostContent] = useState("");
   const [generatedComment, setGeneratedComment] = useState("");
   const [selectedTone, setSelectedTone] = useState("Insightful");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [useV2, setUseV2] = useState(true); // Default to V2
+  const [industryContext, setIndustryContext] = useState("");
   const [toast, setToast] = useState<{ message: string; type: ToastType; isVisible: boolean }>({
     message: "",
     type: "success",
     isVisible: false,
   });
+  
+  // New State for Signal Integration
+  const [foundSignals, setFoundSignals] = useState<any[]>([]);
+  const [isSearchingSignals, setIsSearchingSignals] = useState(false);
+
+  // Sync initial signals
+  useEffect(() => {
+    if (isOpen && initialSignals && initialSignals.length > 0) {
+      setFoundSignals(initialSignals);
+    }
+  }, [initialSignals, isOpen]);
+  
+  const TONES = useV2 ? TONES_V2 : TONES_V1;
 
   const showToast = (message: string, type: ToastType) => {
     setToast({ message, type, isVisible: true });
@@ -52,6 +77,27 @@ export default function CommentGeneratorModal({ isOpen, onClose, apiKey, persona
     }
   };
 
+  const handleDeepSearch = async () => {
+    if (!postContent.trim()) {
+        showToast("Enter post content first to search for context.", "error");
+        return;
+    }
+    setIsSearchingSignals(true);
+    try {
+        // Use the first 120 chars as query
+        const query = postContent.substring(0, 120);
+        showToast(`Searching for signals about: "${query}..."`, "success");
+        const trends = await findTrendsAction(query, apiKey);
+        setFoundSignals(trends);
+        showToast(`Found ${trends.length} relevant signals.`, "success");
+    } catch (e) {
+        console.error("Signal search failed:", e);
+        showToast("Signal search failed.", "error");
+    } finally {
+        setIsSearchingSignals(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!postContent.trim()) {
       showToast("Please enter or paste post content first.", "error");
@@ -64,7 +110,11 @@ export default function CommentGeneratorModal({ isOpen, onClose, apiKey, persona
 
     setIsGenerating(true);
     try {
-        const comment = await generateComment(postContent, selectedTone, apiKey, personaId as any);
+        const comment = await generateCommentAction(postContent, selectedTone, apiKey, personaId as any, {
+            useV2,
+            industryContext: industryContext || undefined,
+            relatedSignals: foundSignals.length > 0 ? foundSignals : undefined,
+        });
         setGeneratedComment(comment);
     } catch (e) {
         showToast("Generation failed.", "error");
@@ -133,11 +183,59 @@ export default function CommentGeneratorModal({ isOpen, onClose, apiKey, persona
                     placeholder="Paste the LinkedIn/Twitter post here..."
                     className="w-full h-32 bg-black/40 border border-white/10 rounded-xl p-4 text-sm text-neutral-200 focus:outline-none focus:border-blue-500/50 resize-none font-mono"
                 />
+
+                {/* Deep Signal Hunt Integration */}
+                <div className="pt-2">
+                    {!foundSignals.length ? (
+                        <button 
+                            onClick={handleDeepSearch}
+                            disabled={isSearchingSignals}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/30 rounded-lg text-xs font-bold text-blue-400 hover:bg-blue-500/20 transition-all disabled:opacity-50"
+                        >
+                            {isSearchingSignals ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                            DEEP SIGNAL HUNT (ADD REAL-TIME CONTEXT)
+                        </button>
+                    ) : (
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest flex items-center gap-1">
+                                    <Globe className="w-3 h-3" /> Real-Time Context Loaded
+                                </span>
+                                <button 
+                                    onClick={() => setFoundSignals([])}
+                                    className="text-[10px] text-neutral-500 hover:text-white uppercase"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                {foundSignals.map((s, idx) => (
+                                    <div key={idx} className="flex-shrink-0 w-48 p-2 bg-white/5 border border-white/10 rounded-lg text-[10px] text-neutral-400 truncate">
+                                        <span className="text-white block truncate font-bold">{s.title}</span>
+                                        {s.source}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Tone Selection */}
             <div className="space-y-3">
-                <label className="text-sm font-medium text-neutral-300">Comment Tone</label>
+                <div className="flex justify-between items-center">
+                    <label className="text-sm font-medium text-neutral-300">Comment Tone</label>
+                    <button
+                        onClick={() => setUseV2(!useV2)}
+                        className={`text-[10px] font-mono px-2 py-1 rounded transition-all ${
+                            useV2 
+                            ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                            : 'bg-white/5 text-neutral-500 border border-white/10'
+                        }`}
+                    >
+                        {useV2 ? 'V2 ENHANCED' : 'V1 CLASSIC'}
+                    </button>
+                </div>
                 <div className="flex flex-wrap gap-2">
                     {TONES.map(tone => (
                         <button
@@ -154,6 +252,22 @@ export default function CommentGeneratorModal({ isOpen, onClose, apiKey, persona
                     ))}
                 </div>
             </div>
+
+            {/* V2: Industry Context (Optional) */}
+            {useV2 && (
+                <div className="space-y-2">
+                    <label className="text-xs font-medium text-neutral-400">
+                        Industry Context <span className="text-neutral-600">(optional)</span>
+                    </label>
+                    <input
+                        type="text"
+                        value={industryContext}
+                        onChange={(e) => setIndustryContext(e.target.value)}
+                        placeholder="e.g., SaaS, Healthcare, FinTech..."
+                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-purple-500/50"
+                    />
+                </div>
+            )}
 
             {/* Generate Action */}
             <button

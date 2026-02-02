@@ -11,6 +11,8 @@ export default defineConfig({
     include: ['**/*.test.{ts,tsx}'],
     alias: {
       '@': path.resolve(__dirname, './'),
+      // Stub Next.js server-only directive for Vitest
+      'server-only': path.resolve(__dirname, './tests/__mocks__/server-only.ts'),
     },
   },
 })

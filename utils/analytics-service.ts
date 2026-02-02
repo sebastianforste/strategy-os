@@ -1,272 +1,123 @@
-import { getHistory, PerformanceRating } from "./history-service";
+/**
+ * ANALYTICS SERVICE - Intelligence Feedback Loop
+ * -----------------------------------------------
+ * Analyzes historical performance and provides AI-driven recommendations.
+ */
 
-export interface AnalyticsStats {
-  totalPosts: number;
-  ratedPosts: number;
-  avgRating: number;
-  topPersona: string | null;
-  topHooks: string[];
-  personaStats: { [key: string]: { total: number; avgRating: number } };
-  ratingDistribution: { [key in Exclude<PerformanceRating, null>]: number };
+import { GoogleGenAI } from "@google/genai";
+import { ArchivedStrategy, getTopPerformers, getArchivedStrategies } from "./archive-service";
+
+const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-2.0-flash-exp";
+
+export interface AnalyticsInsight {
+    topPerformers: ArchivedStrategy[];
+    averageEngagement: number;
+    trendingTopics: string[];
+    recommendations: string[];
+    personaPerformance?: Record<string, number>;
 }
 
-export interface ViralityScore {
-  score: number; //  0-100
-  factors: {
-    hookType: number; // 0-25
-    length: number; // 0-25
-    structure: number; // 0-25
-    engagement: number; // 0-25
-  };
-  suggestions: string[];
+/**
+ * CALCULATE DWELL SCORE
+ * Estimates the "stickiness" of content based on depth and engagement.
+ */
+export function calculateDwellScore(content: string, performance: any): number {
+    const wordCount = content.split(/\s+/).length;
+    const baseTime = wordCount / 3; // Assume 200 wpm (3.3 words/sec)
+    const engagementBonus = (performance.likes || 0) * 2 + (performance.comments || 0) * 5 + (performance.shares || 0) * 10;
+    return Math.round(baseTime + engagementBonus);
 }
 
-// ==================== Analytics Computation ====================
+/**
+ * GENERATE ANALYTICS REPORT
+ * Aggregates performance data into actionable insights.
+ */
+export async function generateAnalyticsReport(apiKey: string): Promise<AnalyticsInsight | null> {
+    if (!apiKey) return null;
 
-export function getAnalyticsStats(): AnalyticsStats {
-  const history = getHistory();
-  const ratedPosts = history.filter((item) => item.performance?.rating);
-
-  const ratingDistribution = {
-    viral: 0,
-    good: 0,
-    meh: 0,
-    flopped: 0,
-  };
-
-  ratedPosts.forEach((item) => {
-    const rating = item.performance!.rating!;
-    ratingDistribution[rating]++;
-  });
-
-  // Calculate average rating (viral=4, good=3, meh=2, flopped=1)
-  const ratingValues = { viral: 4, good: 3, meh: 2, flopped: 1 };
-  const avgRating =
-    ratedPosts.length > 0
-      ? ratedPosts.reduce(
-          (sum, item) => sum + ratingValues[item.performance!.rating!],
-          0
-        ) / ratedPosts.length
-      : 0;
-
-  // Get top hooks from viral/good posts
-  const topRatedPosts = history
-    .filter(
-      (item) =>
-        item.performance?.rating === "viral" ||
-        item.performance?.rating === "good"
-    )
-    .sort((a, b) => {
-      const aVal = a.performance!.rating === "viral" ? 4 : 3;
-      const bVal = b.performance!.rating === "viral" ? 4 : 3;
-      return bVal - aVal;
-    })
-    .slice(0, 5);
-
-  const topHooks = topRatedPosts.map((item) => {
-    const firstLine = item.assets.textPost.split("\n")[0];
-    return firstLine.substring(0, 100);
-  });
-
-  // Persona statistics (would need to track persona in history)
-  // For now, returning placeholder
-  const personaStats = {};
-
-  return {
-    totalPosts: history.length,
-    ratedPosts: ratedPosts.length,
-    avgRating,
-    topPersona: null,
-    topHooks,
-    personaStats,
-    ratingDistribution,
-  };
-}
-
-// ==================== Virality Prediction ====================
-
-export function predictVirality(text: string): ViralityScore {
-  const factors = {
-    hookType: 0,
-    length: 0,
-    structure: 0,
-    engagement: 0,
-  };
-
-  const suggestions: string[] = [];
-
-  // Factor 1: Hook Type (25 points)
-  const firstLine = text.split("\n")[0].trim();
-  const lowerFirst = firstLine.toLowerCase();
-
-  if (lowerFirst.includes("?")) {
-    factors.hookType = 25; // Questions perform well
-  } else if (
-    lowerFirst.startsWith("most") ||
-    lowerFirst.startsWith("everyone") ||
-    lowerFirst.startsWith("nobody")
-  ) {
-    factors.hookType = 20; // Contrarian statements
-  } else if (lowerFirst.startsWith("i ")) {
-    factors.hookType = 18; // Personal stories
-  } else if (/\d/.test(firstLine)) {
-    factors.hookType = 15; // Numbers/stats
-  } else {
-    factors.hookType = 10;
-    suggestions.push("Consider starting with a question or contrarian statement");
-  }
-
-  // Factor 2: Length (25 points)
-  const charCount = text.length;
-  if (charCount >= 200 && charCount <= 500) {
-    factors.length = 25; // Sweet spot
-  } else if (charCount >= 150 && charCount < 200) {
-    factors.length = 20;
-  } else if (charCount >= 500 && charCount <= 700) {
-    factors.length = 20;
-  } else if (charCount < 150) {
-    factors.length = 10;
-    suggestions.push("Post is too short. Aim for 200-500 characters.");
-  } else {
-    factors.length = 15;
-    suggestions.push("Post might be too long. Consider splitting into parts.");
-  }
-
-  // Factor 3: Structure (25 points)
-  const lines = text.split("\n").filter((l) => l.trim().length > 0);
-  const hasShortLines = lines.some((l) => l.length <= 80);
-  const hasLineBreaks = lines.length >= 5;
-  const hasBullets = text.includes("-") || text.includes("•");
-
-  let structureScore = 0;
-  if (hasShortLines) structureScore += 10;
-  if (hasLineBreaks) structureScore += 10;
-  if (hasBullets) structureScore += 5;
-
-  factors.structure = structureScore;
-
-  if (structureScore < 15) {
-    suggestions.push("Break text into shorter lines for better readability");
-  }
-
-  // Factor 4: Engagement Triggers (25 points)
-  const engagementWords = [
-    "you",
-    "your",
-    "why",
-    "how",
-    "secret",
-    "mistake",
-    "truth",
-    "lesson",
-  ];
-  const lowerText = text.toLowerCase();
-  const triggersFound = engagementWords.filter((word) =>
-    lowerText.includes(word)
-  ).length;
-
-  factors.engagement = Math.min(triggersFound * 5, 25);
-
-  if (factors.engagement < 15) {
-    suggestions.push('Add engagement triggers like "you", "why", "secret"');
-  }
-
-  // Calculate total score
-  const score = Object.values(factors).reduce((sum, val) => sum + val, 0);
-
-  return {
-    score,
-    factors,
-    suggestions,
-  };
-}
-
-// ==================== Pattern Analysis ====================
-
-export function getSuccessPatterns(): {
-  bestHookTypes: string[];
-  bestLength: { min: number; max: number };
-  bestTimes: string[];
-} {
-  const history = getHistory();
-  const viralPosts = history.filter(
-    (item) => item.performance?.rating === "viral"
-  );
-
-  // Analyze hooks
-  const hookTypes: { [key: string]: number } = {};
-  viralPosts.forEach((item) => {
-    const firstLine = item.assets.textPost.split("\n")[0].toLowerCase();
-    if (firstLine.includes("?")) {
-      hookTypes["question"] = (hookTypes["question"] || 0) + 1;
-    } else if (firstLine.startsWith("most") || firstLine.startsWith("everyone")) {
-      hookTypes["contrarian"] = (hookTypes["contrarian"] || 0) + 1;
-    } else if (firstLine.startsWith("i ")) {
-      hookTypes["personal"] = (hookTypes["personal"] || 0) + 1;
+    const topPerformers = await getTopPerformers(5);
+    const allStrategies = await getArchivedStrategies();
+    
+    // Calculate average engagement for strategies with performance data
+    const withPerformance = allStrategies.filter(s => s.performance);
+    let averageEngagement = 0;
+    if (withPerformance.length > 0) {
+        const total = withPerformance.reduce((sum, s) => {
+            return sum + (s.performance?.likes || 0) + (s.performance?.comments || 0) + (s.performance?.reposts || 0);
+        }, 0);
+        averageEngagement = Math.round(total / withPerformance.length);
     }
-  });
 
-  const bestHookTypes = Object.entries(hookTypes)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 3)
-    .map(([type]) => type);
+    // Calculate persona performance
+    const personaMap: Record<string, { total: number, count: number }> = {};
+    allStrategies.forEach(s => {
+        if (s.persona && s.performance) {
+            if (!personaMap[s.persona]) personaMap[s.persona] = { total: 0, count: 0 };
+            const score = (s.performance.likes || 0) + (s.performance.comments || 0) + (s.performance.shares || 0);
+            personaMap[s.persona].total += score;
+            personaMap[s.persona].count += 1;
+        }
+    });
 
-  // Analyze length
-  const lengths = viralPosts.map((item) => item.assets.textPost.length);
-  const avgLength =
-    lengths.length > 0
-      ? lengths.reduce((sum, len) => sum + len, 0) / lengths.length
-      : 300;
+    const personaPerformance: Record<string, number> = {};
+    Object.keys(personaMap).forEach(p => {
+        personaPerformance[p] = Math.round(personaMap[p].total / personaMap[p].count);
+    });
 
-  const bestLength = {
-    min: Math.floor(avgLength * 0.8),
-    max: Math.floor(avgLength * 1.2),
-  };
+    // Extract trending topics from top performers
+    const trendingTopics = topPerformers.map(s => s.topic);
 
-  // Placeholder for timing analysis (would need real post timestamps)
-  const bestTimes = ["9:00 AM", "12:00 PM", "5:00 PM"];
+    // Generate AI recommendations based on top performers
+    let recommendations: string[] = [];
+    if (topPerformers.length > 0) {
+        recommendations = await getAIRecommendations(topPerformers, apiKey);
+    }
 
-  return {
-    bestHookTypes,
-    bestLength,
-    bestTimes,
-  };
+    return {
+        topPerformers,
+        averageEngagement,
+        trendingTopics,
+        recommendations,
+        personaPerformance
+    };
 }
 
-// ==================== Performance Insights ====================
+/**
+ * GET AI RECOMMENDATIONS
+ * Uses Gemini to analyze top performers and suggest new directions.
+ */
+async function getAIRecommendations(topPerformers: ArchivedStrategy[], apiKey: string): Promise<string[]> {
+    const genAI = new GoogleGenAI({ apiKey });
 
-export function getPerformanceInsights(): string[] {
-  const stats = getAnalyticsStats();
-  const insights: string[] = [];
+    const contentSummary = topPerformers.map(s => 
+        `Topic: ${s.topic}\nEngagement: ${(s.performance?.likes || 0) + (s.performance?.comments || 0)} interactions\nContent Preview: ${s.content.substring(0, 200)}...`
+    ).join("\n\n");
 
-  if (stats.ratedPosts === 0) {
-    insights.push("Start rating your posts to unlock insights!");
-    return insights;
-  }
+    const prompt = `
+        You are a top-tier LinkedIn strategist analyzing performance data.
+        
+        Here are my TOP-PERFORMING posts:
+        ${contentSummary}
+        
+        Based on this data, provide 3-5 actionable recommendations:
+        - What TOPICS should I double down on?
+        - What FORMATS or STYLES seem to resonate most?
+        - What should I AVOID based on engagement patterns?
+        
+        OUTPUT AS JSON ARRAY:
+        ["Recommendation 1", "Recommendation 2", ...]
+    `;
 
-  // Insight 1: Overall performance
-  if (stats.avgRating >= 3.5) {
-    insights.push("🔥 Your content is performing excellently!");
-  } else if (stats.avgRating >= 2.5) {
-    insights.push("📈 Your content is performing well. Keep experimenting!");
-  } else {
-    insights.push("💡 Try different approaches to boost performance.");
-  }
+    try {
+        const result = await genAI.models.generateContent({
+            model: PRIMARY_MODEL,
+            contents: prompt,
+            config: { responseMimeType: "application/json" }
+        });
 
-  // Insight 2: Rating distribution
-  const { viral, good, meh, flopped } = stats.ratingDistribution;
-  if (viral > good + meh + flopped) {
-    insights.push("✨ You're creating viral content consistently!");
-  } else if (flopped > viral + good) {
-    insights.push("⚠️ Many posts are underperforming. Review top hooks for patterns.");
-  }
-
-  // Insight 3: Sample size
-  if (stats.ratedPosts < 10) {
-    insights.push(
-      `📊 Rate ${10 - stats.ratedPosts} more posts for better insights.`
-    );
-  }
-
-  return insights;
+        return JSON.parse(result.text || "[]");
+    } catch (e) {
+        console.error("AI Recommendations failed:", e);
+        return ["Enable performance tracking on more posts to get personalized recommendations."];
+    }
 }

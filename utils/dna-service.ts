@@ -59,7 +59,7 @@ export async function analyzeCorpus(corpus: string[], apiKey: string): Promise<C
   try {
     const genAI = new GoogleGenAI({ apiKey });
     const result = await genAI.models.generateContent({
-        model: "models/gemini-flash-latest",
+        model: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest",
         contents: prompt,
         config: { responseMimeType: "application/json" }
     });
@@ -144,7 +144,7 @@ export async function generateCommentStrategy(
     try {
         const genAI = new GoogleGenAI({ apiKey });
         const result = await genAI.models.generateContent({
-            model: "models/gemini-flash-latest",
+            model: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest",
             contents: prompt,
             config: { responseMimeType: "application/json" }
         });
