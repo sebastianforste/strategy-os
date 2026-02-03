@@ -1,157 +1,103 @@
 "use client";
 
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, Svg, Rect, Circle, Line } from '@react-pdf/renderer';
-import { Slide } from '../utils/carousel-generator';
+import { Document, Page, Text, View, StyleSheet, Svg, Line } from '@react-pdf/renderer';
+import { CarouselSlide } from '../utils/carousel-service';
 
-// Enhanced styles with visual elements
-const styles = StyleSheet.create({
-  page: {
-    flexDirection: 'column',
-    backgroundColor: '#0a0a0a', // Near-black
-    color: '#ffffff',
-    padding: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  // Accent corner decorations
-  topLeftAccent: {
-    position: 'absolute',
-    top: 20,
-    left: 20,
-  },
-  bottomRightAccent: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-  },
-  // Content container
-  contentContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-    paddingHorizontal: 20,
-  },
-  // Typography
-  coverText: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 36,
-    textAlign: 'center',
-    color: '#ffffff',
-    lineHeight: 1.3,
-  },
-  contentText: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 22,
-    textAlign: 'center',
-    color: '#e5e5e5',
-    lineHeight: 1.5,
-  },
-  ctaText: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 26,
-    textAlign: 'center',
-    color: '#ffffff',
-  },
-  // Footer
-  footer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 40,
-    alignItems: 'center',
-  },
-  footerText: {
-    fontFamily: 'Helvetica',
-    fontSize: 10,
-    color: '#666666',
-  },
-  pagination: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 11,
-    color: '#3b82f6', // Blue accent
-  },
-  // Accent bar
-  accentBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 4,
-    backgroundColor: '#3b82f6', // Blue accent bar at top
-  },
-});
+export type CarouselTheme = 'viral' | 'professional' | 'minimal';
 
-// Generate a unique accent color per slide
-const getAccentColor = (index: number): string => {
-  const colors = ['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b'];
-  return colors[index % colors.length];
+// Theme Configurations (PDF Safe Colors)
+const THEMES = {
+  viral: {
+    bg: "#FFD600",
+    text: "#000000",
+    accent: "#000000",
+    font: "Helvetica-Bold"
+  },
+  professional: {
+    bg: "#0A192F",
+    text: "#FFFFFF",
+    accent: "#64FFDA",
+    font: "Times-Roman"
+  },
+  minimal: {
+    bg: "#FFFFFF",
+    text: "#171717", // Neutral 900
+    accent: "#171717",
+    font: "Helvetica"
+  }
 };
 
+const styles = StyleSheet.create({
+  page: { flexDirection: 'column', padding: 40 },
+  header: { height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  progressBar: { flexDirection: 'row', gap: 4, height: 6, flex: 1, maxWidth: 150 },
+  barSegment: { flex: 1, borderRadius: 3 },
+  content: { flex: 1, justifyContent: 'center' },
+  title: { fontSize: 32, marginBottom: 16, lineHeight: 1.1 },
+  body: { fontSize: 18, lineHeight: 1.4, opacity: 0.9 },
+  footer: { marginTop: 30, borderTopWidth: 1, borderColor: 'rgba(0,0,0,0.1)', paddingTop: 16, flexDirection: 'row', justifyContent: 'space-between' },
+  handle: { fontSize: 10, fontFamily: 'Helvetica-Bold' },
+  cta: { fontSize: 10, fontFamily: 'Helvetica' }
+});
+
 interface CarouselPDFProps {
-  slides: Slide[];
+  slides: CarouselSlide[];
+  theme: CarouselTheme;
   handle?: string;
+  avatarUrl?: string;
 }
 
-export default function CarouselPDF({ slides, handle = "@StrategyOS" }: CarouselPDFProps) {
+export default function CarouselPDF({ slides, theme, handle = "@StrategyOS", avatarUrl }: CarouselPDFProps) {
+  const t = THEMES[theme];
+
   return (
     <Document>
-      {slides.map((slide, index) => {
-        const accentColor = getAccentColor(index);
-        
-        return (
-          <Page 
-            key={slide.id} 
-            size={[400, 500]} // 4:5 Aspect Ratio
-            style={styles.page}
-          >
-            {/* Top accent bar */}
-            <View style={[styles.accentBar, { backgroundColor: accentColor }]} />
-            
-            {/* Decorative corner elements */}
-            <View style={styles.topLeftAccent}>
-              <Svg width={40} height={40}>
-                <Line x1="0" y1="0" x2="30" y2="0" stroke={accentColor} strokeWidth={2} />
-                <Line x1="0" y1="0" x2="0" y2="30" stroke={accentColor} strokeWidth={2} />
-              </Svg>
+      {slides.map((slide, index) => (
+        <Page 
+          key={index} 
+          size={[400, 500]} 
+          style={{ ...styles.page, backgroundColor: t.bg, color: t.text }}
+        >
+            {/* HEADER */}
+            <View style={styles.header}>
+                {theme !== 'minimal' ? (
+                    <View style={styles.progressBar}>
+                        {Array.from({ length: slides.length }).map((_, i) => (
+                          <View 
+                            key={i} 
+                            style={[
+                                styles.barSegment, 
+                                { backgroundColor: i <= index ? t.accent : 'rgba(0,0,0,0.1)' }
+                            ]} 
+                          />
+                        ))}
+                    </View>
+                ) : (
+                    <Text style={{ fontSize: 10, color: '#999' }}>{index + 1}/{slides.length}</Text>
+                )}
             </View>
-            
-            <View style={styles.bottomRightAccent}>
-              <Svg width={40} height={40}>
-                <Line x1="10" y1="40" x2="40" y2="40" stroke={accentColor} strokeWidth={2} />
-                <Line x1="40" y1="10" x2="40" y2="40" stroke={accentColor} strokeWidth={2} />
-              </Svg>
-            </View>
-            
-            {/* Main content */}
-            <View style={styles.contentContainer}>
-              <Text style={
-                slide.type === 'cover' ? styles.coverText : 
-                slide.type === 'cta' ? styles.ctaText : 
-                styles.contentText
-              }>
-                {slide.content}
-              </Text>
-            </View>
-            
-            {/* Footer */}
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>{handle}</Text>
-              {slide.type !== 'cta' && (
-                <Text style={[styles.pagination, { color: accentColor }]}>
-                  {index + 1} / {slides.length}
+
+            {/* CONTENT */}
+            <View style={styles.content}>
+                <Text style={[styles.title, { fontFamily: t.font }]}>{slide.title}</Text>
+                <Text style={[styles.body, { fontFamily: theme === 'professional' ? 'Times-Roman' : 'Helvetica' }]}>
+                    {slide.body}
                 </Text>
-              )}
             </View>
-          </Page>
-        );
-      })}
+
+            {/* FOOTER */}
+            <View style={[styles.footer, { borderColor: theme === 'professional' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {/* Placeholder for avatar since remote images need auth handling sometimes */}
+                     <Text style={[styles.handle, { color: t.text }]}>{handle}</Text>
+                </View>
+                <Text style={[styles.cta, { color: t.text }]}>
+                    {index < slides.length - 1 ? "SWIPE ➔" : "SAVE 💾"}
+                </Text>
+            </View>
+        </Page>
+      ))}
     </Document>
   );
 }
-

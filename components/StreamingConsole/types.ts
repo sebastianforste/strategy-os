@@ -12,6 +12,7 @@ import { PersonaId, Persona } from "../../utils/personas";
 import { GeneratedAssets } from "../../utils/ai-service";
 import { PostingJob } from "../../utils/posting-agent";
 import { SwarmMessage } from "../../utils/swarm-service";
+import { SystemVitals } from "../../utils/vitals-service";
 
 export interface StreamingConsoleProps {
   initialValue: string;
@@ -29,6 +30,9 @@ export interface StreamingConsoleProps {
   setUseSwarm: (val: boolean) => void;
   platform: "linkedin" | "twitter";
   setPlatform: (val: "linkedin" | "twitter") => void;
+  isTeamMode: boolean;
+  setIsTeamMode: (val: boolean) => void;
+  vitals?: SystemVitals;
   onError?: (msg: string) => void;
 }
 
@@ -126,6 +130,8 @@ export interface ConsoleState {
   // Personas
   customPersonas: Persona[];
   setCustomPersonas: (val: Persona[]) => void;
+  vitals: SystemVitals;
+  setVitals: (val: SystemVitals) => void;
 }
 
 export interface StarterChip {
@@ -138,4 +144,5 @@ export const DEFAULT_STARTER_CHIPS: StarterChip[] = [
   { label: "Analyze a Trend", icon: () => null, prompt: "Analyze the latest trend in [Industry]..." },
   { label: "Strategic Pivot", icon: () => null, prompt: "Why most companies fail at [Strategy]..." },
   { label: "Contrarian Take", icon: () => null, prompt: "Everyone thinks [X] is good, but actually..." },
+  { label: "Team Kudos", icon: () => null, prompt: "Ghostwrite a post for [Name] ([Role]) about their achievement: [Project/Win]. Use an authentic, high-performer voice." },
 ];

@@ -7,10 +7,13 @@
 import { GoogleGenAI } from "@google/genai";
 import { ArchivedStrategy } from "./archive-service";
 import { Persona } from "./personas";
+import { AI_CONFIG } from "./config";
 
-const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-2.0-flash-exp";
+const PRIMARY_MODEL = AI_CONFIG.primaryModel;
 
 export interface EvolutionReport {
+    id: string;
+    personaId: string;
     originalPrompt: string;
     mutatedPrompt: string;
     improvements: string[];
@@ -72,6 +75,8 @@ export async function evolvePersona(
         const result = JSON.parse(response.text || "{}");
         
         return {
+            id: `evo-${Date.now()}`,
+            personaId: (persona as any).id || persona.name.toLowerCase().replace(/\s+/g, '-'),
             originalPrompt: persona.basePrompt || "",
             mutatedPrompt: result.mutatedPrompt || persona.basePrompt || "",
             improvements: result.improvements || [],
@@ -88,8 +93,15 @@ export async function evolvePersona(
  * PERSIST EVOLUTION
  * Saves the mutated prompt to the persona store.
  */
-export async function savePersonaEvolution(personaId: string, mutatedPrompt: string) {
-    // This logic will interface with the customPersona storage in StreamingConsole/persona-store
-    console.log(`[ProjectDarwin] Persisting evolution for ${personaId}...`);
-    // Logic: Trigger a state update or IndexedDB write for the custom persona.
+export async function savePersonaEvolution(report: EvolutionReport) {
+    const { updatePersonaPrompt } = await import("./persona-store");
+    const { saveEvolutionReport } = await import("./archive-service");
+
+    console.log(`[ProjectDarwin] Persisting evolution for ${report.personaId}...`);
+    
+    // 1. Update the persona prompt in IDB
+    await updatePersonaPrompt(report.personaId, report.mutatedPrompt);
+
+    // 2. Save the report to archive history
+    await saveEvolutionReport(report);
 }

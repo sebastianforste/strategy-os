@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Settings as SettingsIcon } from "lucide-react";
 import { useState, useEffect } from "react";
+import { modalBackdropVariants, modalContentVariants, buttonVariants } from "../utils/animations";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -60,16 +61,18 @@ export default function SettingsModal({
       {isOpen && (
         <>
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            variants={modalBackdropVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             onClick={onClose}
             className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[59]"
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
+            variants={modalContentVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-[#0A0A0A] border border-neutral-800 p-8 rounded-2xl z-[60] shadow-2xl"
           >
             <div className="flex justify-between items-center mb-6">
@@ -257,15 +260,18 @@ export default function SettingsModal({
                 </div>
               </div>
 
-              <button
+              <motion.button
                 onClick={() => {
                   onSave(keys);
                   onClose();
                 }}
+                variants={buttonVariants}
+                whileHover="hover"
+                whileTap="tap"
                 className="w-full bg-white text-black font-bold py-3 rounded-lg hover:bg-neutral-200 transition-colors"
               >
                 Save Configuration
-              </button>
+              </motion.button>
             </div>
           </motion.div>
         </>

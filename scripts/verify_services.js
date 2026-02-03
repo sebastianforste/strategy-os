@@ -7,7 +7,7 @@ async function verifyService(name, prompt) {
     try {
         const genAI = new GoogleGenAI({ apiKey: API_KEY });
         const result = await genAI.models.generateContent({
-            model: "models/gemini-flash-latest",
+            model: "models/gemini-2.5-flash-native-audio-latest",
             contents: prompt
         });
         const text = result.text || "";

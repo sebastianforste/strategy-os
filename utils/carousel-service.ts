@@ -1,4 +1,6 @@
-import { GoogleGenAI } from "@google/genai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { generateText } from "ai";
+import { AI_CONFIG } from "./config";
 
 export interface CarouselSlide {
   title: string;
@@ -10,7 +12,7 @@ export interface CarouselSlide {
 
 export interface CarouselData {
   slides: CarouselSlide[];
-  theme: "dark" | "light" | "navy";
+  theme: "viral" | "professional" | "minimal";
 }
 
 /**
@@ -22,7 +24,7 @@ export async function generateCarouselStruct(post: string, apiKey: string): Prom
   if (!post || !apiKey) return null;
 
   const prompt = `
-    You are a LinkedIn Carousel Designer.
+    You are a Viral LinkedIn Carousel Designer.
     Convert the following text post into a 5-10 slide carousel structure.
     
     TEXT:
@@ -31,32 +33,35 @@ export async function generateCarouselStruct(post: string, apiKey: string): Prom
     """
     
     GUIDELINES:
-    1. Slide 1 is the HOOK (Big text).
+    1. Slide 1 is the HOOK (Big, punchy text, max 7 words).
     2. Last Slide is the CTA (Call to Action).
-    3. Middle slides break down the content step-by-step.
-    4. Keep body text minimal (under 20 words per slide).
-    5. Choose a theme: "dark" (black bg), "light" (white bg), or "navy" (deep blue bg).
+    3. Middle slides breakdown the content step-by-step.
+    4. Keep body text minimal (under 25 words per slide).
+    5. Choose a theme based on content tone: 
+       - "viral" (High energy, bold)
+       - "professional" (Corporate, trustworthy)
+       - "minimal" (Clean, modern)
     
-    OUTPUT JSON:
+    OUTPUT JSON ONLY:
     {
-      "theme": "dark",
+      "theme": "viral",
       "slides": [
-        { "title": "BIG HOOK", "body": "Subtitle or context", "footer": "Slide 1/5" },
+        { "title": "BIG HOOK", "body": "Subtitle or context", "footer": "SWIPE ➔" },
         ...
       ]
     }
   `;
 
   try {
-    const genAI = new GoogleGenAI({ apiKey });
-    const result = await genAI.models.generateContent({
-        model: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest",
-        contents: prompt,
-        config: { responseMimeType: "application/json" }
+    const google = createGoogleGenerativeAI({ apiKey });
+    
+    const { text } = await generateText({
+        model: google(AI_CONFIG.primaryModel),
+        prompt,
     });
 
-    const text = result.text || "";
-    return JSON.parse(text) as CarouselData;
+    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleaned) as CarouselData;
   } catch (e) {
     console.error("Carousel generation failed", e);
     return null;

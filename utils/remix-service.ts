@@ -1,6 +1,8 @@
 "use server";
 
 import { GoogleGenAI } from "@google/genai";
+import { AI_CONFIG } from "./config";
+import { isRateLimitError } from "./gemini-errors";
 
 export interface RemixResult {
   id: string;
@@ -8,8 +10,8 @@ export interface RemixResult {
   content: string;
 }
 
-const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest";
-const FALLBACK_MODEL = process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "models/gemini-3-flash-preview";
+const PRIMARY_MODEL = AI_CONFIG.primaryModel;
+const FALLBACK_MODEL = AI_CONFIG.fallbackModel;
 
 /**
  * Generates 3 variations of a post:
@@ -68,8 +70,8 @@ ONLY return the JSON. No markdown, no explanation.`;
         { id: "provocative", label: "More Provocative", content: parsed.provocative || "" },
       ];
     } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : "";
-      if (errorMessage.includes("429") || errorMessage.includes("Quota") || errorMessage.includes("quota")) {
+      // Return safe fallback on error
+      if (isRateLimitError(e)) {
         console.warn(`[Remix] Rate limit on ${modelName}, will try fallback`);
         return null; // Signal fallback
       }

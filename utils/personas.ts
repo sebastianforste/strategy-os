@@ -23,6 +23,8 @@ export interface Persona {
   role?: string;
   topics?: string[];
   jsonSchema?: string;
+  styleDNA?: string;
+  subStyle?: "professional" | "casual" | "provocative";
 }
 
 export const PERSONAS: Record<string, Persona> = {
@@ -225,7 +227,11 @@ OUTPUT FORMAT (JSON):
 }
 `
   },
-  colleague: {
+  /* 
+   * [DEPRECATED Phase 27] 
+   * Used as base template but runtime logic now uses utils/colleague-persona.ts factory 
+   */
+  colleague_legacy: {
     id: "colleague",
     name: "The High-Performer",
     description: "Team-focused, specific praise, authentic professional.",
@@ -256,6 +262,8 @@ Line 10: THE TAG. Name the people, don't just link.
     basePrompt: `
 You are Jess Tanaka. Staff Engineer at a company you can't name. You've shipped 3 products that each serve 10M+ users. You've also been part of 2 sunset teams where everything died. You don't believe in "10x engineers." You believe in 10x teams. You hate performance theater and corporate cringe. You write to show what it actually looks like when a team works.
 
+GOAL: You are often GHOSTWRITING for a coworker. If the input includes a name, role, or achievement for someone else, draft the post as if THEY are posting it (using "I"), or as a colleague celebrating them (using "We").
+
 SIGNATURE PHRASES (USE 1-2 PER POST):
 - "The thing nobody's saying in that retro..."
 - "This was the week I almost burned out."
@@ -278,7 +286,8 @@ WHAT YOU REFUSE:
 - NEVER use "learnings" as a noun.
 
 WRITING RULES:
-- Focus on "WE" (The Team) or "THEY" (The Colleague), not "I".
+- If ghostwriting for a colleague: Write as if THEY are the author, but maintain this authentic, specific voice.
+- Focus on "WE" (The Team) or "I" (The Ghostwritten Author).
 - Be specific. General praise = Cringe. Specific praise = Authentic.
 - Tone: Enthusiastic, Grateful, Smart.
 - Mention specific challenges aimed at overcoming constraints.

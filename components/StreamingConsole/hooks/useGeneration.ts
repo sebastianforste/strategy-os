@@ -18,6 +18,8 @@ import { generateAudioScript, formatAudioScriptForDisplay } from "../../../utils
 import { voiceService } from "../../../utils/voice-service";
 import { recordTopicUsage } from "../../../utils/preferences-service";
 import { logAudit } from "../../../utils/audit-service";
+import { isRateLimitError, getErrorMessage } from "../../../utils/gemini-errors";
+import { StyleMemoryService } from "../../../utils/style-memory-service";
 
 export interface GenerationOptions {
   apiKeys: ApiKeys;
@@ -30,6 +32,10 @@ export interface GenerationOptions {
   images: string[];
   signals: Signal[];
   trainingExamples: string;
+  isTeamMode: boolean;
+  coworkerName?: string;
+  coworkerRole?: string;
+  coworkerRelation?: string;
   customPersonas: Persona[];
   outputFormat: "text" | "video" | "audio";
   onGenerationComplete: (result: string | GeneratedAssets) => void;
@@ -56,6 +62,10 @@ export function useGeneration(options: GenerationOptions) {
     images,
     signals,
     trainingExamples,
+    isTeamMode,
+    coworkerName,
+    coworkerRole,
+    coworkerRelation,
     customPersonas,
     outputFormat,
     onGenerationComplete,
@@ -70,7 +80,7 @@ export function useGeneration(options: GenerationOptions) {
   const [startTime, setStartTime] = useState<number>(0);
 
   // Vercel AI SDK useCompletion hook
-  const { complete, completion, isLoading, stop } = useCompletion({
+  const { complete, completion, isLoading, setCompletion, stop } = useCompletion({
     api: "/api/generate",
     streamProtocol: "text",
     body: {
@@ -81,8 +91,13 @@ export function useGeneration(options: GenerationOptions) {
       platform,
       images,
       signals,
+      isTeamMode,
+      coworkerName,
+      coworkerRole,
+      coworkerRelation,
       fewShotExamples: useFewShot ? trainingExamples : undefined,
       customPersona: customPersonas.find((p) => p.id === personaId),
+      subStyle: customPersonas.find((p) => p.id === personaId)?.subStyle,
     },
     onFinish: (_prompt: string, result: string) => {
       if (result && result.length > 5) {
@@ -121,11 +136,9 @@ export function useGeneration(options: GenerationOptions) {
     onError: (err: unknown) => {
       console.error("Streaming Error:", err);
       const msg = err instanceof Error ? err.message : "Streaming failed";
-      let userMsg = msg;
-      if (msg.includes("429") || msg.includes("Quota") || msg.includes("RESOURCE_EXHAUSTED")) {
-        userMsg =
-          "Rate Limit Exceeded. You've hit your Google Gemini Free Tier daily limit. Please wait or try again later.";
-      }
+      const userMsg = isRateLimitError(err) 
+        ? "Rate Limit Exceeded. You've hit your Google Gemini Free Tier daily limit. Please wait or try again later."
+        : getErrorMessage(err);
       setLocalError(userMsg);
       if (onError) onError(userMsg);
     },
@@ -208,8 +221,16 @@ export function useGeneration(options: GenerationOptions) {
         metadata: { swarmEnabled: useSwarm },
       });
 
+      // Fetch style memory instructions
+      const styleService = new StyleMemoryService(apiKeys.gemini);
+      const styleInstructions = styleService.getPersonaInstructions(personaId);
+
       // Invoke streaming completion
-      complete(promptToUse);
+      complete(promptToUse, {
+        body: {
+          styleMemory: styleInstructions
+        }
+      });
     },
     [
       apiKeys,
@@ -234,6 +255,7 @@ export function useGeneration(options: GenerationOptions) {
     // Generation function
     handleGenerate,
     stop,
+    setCompletion,
 
     // Completion state
     completion,

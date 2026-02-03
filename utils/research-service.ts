@@ -10,6 +10,7 @@
  */
 
 import { GoogleGenAI } from "@google/genai";
+import { AI_CONFIG } from "./config";
 import { fetchTrendingNews, searchCompetitorContent } from "./trend-service";
 
 // --- TYPES ---
@@ -30,7 +31,7 @@ export interface ResearchProgress {
 
 // --- CONFIG ---
 
-const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest";
+const PRIMARY_MODEL = AI_CONFIG.primaryModel;
 
 /**
  * RUN DEEP RESEARCH

@@ -7,13 +7,16 @@
 
 export const AI_CONFIG = {
   // Primary model for all generation tasks
-  primaryModel: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-2.0-flash-exp",
+  primaryModel: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-3-flash-preview",
+  
+  // High-reasoning model for complex tasks
+  reasoningModel: "models/deep-research-pro-preview-12-2025",
   
   // Fallback model when primary hits rate limits
-  fallbackModel: process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "models/gemini-1.5-flash",
+  fallbackModel: process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "models/gemini-3-flash-preview",
   
   // Image generation model
-  imageModel: "imagen-3.0-generate-002",
+  imageModel: "models/imagen-4.0-generate-001",
   
   // Embedding model for RAG
   embeddingModel: "models/text-embedding-004",
@@ -31,6 +34,11 @@ export const AI_CONFIG = {
     maxRetries: 3,
   },
 } as const;
+
+// Deep-freeze to ensure true immutability at runtime
+Object.freeze(AI_CONFIG);
+Object.freeze(AI_CONFIG.defaults);
+Object.freeze(AI_CONFIG.rateLimits);
 
 // Type-safe model selection
 export type ModelName = typeof AI_CONFIG.primaryModel | typeof AI_CONFIG.fallbackModel;

@@ -18,6 +18,12 @@ export default function GhostAgentDashboard({ apiKey, isOpen, onClose, onLoadDra
   const [drafts, setDrafts] = useState<GhostDraft[]>([]);
   const [isHunting, setIsHunting] = useState(false);
   const [selectedDraft, setSelectedDraft] = useState<GhostDraft | null>(null);
+  
+  // V2 Settings
+  const [draftCount, setDraftCount] = useState(3);
+  const [autoSchedule, setAutoSchedule] = useState(false);
+  const [huntLog, setHuntLog] = useState("");
+
   const [toast, setToast] = useState<{ message: string; type: ToastType; isVisible: boolean }>({
     message: "",
     type: "success",
@@ -34,17 +40,29 @@ export default function GhostAgentDashboard({ apiKey, isOpen, onClose, onLoadDra
       return;
     }
     setIsHunting(true);
+    setHuntLog("Initializing V2 Protocols...");
+
     try {
-      const result = await runGhostAgentAction(apiKey);
-      // V2 returns array, V1 returns single object
+      // Simulated Log Steps
+      setTimeout(() => setHuntLog("Scanning Sector Signals..."), 800);
+      setTimeout(() => setHuntLog("Detecting Conflicts..."), 1600);
+      setTimeout(() => setHuntLog(`Drafting ${draftCount} Variants...`), 2400);
+
+      const result = await runGhostAgentAction(apiKey, { draftCount, autoSchedule });
+      
       const newDrafts = Array.isArray(result) ? result : [result];
       setDrafts(prev => [...newDrafts, ...prev]);
       showToast(`Ghost found ${newDrafts.length} opportunities`, "success");
+      
+      if (newDrafts.length > 0) {
+        setSelectedDraft(newDrafts[0]);
+      }
     } catch (e) {
       console.error("Ghost hunt failed:", e);
       showToast("Hunt failed. Check API keys.", "error");
     } finally {
       setIsHunting(false);
+      setHuntLog("");
     }
   };
 
@@ -77,13 +95,35 @@ export default function GhostAgentDashboard({ apiKey, isOpen, onClose, onLoadDra
         transition={{ type: "spring", damping: 25 }}
         className="relative ml-auto w-full max-w-4xl bg-[#0A0A0A] border-l border-white/10 h-full overflow-hidden flex"
       >
-        {/* Left: Draft List */}
+        {/* Left: Settings & Draft List */}
         <div className="w-1/3 border-r border-white/10 flex flex-col">
-          <div className="p-4 border-b border-white/10 bg-white/5">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="p-4 border-b border-white/10 bg-white/5 space-y-4">
+            <div className="flex items-center gap-2">
               <Ghost className="w-5 h-5 text-purple-400" />
-              <h2 className="font-bold text-white">Ghost Agent</h2>
+              <h2 className="font-bold text-white">Ghost Agent V2</h2>
             </div>
+
+            {/* V2 Controls */}
+            <div className="bg-black/20 p-3 rounded-lg border border-white/5 space-y-3">
+                <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-neutral-500">Draft Count</span>
+                    <div className="flex items-center gap-2 text-xs font-mono text-purple-300">
+                        <button onClick={() => setDraftCount(Math.max(1, draftCount - 1))} className="hover:text-white">-</button>
+                        <span>{draftCount}</span>
+                        <button onClick={() => setDraftCount(Math.min(5, draftCount + 1))} className="hover:text-white">+</button>
+                    </div>
+                </div>
+                <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-neutral-500">Auto-Schedule</span>
+                    <button 
+                        onClick={() => setAutoSchedule(!autoSchedule)}
+                        className={`w-8 h-4 rounded-full p-0.5 transition-colors ${autoSchedule ? 'bg-purple-500' : 'bg-white/10'}`}
+                    >
+                        <div className={`w-3 h-3 rounded-full bg-white shadow transition-transform ${autoSchedule ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+            </div>
+
             <button
               onClick={handleHunt}
               disabled={isHunting}
@@ -96,23 +136,43 @@ export default function GhostAgentDashboard({ apiKey, isOpen, onClose, onLoadDra
               {isHunting ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  Hunting...
+                  HUNTING...
                 </>
               ) : (
                 <>
                   <Zap className="w-4 h-4" />
-                  Hunt Opportunities
+                  EXECUTE
                 </>
               )}
             </button>
+            {isHunting && <p className="text-[10px] font-mono text-purple-400 text-center animate-pulse">{huntLog}</p>}
           </div>
           
           <div className="flex-1 overflow-y-auto">
-            {drafts.filter(d => d.status !== 'discarded').length === 0 ? (
-              <div className="p-6 text-center text-neutral-500">
-                <Ghost className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">No drafts yet.</p>
-                <p className="text-xs mt-1">Click "Hunt" to find opportunities.</p>
+            {isHunting ? (
+               <div className="space-y-4 p-4">
+                  {[...Array(draftCount)].map((_, i) => (
+                    <div key={i} className="relative h-16 bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden">
+                        <motion.div 
+                            className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/10 to-transparent -translate-x-full"
+                            animate={{ translateX: ['100%', '-100%'] }}
+                            transition={{ repeat: Infinity, duration: 1.5, ease: "linear", delay: i * 0.2 }}
+                        />
+                    </div>
+                  ))}
+               </div>
+            ) : drafts.filter(d => d.status !== 'discarded').length === 0 ? (
+              <div className="p-12 text-center text-neutral-600">
+                <div className="relative inline-block mb-4">
+                    <Ghost className="w-12 h-12 opacity-20" />
+                    <motion.div 
+                        className="absolute inset-0 border border-purple-500/20 rounded-full"
+                        animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                    />
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1">STATIONARY MODE</p>
+                <p className="text-[9px] opacity-50">Ghost is waiting for coordinates</p>
               </div>
             ) : (
               <div className="divide-y divide-white/5">
@@ -135,8 +195,8 @@ export default function GhostAgentDashboard({ apiKey, isOpen, onClose, onLoadDra
                     </div>
                     <div className="flex items-center gap-2 mt-2">
                       {draft.status === 'scheduled' && (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400 font-bold">
-                          SCHEDULED
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400 font-bold flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> SCHEDULED
                         </span>
                       )}
                       {draft.status === 'unread' && (

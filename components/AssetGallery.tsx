@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Database, Calendar, Trash2, Download, FileText, Sparkles, X, Layers, BarChart3, ThumbsUp, MessageSquare, Share2, Eye, Save, Ghost, Send, Loader2 } from "lucide-react";
 import { getArchivedStrategies, deleteArchivedStrategy, ArchivedStrategy, updateStrategyPerformance, PerformanceData } from "../utils/archive-service";
 import { publishToPlatform, getPlatformConfig } from "../utils/distribution-service";
+import { cardVariants, staggerContainerVariants } from "../utils/animations";
 
 interface AssetGalleryProps {
   onClose: () => void;
@@ -129,16 +130,26 @@ export default function AssetGallery({ onClose }: AssetGalleryProps) {
                 <p className="text-xs text-neutral-500 mt-2">Generate strategies to begin archiving.</p>
              </div>
            ) : (
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <AnimatePresence>
-                {archives.map((item) => (
+             <motion.div 
+               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+               variants={staggerContainerVariants}
+               initial="hidden"
+               animate="visible"
+             >
+               <AnimatePresence>
+               {archives.map((item, i) => (
                   <motion.div 
-                    layout
-                    key={item.id}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="bg-black/40 border border-white/5 p-6 rounded-2xl group hover:border-white/20 transition-all flex flex-col"
-                  >
+                   layout
+                   key={item.id}
+                   custom={i}
+                   variants={cardVariants}
+                   initial="hidden"
+                   animate="visible"
+                   whileHover="hover"
+                   whileTap="tap"
+                   exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+                   className="bg-black/40 border border-white/5 p-6 rounded-2xl flex flex-col cursor-pointer"
+                 >
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                              {item.type === 'pdf' ? <Layers className="w-3.5 h-3.5 text-orange-400" /> : 
@@ -206,7 +217,7 @@ export default function AssetGallery({ onClose }: AssetGalleryProps) {
                   </motion.div>
                 ))}
                 </AnimatePresence>
-             </div>
+             </motion.div>
            )}
         </div>
 

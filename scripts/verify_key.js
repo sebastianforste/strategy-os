@@ -38,7 +38,7 @@ async function verify() {
   
   try {
     const result = await genAI.models.generateContent({
-      model: "models/gemini-flash-latest",
+      model: "models/gemini-2.5-flash-native-audio-latest",
       contents: prompt,
       config: {
           systemInstruction: SYSTEM_PROMPT,

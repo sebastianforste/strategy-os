@@ -6,7 +6,13 @@ import { findRelevantConcepts } from "../utils/rag-service";
 import { applyAntiRobotFilter } from "../utils/text-processor";
 import { findTrends } from "../utils/search-service";
 import { generateImage } from "../utils/image-service";
-import { PersonaId } from "../utils/personas";
+import { GoogleGenAI } from "@google/genai";
+import { 
+    PersonaId, 
+    PERSONAS, 
+    Persona 
+} from "../utils/personas";
+import { createColleaguePersona } from "../utils/colleague-persona";
 import { searchCompetitorContent, generateTrendReport, fetchTrendingNews, CompetitorContent, TrendReport } from "../utils/trend-service";
 import fs from "fs";
 import path from "path";
@@ -52,10 +58,24 @@ export async function generateSideAssetsAction(
 
 }
 
-export async function runGhostAgentAction(apiKey: string) {
+export async function runGhostAgentAction(
+    apiKey: string, 
+    options: { draftCount?: number; autoSchedule?: boolean } = {}
+) {
     if (!apiKey) throw new Error("API Key required");
     const { runGhostAgent } = await import("../utils/ghost-agent");
-    return await runGhostAgent(apiKey);
+    return await runGhostAgent(apiKey, options);
+}
+
+export async function generateVideoVisualsAction(storyboard: any[], apiKey: string) {
+    if (!apiKey) throw new Error("API Key required");
+    const { generateImage } = await import("../utils/image-service");
+    
+    // Generate in parallel
+    const promises = storyboard.map(scene => 
+        generateImage(`Cinematic, high-impact background for social video. Mood: ${scene.visual}. Focus: ${scene.text}.`, apiKey)
+    );
+    return await Promise.all(promises);
 }
 
 export async function findTrendsAction(topic: string, apiKey: string) {
@@ -80,6 +100,83 @@ export async function generateCommentAction(
     return await generateComment(postContent, tone, apiKey, personaId, options);
 }
 
+
+
+export async function generateHooksAction(topic: string, apiKey: string) {
+    if (!apiKey) throw new Error("API Key required");
+    const { generateHooks } = await import("../utils/hook-lab");
+    return await generateHooks(topic, apiKey);
+}
+
+export async function refineAuthorityAction(
+    text: string,
+    apiKey: string,
+    personaId: PersonaId
+) {
+    if (!apiKey) throw new Error("API Key required");
+    
+    const { calculateAuthorityScore } = await import("../utils/authority-scorer");
+    const score = calculateAuthorityScore(text);
+    
+    const refinementPrompt = `
+    TASK: Refine the following text to increase its "Executive Presence" and "Authority Score".
+    
+    CURRENT TEXT:
+    "${text}"
+    
+    TARGET PERSONA: ${personaId}
+    CURRENT ISSUES: ${score.suggestions.join(", ")}
+    
+    GUIDELINES FOR HIGH AUTHORITY:
+    1. VARY SENTENCE LENGTH: Use short, punchy sentences mixed with sophisticated longer ones.
+    2. USE ACTIVE VOICE: Avoid "is being", "has been done". Use direct, ownership-driven verbs.
+    3. DATA ANCHORING: If appropriate, inject a specific metric, percentage, or fiscal reality.
+    4. LEXICAL DENSITY: Remove repetitive AI-fluff. Use precise industry verbs (e.g., "orchestrated", "galvanized", "pivoted").
+    
+    OUTPUT ONLY THE REFINED TEXT. NO PREAMBLE.
+    `;
+
+    const refined = await generateContent(refinementPrompt, apiKey);
+    return refined;
+}
+
+/**
+ * PROJECT DARWIN: EVOLVE PERSONA
+ * Triggers a recursive audit of high-performing strategies to mutate instructions.
+ */
+export async function evolvePersonaAction(
+    personaId: string,
+    apiKey: string
+) {
+    if (!apiKey) throw new Error("API Key required");
+
+    const { evolvePersona } = await import("../utils/evolution-service");
+    const { getArchivedStrategies } = await import("../utils/archive-service");
+    const { PERSONAS } = await import("../utils/personas");
+
+    // 1. Get Base Persona
+    const basePersona = (PERSONAS as any)[personaId];
+    if (!basePersona) throw new Error("Persona not found");
+
+    // 2. Get Top Performing Strategies
+    const strategies = await getArchivedStrategies();
+    const topStrategies = strategies
+        .filter(s => s.persona === personaId && s.performance)
+        .sort((a, b) => {
+            const aScore = (a.performance?.likes || 0) + (a.performance?.comments || 0);
+            const bScore = (b.performance?.likes || 0) + (b.performance?.comments || 0);
+            return bScore - aScore;
+        })
+        .slice(0, 5);
+
+    if (topStrategies.length === 0) {
+        throw new Error("Insufficient data for evolution. Publish more high-performing content first.");
+    }
+
+    // 3. Evolve
+    const report = await evolvePersona(basePersona, topStrategies, apiKey);
+    return report;
+}
 
 /**
  * SERVER ACTION: PROCESS INPUT
@@ -121,7 +218,16 @@ export async function constructEnrichedPrompt(
     adapter: PlatformAdapter,
     useRAG: boolean = true, // Default ON
     fewShotExamples: string = "", // PASS IN CONTEXT instead of fetching it
-    rlhfContext: string = "" // RLHF learning loop context
+    rlhfContext: string = "", // RLHF learning loop context
+    styleMemory: string = "", // Style learning context
+    styleDNA: string = "", // Synthesized Style DNA from Voice Alchemist
+    adaptationContext?: { highDwellPosts: string[], performanceSummary: string },
+    isTeamMode: boolean = false,
+    coworkerName?: string,
+    coworkerRole?: string,
+    coworkerRelation?: string,
+    subStyle: "professional" | "casual" | "provocative" = "professional",
+    isTopVoiceMode: boolean = false
 ): Promise<{ prompt: string; mode: string }> {
     const startTime = Date.now();
     console.log(`[Prompt Construction] START Persona: ${personaId}, Newsjack: ${forceTrends}`);
@@ -147,6 +253,27 @@ export async function constructEnrichedPrompt(
         }
     }
 
+    // RAG V2: VOICE MEMORY (Stylistic Matching)
+    let voiceMemoryContext = "";
+    if (useRAG) {
+        try {
+            const { searchVoiceMemory } = await import("../utils/vector-store");
+            const memories = await searchVoiceMemory(personaId, input, 3);
+            console.log(`[RAG V2] Found ${memories.length} voice memories for ${personaId}`);
+            
+            if (memories.length > 0) {
+                voiceMemoryContext = `
+                VOICE MEMORY (Your past successful styles):
+                ${memories.map((m, i) => `[Style Reference ${i+1}]:\n${m.text}`).join("\n\n")}
+                
+                MIMIC THE TONE, CADENCE, AND STRUCTURE OF THESE REFERENCES.
+                `;
+            }
+        } catch (e) {
+            console.warn("[RAG V2] Voice memory retrieval failed:", e);
+        }
+    }
+
     // FEW-SHOT EXAMPLES (Provided by caller)
     let fewShotContext = "";
     if (fewShotExamples) {
@@ -158,6 +285,19 @@ export async function constructEnrichedPrompt(
         `;
     }
 
+    // DARWIN ENGINE V2: ADAPTATION CONTEXT
+    let adaptationSection = "";
+    if (adaptationContext && adaptationContext.highDwellPosts.length > 0) {
+        adaptationSection = `
+        DARWIN ENGINE V2 - RECENT HIGH-PERFORMING EXAMPLES:
+        ${adaptationContext.highDwellPosts.map((p, i) => `[Successful Example ${i+1}]:\n${p}`).join("\n\n")}
+        
+        PERFORMANCE INSIGHT: ${adaptationContext.performanceSummary}
+        
+        ADAPT YOUR Cadence and Tone to reflect these successful patterns while maintaining core persona DNA.
+        `;
+    }
+
     // RLHF CONTEXT (Learning from ratings)
     let rlhfSection = "";
     if (rlhfContext) {
@@ -166,6 +306,64 @@ export async function constructEnrichedPrompt(
         ${rlhfContext}
         `;
     }
+
+    // STYLE MEMORY CONTEXT
+    let styleSection = "";
+    if (styleMemory) {
+        styleSection = `
+        STYLE MEMORY (Personalized for this persona):
+        ${styleMemory}
+        `;
+    }
+
+    // VOICE ALCHEMIST: STYLE DNA (High Fidelity Anchor)
+    let dnaSection = "";
+    if (styleDNA) {
+        let subStyleInstr = "";
+        if (subStyle === "professional") {
+            subStyleInstr = "TONE: Be authoritative, polished, and structured. Use high-stakes vocabulary.";
+        } else if (subStyle === "casual") {
+            subStyleInstr = "TONE: Be conversational, accessible, and use relatable analogies. Lower the friction of the language.";
+        } else if (subStyle === "provocative") {
+            subStyleInstr = "TONE: Be contrarian, punchy, and challenge the status quo. Use short, high-impact sentences.";
+        }
+
+        dnaSection = `
+        STYLE DNA (Your Unique Fingerprint):
+        ${styleDNA}
+        
+        MIMIC THIS DNA WITH ABSOLUTE PRECISION. THIS IS YOUR PRIMARY STYLISTIC ANCHOR.
+        
+        SUB-STYLE OVERLAY:
+        ${subStyleInstr}
+        `;
+    }
+
+    // PHASE 4: STRATEGIC REALISM
+    const { getFiscalContext } = await import("../utils/context-service");
+    const fiscal = getFiscalContext();
+    const strategicRealism = `
+    STRATEGIC REALITY (Current Context):
+    - Fiscal Quarter: ${fiscal.fiscalQuarter}
+    - Situation: ${fiscal.significantEvents.join(", ") || "Business as usual"}
+    - Market Phase: ${fiscal.marketPhase.toUpperCase()}
+    
+    Acknowledge this reality implicitly in your commentary where it adds weight.
+    `;
+    
+    // TOP VOICE OPTIMIZER
+    let topVoiceInstr = "";
+    if (isTopVoiceMode) {
+        topVoiceInstr = `
+        TOP VOICE OPTIMIZER (GOLD BADGE PROTOCOL):
+        1. NARROW FOCUS: Stick strictly to the core topic of "${input}". Do not drift.
+        2. DEPTH over BREADTH: Go deep into one specific angle.
+        3. REFERENCE EXPERIENCE: Use phrases like "In my experience..." or "I've seen...".
+        4. COMMUNITY: End with a question that sparks genuine debate (comments > likes).
+        `;
+    }
+    
+
 
     let enrichedInput = input;
     let mode = "Newsjacker"; // Default
@@ -219,6 +417,12 @@ export async function constructEnrichedPrompt(
         ${ragContext}
         ${fewShotContext}
         ${rlhfSection}
+        ${styleSection}
+        ${dnaSection}
+        ${adaptationSection}
+        ${voiceMemoryContext}
+        ${strategicRealism}
+        ${topVoiceInstr}
 
         MODE: THE TRANSLATOR (Document/URL Analysis)
         INPUT SOURCE: ${input}
@@ -228,6 +432,7 @@ export async function constructEnrichedPrompt(
         2. Discard "Dicta" (Legal fluff).
         3. Identify the "Loser" (Who gets hurt?) and the "Winner" (Who benefits?).
         4. Draft the post focusing on the IMPACT, not the LAW.
+
         `;
     } else {
         // Trend Hunting Check (Newsjacker Mode)
@@ -248,18 +453,25 @@ export async function constructEnrichedPrompt(
                     ${ragContext}
                     ${fewShotContext}
                     ${rlhfSection}
+                    ${styleSection}
+                    ${dnaSection}
+                    ${adaptationSection}
+                    ${voiceMemoryContext}
+                    ${strategicRealism}
+                    ${topVoiceInstr}
 
                     MODE: THE NEWSJACKER (Trend Hunter)
                     TOPIC: ${input}
-                    MODE: THE NEWSJACKER (Trend Hunter)
-                    TOPIC: ${input}
                     CONTEXT FROM NEWS ANALYST: "${primaryTrend.title}" - ${primaryTrend.snippet} (${primaryTrend.source})
+                    SENTIMENT ANALYSIS: ${primaryTrend.sentiment} (Momentum: ${primaryTrend.momentum}/100)
                     REAL-TIME HEADLINES:
                     ${rawNews.slice(0, 3).map(n => `- ${n}`).join("\n")}
                     
                     INSTRUCTIONS:
-                    1. Find the "Counter-Narrative" (e.g., "It's a silent layoff").
-                    2. Draft a post that validates the reader's suspicion.
+                    1. Use the SENTIMENT ANALYSIS to calibrate your tone (e.g., if Bullish, be punchy and optimistic; if Controversial, be more inquisitive or skeptical).
+                    2. Acknowledge the rising momentum of this topic.
+                    3. Find the "Counter-Narrative" (e.g., "It's a silent layoff").
+                    4. Draft a post that validates the reader's suspicion.
                     `;
                 } else {
                     throw new Error("No trends found");
@@ -272,6 +484,12 @@ export async function constructEnrichedPrompt(
                     ${ragContext}
                     ${fewShotContext}
                     ${rlhfSection}
+                    ${styleSection}
+                    ${dnaSection}
+                    ${adaptationSection}
+                    ${voiceMemoryContext}
+                    ${strategicRealism}
+                    ${topVoiceInstr}
 
                     MODE: THE NEWSJACKER (Standard)
                     TOPIC: ${input}
@@ -287,6 +505,12 @@ export async function constructEnrichedPrompt(
                 ${ragContext}
                 ${fewShotContext}
                 ${rlhfSection}
+                ${styleSection}
+                ${dnaSection}
+                ${adaptationSection}
+                ${voiceMemoryContext}
+                ${strategicRealism}
+                ${topVoiceInstr}
 
                 MODE: THE NEWSJACKER (Standard)
                 TOPIC: ${input}
@@ -308,7 +532,14 @@ export async function processInput(
   forceTrends: boolean = false,
   platform: "linkedin" | "twitter" = "linkedin",
   useFewShot: boolean = true,
-  customPersona?: any
+  customPersona?: any,
+  isTeamMode: boolean = false,
+  coworkerName?: string,
+  coworkerRole?: string,
+  coworkerRelation?: string,
+  styleDNA?: string,
+  subStyle: "professional" | "casual" | "provocative" = "professional",
+  isTopVoiceMode: boolean = false
 ): Promise<GeneratedAssets> { // GeneratedAssets is { textPost, imagePrompt, videoScript, imageUrl? }
   if (!input) throw new Error("Input required");
   if (!apiKeys.gemini) throw new Error("Gemini API Key required");
@@ -330,11 +561,32 @@ export async function processInput(
       forceTrends, 
       adapter,
       true, // useRAG default
-      "" // fewShotExamples - skipped in legacy server action used by test scripts, fix later if needed
+      "", // fewShotExamples
+      "", // rlhfContext
+      "", // styleMemory (empty for server action legacy)
+      styleDNA || "", // Synthesis anchor
+      await (await import("../utils/adaptation-service")).getAdaptationContext(personaId),
+      isTeamMode,
+      coworkerName,
+      coworkerRole,
+      coworkerRelation,
+      subStyle,
+      isTopVoiceMode
   );
 
+  // 1b. Dynamic Persona Override (Phase 27)
+  let activePersona = customPersona;
+  if (isTeamMode) {
+      console.log(`[Generate] Activating Dynamic Colleague Persona: ${coworkerName} (${coworkerRole})`);
+      activePersona = createColleaguePersona(
+          coworkerName || "Colleague", 
+          coworkerRole || "Team Member", 
+          coworkerRelation || "Colleague"
+      );
+  }
+
   // 2. AI Generation
-  const rawAssets = await generateContent(enrichedInput, geminiKey, personaId, [], customPersona);
+  const rawAssets = await generateContent(enrichedInput, geminiKey, personaId, [], activePersona);
 
   // 2b. Image Generation (Optional if Gemini key present - reusing main key)
   let imageUrl = "";
@@ -406,6 +658,75 @@ ${finalAssets.videoScript}
   }
 
   return finalAssets;
+}
+
+export async function listGeneratedPostsAction() {
+    const saveDir = path.join(process.cwd(), "generated_posts");
+    if (!fs.existsSync(saveDir)) return [];
+
+    try {
+        const files = fs.readdirSync(saveDir);
+        return files
+            .filter(f => f.endsWith(".md"))
+            .map(f => ({
+                id: f,
+                title: f.replace(/^\d{4}-\d{2}-\d{2}-/, "").replace(".md", "").replace(/-/g, " "),
+                filename: f
+            }))
+            .sort((a, b) => b.id.localeCompare(a.id))
+            .slice(0, 10); // Limit to latest 10 for speed
+    } catch (e) {
+        console.error("Failed to list generated posts", e);
+        return [];
+    }
+}
+
+/**
+ * VOICE ALCHEMIST: STYLE DNA SYNTHESIS
+ * -----------------------------------
+ * Analyzes a batch of historical content (training samples) to synthesize
+ * a high-fidelity stylistic anchor for the AI.
+ */
+export async function synthesizeVoiceDNAAction(trainingPosts: string[], apiKey: string): Promise<string> {
+    if (!trainingPosts || trainingPosts.length === 0) {
+        throw new Error("No training posts provided for synthesis.");
+    }
+
+    const genAI = new GoogleGenAI({ apiKey });
+
+    const analysisPrompt = `
+    You are a linguistics expert and master ghostwriter. 
+    Analyze the following list of posts to decode the author's "Style DNA".
+    
+    TRAINING SAMPLES:
+    ${trainingPosts.map((p, i) => `[Post ${i+1}]:\n${p}`).join("\n\n")}
+    
+    EXTRACT THE FOLLOWING "STYLE DNA" (Markdown format):
+    1. VOCABULARY: Most-used words, signature phrases, and words they REFUSE to use (Anti-patterns).
+    2. CADENCE: Average sentence length, use of rhythm, how they break lines, and paragraph structure.
+    3. THE HOOK: Analysis of how they start (Negative qualifiers? Paradoxes? Stories?).
+    4. THE CTA: How they end (Questions? Commands? Emotional pulls?).
+    5. THE "ENEMY": What or who do they consistently push back against?
+    6. TONE: The specific emotional fingerprint (Cynical? Vulnerable? Elitist? Grateful?).
+    
+    Output strictly as a Markdown block titled "# STYLE DNA [V1.0]". 
+    Be hyper-specific. Instead of "Punchy," say "Uses 3-5 word sentences followed by a single-word paragraph for impact."
+    `;
+
+    try {
+        const result = await genAI.models.generateContent({
+            model: "models/gemini-2.0-flash-exp", // or "gemini-2.0-flash"
+            contents: analysisPrompt
+        });
+        
+        const responseText = result.text;
+        if (!responseText) throw new Error("Synthesis failed: No response from AI.");
+        
+        return responseText;
+    } catch (e) {
+        console.error("[Voice Alchemist] Synthesis Error:", e);
+        throw e;
+    }
 }
 
 // --- 2027 AGENTIC MODE ---

@@ -34,7 +34,7 @@ describe('Personas Configuration', () => {
     const bannedWords = ['delve', 'leverage', 'unleash', 'unlock', 'embark', 'navigate', 'tapestry', 'game-changer', 'seamless']
     Object.values(PERSONAS).forEach(persona => {
       bannedWords.forEach(word => {
-        expect(persona.jsonSchema.toLowerCase()).not.toContain(word)
+        expect(persona.jsonSchema?.toLowerCase()).not.toContain(word)
       })
     })
   })

@@ -1,9 +1,10 @@
 import "server-only";
 import * as lancedb from "@lancedb/lancedb";
 import { GoogleGenAI } from "@google/genai";
+import { AI_CONFIG } from "./config";
 
 const DB_PATH = ".lancedb";
-const EMBEDDING_MODEL = "models/text-embedding-004";
+const EMBEDDING_MODEL = AI_CONFIG.embeddingModel;
 const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
 
 // Singleton for GenAI
@@ -31,9 +32,10 @@ export interface VectorDocument {
 
 export async function getEmbedding(text: string): Promise<number[]> {
   try {
+    // @ts-ignore - SDK type definitions can be inconsistent
     const response = await genAI.models.embedContent({
       model: EMBEDDING_MODEL,
-      contents: text,
+      contents: [text]
     });
     // Handle both single and batch return structures
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,7 +75,60 @@ export async function addToVectorStore(
   // LanceDB API: db.openTable(name). 
 }
 
-// Improved Upsert Logic
+// --- Persona-Specific Voice Memory ---
+
+/**
+ * UPSERT STRATEGY TO VOICE MEMORY
+ * Saves a successful strategy to a persona's long-term memory.
+ */
+export async function upsertToVoiceMemory(
+  personaId: string,
+  id: string,
+  text: string,
+  metadata: Record<string, any>
+) {
+  const db = await getDB();
+  const vector = await getEmbedding(text);
+  if (vector.length === 0) return;
+
+  const tableName = `voice_memory_${personaId.toLowerCase()}`;
+  const data = [{ id, text, metadata: JSON.stringify(metadata), vector, createdAt: Date.now() }];
+  
+  try {
+    const table = await db.openTable(tableName);
+    await table.add(data);
+  } catch {
+    await db.createTable(tableName, data);
+  }
+}
+
+/**
+ * SEARCH VOICE MEMORY
+ * Retrieves stylistic examples from a persona's own past successes.
+ */
+export async function searchVoiceMemory(personaId: string, query: string, limit = 3) {
+  const db = await getDB();
+  const queryVector = await getEmbedding(query);
+  if (queryVector.length === 0) return [];
+
+  const tableName = `voice_memory_${personaId.toLowerCase()}`;
+  try {
+    const table = await db.openTable(tableName);
+    const results = await table.vectorSearch(queryVector)
+      .limit(limit)
+      .toArray();
+      
+    return results.map(r => ({
+      ...r,
+      metadata: JSON.parse(r.metadata as string)
+    }));
+  } catch (error) {
+    console.warn(`Voice Memory search failed for ${personaId}:`, error);
+    return [];
+  }
+}
+
+// Improved Upsert Logic (General Resources)
 export async function upsertResource(
   id: string,
   text: string,

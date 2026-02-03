@@ -13,7 +13,7 @@ if (!API_KEY) {
 }
 
 const genAI = new GoogleGenAI({ apiKey: API_KEY });
-const MODEL = "models/gemini-flash-lite-latest"; 
+const MODEL = "models/gemini-2.5-flash-native-audio-latest"; 
 
 // OLD PROMPTS (Reconstructed from logs)
 const OLD_PROMPTS = {

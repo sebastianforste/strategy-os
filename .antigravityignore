@@ -1,0 +1,53 @@
+# --- Dependencies ---
+# These are the largest contributors to cache bloat
+node_modules/
+jspm_packages/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+.env/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Build & Output ---
+# Compiled code does not need to be indexed as the agent reads source files
+dist/
+build/
+out/
+.next/
+.nuxt/
+bin/
+obj/
+*.so
+*.dll
+*.exe
+
+# --- IDE & Metadata ---
+.git/
+.hg/
+.svn/
+.antigravity/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Large Assets & Logs ---
+# Prevents context overload from non-code data
+*.log
+*.sqlite
+*.db
+*.bin
+*.tar
+*.zip
+*.gz
+assets/
+media/
+storage/
+.lancedb/
+playwright-report/
+test-results/

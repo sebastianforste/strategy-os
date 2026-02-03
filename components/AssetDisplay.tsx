@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, RefreshCw, ThumbsUp, ThumbsDown, Minus, ArrowRight, Eye, FileText, Check, MessageSquare, LayoutGrid, ImageIcon, Sparkles, Video, Layers, Mic, Mail, Zap, Loader2, Database } from "lucide-react";
+import { Copy, RefreshCw, ThumbsUp, ThumbsDown, Minus, ArrowRight, Eye, FileText, Check, MessageSquare, LayoutGrid, ImageIcon, Sparkles, Video, Layers, Mic, Mail, Zap, Loader2, Database, Sword, Layout } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import dynamic from "next/dynamic";
@@ -9,7 +9,7 @@ import { GeneratedAssets } from "../utils/ai-service";
 import LinkedInPreview from "./LinkedInPreview";
 
 // Lazy loaded feature components
-const CarouselGenerator = dynamic(() => import("./CarouselGenerator"), { ssr: false, loading: () => <div className="w-full h-20 bg-neutral-900 animate-pulse rounded-xl" /> });
+const CarouselBuilder = dynamic(() => import("./CarouselBuilder"), { ssr: false, loading: () => <div className="w-full h-96 bg-neutral-900 animate-pulse rounded-xl" /> });
 const VisualGenerator = dynamic(() => import("./VisualGenerator"), { ssr: false, loading: () => <div className="w-full aspect-square bg-neutral-900 animate-pulse rounded-xl" /> });
 const VideoDirector = dynamic(() => import("./VideoDirector"), { ssr: false, loading: () => <div className="w-full h-[600px] bg-neutral-900 animate-pulse rounded-xl" /> });
 const AudioStudio = dynamic(() => import("./AudioStudio"), { ssr: false, loading: () => <div className="w-full h-64 bg-neutral-900 animate-pulse rounded-xl" /> });
@@ -17,15 +17,20 @@ const ThumbnailFactory = dynamic(() => import("./ThumbnailFactory"), { ssr: fals
 const PublishingControl = dynamic(() => import("./PublishingControl"), { ssr: false });
 import { getReachForecast, ReachForecast } from "../utils/reach-service";
 import { transmuteAction } from "../actions/transmute";
-import { parseContentToSlides } from "../utils/carousel-parser";
-import PDFCarouselGenerator from "./PDFCarouselGenerator";
 import SVGDiagramGenerator from "./SVGDiagramGenerator";
 import { generateDiagramData, DiagramData } from "../utils/diagram-service";
 import PostingGraph from "./PostingGraph";
 import { archiveStrategy } from "../utils/archive-service";
 import { VISUAL_THEMES, VisualThemeId } from "../utils/theme-service";
 import { publishToPlatform } from "../utils/platform-api";
-import { Globe } from "lucide-react";
+import { Globe, ShieldAlert } from "lucide-react";
+const AdversarialConsole = dynamic(() => import("./AdversarialConsole"), { ssr: false });
+const CitationEngine = dynamic(() => import("./CitationEngine"), { ssr: false });
+const VisualStudio = dynamic(() => import("./VisualStudio"), { ssr: false });
+import TruthShield from "./TruthShield";
+import { performDeepResearch } from "../utils/research-agent";
+import { extractProprietarySparks, ProprietarySpark } from "../utils/insight-extractor";
+import { generateVisualAssets, DesignAsset } from "../utils/visual-engine";
 
 interface AssetDisplayProps {
   assets: GeneratedAssets;
@@ -41,7 +46,7 @@ type PerformanceRating = "viral" | "good" | "meh" | "flopped" | null;
 import { explainPost, Explanation } from "../utils/explainer-service";
 
 export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdateAssets, geminiKey, personaId }: AssetDisplayProps) {
-  const [activeTab, setActiveTab] = useState<"text" | "preview" | "image" | "video" | "carousel" | "visual" | "x" | "substack" | "audio" | "thumbnail">("text");
+  const [activeTab, setActiveTab] = useState<"text" | "preview" | "image" | "video" | "carousel" | "visual" | "x" | "substack" | "audio" | "thumbnail" | "visual-studio" | "visuals">("text");
   const [isClient, setIsClient] = useState(false);
   const [userRating, setUserRating] = useState<PerformanceRating>(null);
   const [remixModalOpen, setRemixModalOpen] = useState(false);
@@ -60,6 +65,27 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
   const [diagramData, setDiagramData] = useState<DiagramData | null>(null);
   const [isDiagramLoading, setIsDiagramLoading] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState<VisualThemeId>("noir");
+  const [adversarialOpen, setAdversarialOpen] = useState(false);
+  const [isResearching, setIsResearching] = useState(false);
+  // Visual Engine State
+  const [visuals, setVisuals] = useState<DesignAsset[]>([]);
+  const [isVisualsLoading, setIsVisualsLoading] = useState(false);
+  const [sparks, setSparks] = useState<ProprietarySpark[]>([]);
+
+  const content = {
+    text: assets.textPost,
+    preview: assets.textPost,
+    image: "", 
+    carousel: "",
+    video: assets.videoScript || assets.textPost,
+    x: assets.xThread?.join("\n\n---\n\n") || "No thread generated.",
+    substack: assets.substackEssay || "No essay generated.",
+    visual: assets.visualConcept || "",
+    thumbnail: assets.thumbnailPrompt || "No concept generated.",
+    audio: assets.textPost || "",
+    "visual-studio": "",
+    "visuals": ""
+  };
 
   useState(() => {
     setIsClient(true);
@@ -70,7 +96,8 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
   });
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(content[activeTab as keyof typeof content] || "");
+    const textToCopy = content[activeTab as keyof typeof content] || assets.textPost;
+    navigator.clipboard.writeText(textToCopy);
   };
 
   const handleRate = (rating: PerformanceRating) => {
@@ -111,6 +138,36 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
     }
   };
 
+  const handleGenerateVisuals = async () => {
+      if (!geminiKey || isVisualsLoading) return;
+      setIsVisualsLoading(true);
+      try {
+          const generatedAssets = await generateVisualAssets(assets.textPost, geminiKey);
+          setVisuals(generatedAssets);
+          setActiveTab('visual-studio');
+      } catch (e) {
+          console.error("Visual generation failed", e);
+      } finally {
+          setIsVisualsLoading(false);
+      }
+  };
+
+  const handleDeepResearch = async () => {
+    if (!geminiKey || isResearching) return;
+    setIsResearching(true);
+    try {
+        // Serper key is expected from environment or passed via props if available
+        // For now using geminiKey as placeholder to findTrends if search-service supports it
+        const insights = await performDeepResearch(assets.textPost.substring(0, 100), geminiKey, process.env.NEXT_PUBLIC_SERPER_API_KEY || "");
+        const extractedSparks = await extractProprietarySparks(insights, geminiKey);
+        setSparks(extractedSparks);
+    } catch (e) {
+        console.error("Deep Research failed", e);
+    } finally {
+        setIsResearching(false);
+    }
+  };
+
   const handleGenerateDiagram = async () => {
     if (!geminiKey || isDiagramLoading) return;
     setIsDiagramLoading(true);
@@ -144,34 +201,6 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
       alert(message); 
   }
 
-  const handlePublishNow = async () => {
-    // Only available for text (LinkedIn) or X/Substack tabs
-    let platform: "linkedin" | "x" | "substack" = "linkedin";
-    let contentToPost = content.text;
-
-    if (activeTab === "x") {
-        platform = "x";
-        contentToPost = content.x;
-    } else if (activeTab === "substack") {
-        platform = "substack";
-        contentToPost = content.substack;
-    }
-
-    if (confirm(`INITIATING GHOST MODE...\n\nPublishing directly to ${platform.toUpperCase()} API?\nPersona: ${personaId || "cso"}`)) {
-        const res = await publishToPlatform(
-            platform, 
-            contentToPost, 
-            undefined, 
-            personaId || "cso",
-            assets.imageUrl
-        );
-        if (res.success) {
-            alert(`SUCCESS: Published to ${platform.toUpperCase()}.\nURL: ${res.url}`);
-        } else {
-            alert(`FAILED: ${res.error}`);
-        }
-    }
-  };
 
   const tabs = [
     { id: "text", label: "LINKEDIN", icon: FileText },
@@ -185,18 +214,7 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
     { id: "carousel", label: "CAROUSEL", icon: Layers },
   ] as const;
 
-  const content = {
-    text: assets.textPost,
-    preview: assets.textPost,
-    image: "", // Placeholder logic
-    carousel: "",
-    video: assets.videoScript || "No video script generated.",
-    x: assets.xThread?.join("\n\n---\n\n") || "No thread generated.",
-    substack: assets.substackEssay || "No essay generated.",
-    visual: "",
-    thumbnail: assets.thumbnailPrompt || "No concept generated.",
-    audio: assets.textPost || "",
-  };
+  // Placeholder removed as it was moved up
   
   // Generate slides for preview/PDF
   const slides = assets.textPost.split("\n\n").map((text) => ({
@@ -331,51 +349,14 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
              <div className="space-y-6 text-left">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-white font-bold text-lg">PDF Carousel Factory</h3>
-                      <p className="text-neutral-500 text-xs">Direct production of high-status LinkedIn documents.</p>
+                      <h3 className="text-white font-bold text-lg">High-Fidelity Carousel Builder</h3>
+                      <p className="text-neutral-500 text-xs">Convert strategy into viral-ready PDF slides.</p>
                     </div>
                   </div>
                   
-                  {/* Theme Selector */}
-                  <div className="flex items-center gap-2">
-                       <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-wider mr-2">Esthetique:</span>
-                       {Object.values(VISUAL_THEMES).map(theme => (
-                            <button
-                                key={theme.id}
-                                onClick={() => setSelectedTheme(theme.id)}
-                                className={`px-3 py-1.5 text-[10px] font-bold uppercase rounded-md border transition-all ${
-                                    selectedTheme === theme.id 
-                                    ? "bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.2)]" 
-                                    : "bg-transparent text-neutral-500 border-neutral-800 hover:border-white/30 hover:text-neutral-300"
-                                }`}
-                            >
-                                {theme.id}
-                            </button>
-                       ))}
-                  </div>
-
                   <div className="h-px w-full bg-white/5" />
 
-                  <PDFCarouselGenerator 
-                    slides={parseContentToSlides(assets.textPost, assets.textPost.split("\n")[0])} 
-                    filename={`strategy_carousel_${Date.now()}.pdf`}
-                    themeId={selectedTheme}
-                  />
-                  <div className="flex justify-center mt-4">
-                     <button 
-                        onClick={async () => {
-                           await archiveStrategy(assets.textPost.split("\n")[0], assets.textPost, 'pdf');
-                           alert("Carousel strategy archived to vault.");
-                        }}
-                        className="text-[10px] font-bold text-neutral-500 hover:text-white flex items-center gap-2 transition-colors"
-                     >
-                        <Database className="w-3 h-3" /> ARCHIVE TO VAULT
-                     </button>
-                  </div>
-                  {/* Traditional preview style generator below */}
-                  <div className="pt-6 border-t border-white/5">
-                    <CarouselGenerator post={assets.textPost} apiKey={geminiKey || ""} />
-                  </div>
+                  <CarouselBuilder initialPost={assets.textPost} apiKey={geminiKey || ""} />
              </div>
         ) : activeTab === "visual" ? (
             <div className="space-y-6 text-left">
@@ -403,10 +384,12 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                     <VisualGenerator concept={assets.visualConcept || assets.textPost.substring(0, 20)} apiKey={geminiKey || ""} />
                 </div>
             </div>
-        ) : activeTab === "video" ? (
-             <VideoDirector script={content.video || assets.videoScript || "No script available."} />
+        ) : activeTab === "visual-studio" ? (
+             <VisualStudio assets={visuals} />
         ) : activeTab === "audio" ? (
-             <AudioStudio script={content.video || assets.videoScript || assets.textPost || "No script available."} />
+             <AudioStudio script={assets.textPost} apiKey={geminiKey} />
+        ) : activeTab === "video" ? (
+             <VideoDirector script={assets.textPost} apiKey={geminiKey} />
         ) : activeTab === "thumbnail" ? (
              <ThumbnailFactory 
                 title={assets.textPost ? assets.textPost.split('\n')[0].substring(0, 30) : "REVOLUTIONARY STRATEGY"} 
@@ -418,39 +401,52 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                     {activeTab === "text" && (
                         <div className="flex items-center gap-2">
                              
-                             {/* GHOST POST BUTTON */}
-                             <button
-                                onClick={handlePublishNow}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/50 rounded-md text-[10px] font-bold uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all animate-pulse"
-                             >
-                                <Globe className="w-3 h-3" />
-                                LIVE POST
-                             </button>
+                             <PublishingControl 
+                                content={assets.textPost}
+                                imageUrl={assets.imageUrl}
+                                personaId={personaId}
+                                title={assets.textPost.split('\n')[0].substring(0, 50)}
+                             />
 
                              <button
                                 onClick={() => {
                                     const { voiceService } = require("../utils/voice-service");
                                     voiceService.speak(assets.textPost);
                                 }}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/50 rounded-md text-[10px] font-bold uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-all"
+                                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/50 rounded-md text-[10px] font-bold uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-all ml-2"
                                 title="Read Strategy Aloud"
                              >
                                 <Mic className="w-3 h-3" />
                                 LISTEN
                              </button>
 
-                             <div className="w-px h-6 bg-white/10 mx-2" />
-                            {/* Remix Button */}
+                             <button
+                                onClick={() => setAdversarialOpen(true)}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-red-950/30 text-red-500 border border-red-500/30 rounded-md text-[10px] font-black uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all ml-2"
+                                title="Stress Test Strategy"
+                             >
+                                <Sword className="w-3 h-3" />
+                                STRESS TEST
+                             </button>
+
+                             <button 
+                  onClick={handleGenerateVisuals}
+                  disabled={isVisualsLoading}
+                  className={`p-3 bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 rounded-xl transition-all border border-pink-500/20 group relative ${isVisualsLoading ? 'animate-pulse' : ''}`}
+                  title="Auto-Design: Generate Diagrams & Cards"
+                >
+                  <Layout className="w-5 h-5" />
+                </button>
+
+                <div className="w-px h-8 bg-white/5 mx-2" />
                             <button
                                 onClick={handleRemix}
                                 disabled={isRemixing}
                                 className="p-2 text-neutral-500 hover:text-purple-400 transition-colors rounded-md bg-neutral-900 border border-neutral-800 hover:border-purple-900 disabled:opacity-50"
-                                title="Generate Variations"
                             >
                                 <RefreshCw className={`w-4 h-4 ${isRemixing ? 'animate-spin' : ''}`} />
                             </button>
                             
-                            {/* Share Menu */}
                             <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-md">
                                 <button
                                     onClick={handleCopy}
@@ -516,9 +512,11 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                  {/* Explain Logic Section */}
                  {activeTab === "text" && (
                     <div className="mt-8 pt-6 border-t border-white/5">
+                        <TruthShield content={assets.textPost} apiKey={geminiKey} />
+                        
                         <button 
                             onClick={handleExplain}
-                            className="text-xs font-mono text-neutral-500 hover:text-white flex items-center gap-2 transition-colors mb-4"
+                            className="text-xs font-mono text-neutral-500 hover:text-white flex items-center gap-2 transition-colors mb-4 mt-8"
                         >
                             <Sparkles className="w-3 h-3" />
                             {isExplaining ? "ANALYZING PSYCHOLOGY..." : "REVEAL BEHIND-THE-SCENES LOGIC"}
@@ -549,6 +547,12 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
             </>
         )}
       </motion.div>
+      <AdversarialConsole 
+        isOpen={adversarialOpen}
+        onClose={() => setAdversarialOpen(false)}
+        content={assets.textPost}
+        apiKey={geminiKey || ""}
+      />
     </div>
   );
 }

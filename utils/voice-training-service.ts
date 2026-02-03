@@ -186,7 +186,7 @@ export async function startFineTuning(apiKey: string, modelName: string): Promis
       },
       body: JSON.stringify({
         displayName: modelName,
-        baseModel: "models/gemini-1.5-flash-001-tuning",
+        baseModel: "models/gemini-2.5-flash-tuning",
         tuningTask: {
           hyperparameters: {
             batchSize: 4,

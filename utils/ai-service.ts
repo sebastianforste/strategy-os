@@ -26,6 +26,8 @@ export interface GeneratedAssets {
   thumbnailPrompt?: string;
   /** A single keyword or short phrase for abstract visualization (e.g. "Leverage", "Compound Interest"). */
   visualConcept?: string;
+  /** Concepts retrieved from the Knowledge Graph (if RAG was used). */
+  ragConcepts?: string[];
 }
 
 // Re-export type if needed for other components

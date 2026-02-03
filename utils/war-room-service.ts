@@ -5,8 +5,9 @@
  */
 
 import { GoogleGenAI } from "@google/genai";
+import { AI_CONFIG } from "./config";
 
-const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-2.0-flash-exp";
+const PRIMARY_MODEL = AI_CONFIG.primaryModel;
 
 export interface SimulatedAttack {
     persona: string;

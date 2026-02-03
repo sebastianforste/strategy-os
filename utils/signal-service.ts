@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { AI_CONFIG } from "./config";
 
 export interface Signal {
   type: 'market' | 'news';
@@ -8,8 +9,8 @@ export interface Signal {
   timestamp: string;
 }
 
-const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest";
-const FALLBACK_MODEL = process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "models/gemini-3-flash-preview";
+const PRIMARY_MODEL = AI_CONFIG.primaryModel;
+const FALLBACK_MODEL = AI_CONFIG.fallbackModel;
 
 /**
  * SIGNAL SERVICE

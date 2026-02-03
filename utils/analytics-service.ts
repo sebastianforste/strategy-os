@@ -6,8 +6,178 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { ArchivedStrategy, getTopPerformers, getArchivedStrategies } from "./archive-service";
+import { AI_CONFIG } from "./config";
 
-const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-2.0-flash-exp";
+const PRIMARY_MODEL = AI_CONFIG.primaryModel;
+import { prisma } from "./db";
+import { calculateReadability, analyzeSignaturePhrases } from "./analytics-helpers";
+
+// --- TEAM ANALYTICS INTERFACES ---
+
+export interface TeamPerformanceMetrics {
+  totalPosts: number;
+  totalImpressions: number;
+  avgEngagement: number;
+  topPersona: string;
+  personaBreakdown: Record<string, number>;
+  topColleague: string;
+  avgWordCount: number;
+  avgReadabilityScore: number;
+  signaturePhraseFreq: number;
+}
+
+export interface ColleagueStats {
+  name: string;
+  role: string | null;
+  postCount: number;
+  avgImpressions: number;
+}
+
+// --- TEAM ANALYTICS FUNCTIONS ---
+
+/**
+ * Get aggregated team performance metrics
+ */
+export async function getTeamPerformance(teamId?: string): Promise<TeamPerformanceMetrics> {
+  try {
+    const strategies = await prisma.strategy.findMany({
+      where: {
+        isPublished: true,
+      },
+      select: {
+        persona: true,
+        content: true,
+        impressions: true,
+        engagement: true,
+        isTeamPost: true,
+        teamMemberName: true
+      }
+    });
+
+    const totalPosts = strategies.length;
+    const totalImpressions = strategies.reduce((sum, s) => sum + (s.impressions || 0), 0);
+    const totalEngagement = strategies.reduce((sum, s) => sum + (s.engagement || 0), 0);
+    const avgEngagement = totalPosts > 0 ? totalEngagement / totalPosts : 0;
+
+    // Persona Breakdown
+    const personaBreakdown: Record<string, number> = {};
+    strategies.forEach(s => {
+      const p = s.persona || "unknown";
+      personaBreakdown[p] = (personaBreakdown[p] || 0) + 1;
+    });
+
+    const topPersona = Object.entries(personaBreakdown).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
+
+    // Top Colleague (for Team Mode)
+    const colleagueCounts: Record<string, number> = {};
+    strategies.filter(s => s.isTeamPost && s.teamMemberName).forEach(s => {
+      const name = s.teamMemberName!;
+      colleagueCounts[name] = (colleagueCounts[name] || 0) + 1;
+    });
+
+    const topColleague = Object.entries(colleagueCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
+
+    // Content Metrics
+    const totalWords = strategies.reduce((sum, s) => sum + (s.content?.split(/\s+/).length || 0), 0);
+    const avgWordCount = totalPosts > 0 ? Math.round(totalWords / totalPosts) : 0;
+
+    const totalReadability = strategies.reduce((sum, s) => sum + calculateReadability(s.content), 0);
+    const avgReadabilityScore = totalPosts > 0 ? parseFloat((totalReadability / totalPosts).toFixed(1)) : 0;
+
+    const totalSignaturePhrases = strategies.reduce((sum, s) => sum + analyzeSignaturePhrases(s.content, s.persona), 0);
+    const signaturePhraseFreq = totalPosts > 0 ? parseFloat((totalSignaturePhrases / totalPosts).toFixed(1)) : 0;
+
+    return {
+      totalPosts,
+      totalImpressions,
+      avgEngagement,
+      topPersona,
+      personaBreakdown,
+      topColleague,
+      avgWordCount,
+      avgReadabilityScore,
+      signaturePhraseFreq
+    };
+  } catch (e) {
+    console.error("Failed to fetch team performance:", e);
+    return {
+      totalPosts: 0,
+      totalImpressions: 0,
+      avgEngagement: 0,
+      topPersona: "N/A",
+      personaBreakdown: {},
+      topColleague: "N/A",
+      avgWordCount: 0,
+      avgReadabilityScore: 0,
+      signaturePhraseFreq: 0
+    };
+  }
+}
+
+/**
+ * Get stats for individual colleagues
+ */
+export async function getColleaguePerformance(): Promise<ColleagueStats[]> {
+  try {
+    const posts = await prisma.strategy.groupBy({
+      by: ['teamMemberName', 'teamMemberRole'],
+      where: {
+        isTeamPost: true,
+        teamMemberName: { not: null }
+      },
+      _count: {
+        id: true
+      },
+      _avg: {
+        impressions: true
+      }
+    });
+
+    // Cast the result to the expected type since Prisma's groupBy type inference can be tricky in some environments
+    const typedPosts = posts as unknown as Array<{
+        teamMemberName: string | null;
+        teamMemberRole: string | null;
+        _count: { id: number };
+        _avg: { impressions: number | null };
+    }>;
+
+    return typedPosts.map(p => ({
+      name: p.teamMemberName!,
+      role: p.teamMemberRole,
+      postCount: p._count.id,
+      avgImpressions: p._avg.impressions || 0
+    })).sort((a, b) => b.postCount - a.postCount);
+  } catch (e) {
+    console.error("Failed to fetch colleague stats:", e);
+    return [];
+  }
+
+
+}
+
+/**
+ * AI Recommendations for Team Strategy
+ */
+export function generateTeamRecommendations(metrics: TeamPerformanceMetrics): string[] {
+  const recommendations: string[] = [];
+
+  if (metrics.topPersona !== "cso" && metrics.topPersona !== "N/A") {
+    recommendations.push(`Scale content output for '${metrics.topPersona}' - it's your highest volume persona.`);
+  }
+
+  if (metrics.avgEngagement < 2.0 && metrics.totalPosts > 5) {
+    recommendations.push("Team engagement is low. Focus on 'Contrarian' persona posts to spark debate.");
+  }
+
+  if (metrics.topColleague !== "N/A") {
+    recommendations.push(`${metrics.topColleague} is your top advocate. Clone their voice model for other execs.`);
+  }
+
+  return recommendations;
+}
+
+// --- LEGACY ANALYTICS ---
+
 
 export interface AnalyticsInsight {
     topPerformers: ArchivedStrategy[];

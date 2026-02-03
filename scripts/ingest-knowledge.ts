@@ -53,7 +53,7 @@ async function ingest() {
             const textToEmbed = `Source: ${source}\nTopic: ${title}\n\n${body}`;
             
             // Artificial delay to avoid Rate Limits
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 3000));
             
             try {
                 const vector = await embedText(textToEmbed, GEMINI_KEY);

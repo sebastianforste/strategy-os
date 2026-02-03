@@ -11,9 +11,9 @@ import Toast, { ToastType } from "../components/Toast";
 import VoiceTrainingModal from "../components/VoiceTrainingModal";
 import WorkspaceSwitcher from "../components/WorkspaceSwitcher";
 import TeamSettingsModal from "../components/TeamSettingsModal";
-import ScheduleCalendar from "../components/ScheduleCalendar";
 import GhostAgentDashboard from "../components/GhostAgentDashboard";
 import CommentGeneratorModal from "../components/CommentGeneratorModal";
+import ScheduleQueueDashboard from "../components/ScheduleQueueDashboard";
 import { Settings as SettingsIcon, Clock, Mic, BarChart3, Users, Calendar, Ghost, Activity, MessageSquare, LayoutGrid, Dna } from "lucide-react";
 import { GeneratedAssets } from "../utils/ai-service";
 import { saveHistory, getHistory, clearHistory, HistoryItem, updateHistoryPerformance, PerformanceRating } from "../utils/history-service";
@@ -26,6 +26,7 @@ import LiveVoiceConsole from "../components/LiveVoiceConsole";
 import VoiceLabModal from "../components/VoiceLabModal";
 import NetworkHub from "../components/NetworkHub";
 import InterceptionPanel from "../components/InterceptionPanel";
+import { SystemVitals, checkVitals } from "../utils/vitals-service";
 import { getDNA, buildDNAPrompt } from "../utils/dna-service";
 import { PERSONAS } from "../utils/personas";
 
@@ -55,9 +56,27 @@ export default function Home() {
   const [useFewShot, setUseFewShot] = useState(true);
   const [useSwarm, setUseSwarm] = useState(false);
   const [platform, setPlatform] = useState<"linkedin" | "twitter">("linkedin");
+  const [isTeamMode, setIsTeamMode] = useState(false);
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
   
   const [preloadedCommentSignals, setPreloadedCommentSignals] = useState<any[]>([]);
+  const [vitals, setVitals] = useState<SystemVitals>({
+    api: "online",
+    database: "connected",
+    network: "online",
+    latencyMs: 0
+  });
+
+  // Pulse Guard: System Vitals Loop
+  useEffect(() => {
+    const pulseVitals = async () => {
+        const status = await checkVitals(apiKeys.gemini || "");
+        setVitals(status);
+    };
+    pulseVitals();
+    const interval = setInterval(pulseVitals, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, [apiKeys.gemini]);
   
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: ToastType; isVisible: boolean }>({
@@ -280,7 +299,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen p-8 md:p-24 relative overflow-hidden">
+    <main className="min-h-screen relative overflow-hidden flex flex-col">
       {/* Glassmorphism 2.0 & Aurora Background */}
       <div className="fixed inset-0 bg-[#050505] z-[-10]" />
       
@@ -294,139 +313,8 @@ export default function Home() {
       {/* Vignette */}
       <div className="fixed top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,_transparent_10%,_#000000_65%)] z-0 pointer-events-none" />
 
-      {/* Header */}
-      <header className="flex justify-between items-center max-w-5xl mx-auto mb-16">
-        <div className="flex items-center gap-4">
-            <GlitchLogo />
-            <WorkspaceSwitcher />
-        </div>
-        <div className="flex items-center gap-3">
-            <button
-            onClick={() => setGhostOpen(true)}
-            className="text-purple-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-bold bg-purple-500/10 px-3 py-1.5 rounded-full border border-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]"
-            aria-label="Ghost Agent"
-            >
-            <Ghost className="w-4 h-4" />
-            <span className="hidden md:inline">Ghost Agent</span>
-            </button>
-            <button
-            onClick={() => setCommentGenOpen(true)}
-            className="text-blue-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-bold bg-blue-500/10 px-3 py-1.5 rounded-full border border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.2)]"
-            aria-label="Comment Gen"
-            >
-            <MessageSquare className="w-4 h-4" />
-            <span className="hidden md:inline">Reply</span>
-            </button>
-            <button
-            onClick={() => setBoardroomOpen(true)}
-            className="text-indigo-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-bold bg-indigo-500/10 px-3 py-1.5 rounded-full border border-indigo-500/20 shadow-[0_0_10px_rgba(99,102,241,0.2)]"
-            aria-label="Boardroom"
-            >
-            <Mic className="w-4 h-4" />
-            <span className="hidden md:inline">Boardroom</span>
-            </button>
-            
-            <button
-            onClick={() => setVoiceModeOpen(true)}
-            className="text-red-400 hover:text-white transition-all flex items-center gap-2 text-sm font-bold bg-red-500/10 px-5 py-2 rounded-full border border-red-500/30 shadow-[0_0_20px_rgba(220,38,38,0.2)] animate-pulse hover:animate-none hover:shadow-[0_0_30px_rgba(220,38,38,0.4)] mr-2 group"
-            title="Secure Line to The Council"
-            aria-label="Red Phone"
-            >
-            <Activity className="w-4 h-4 animate-pulse" />
-            <span className="hidden md:inline">RED PHONE</span>
-            </button>
-            
-            {/* Apps Menu Dropdown */}
-            <div className="relative">
-                <button
-                onClick={() => setAppsMenuOpen(!appsMenuOpen)}
-                className={`text-neutral-300 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-full ${appsMenuOpen ? 'bg-white/10 text-white' : ''}`}
-                aria-label="Apps"
-                >
-                <LayoutGrid className="w-5 h-5" />
-                <span className="hidden md:inline">Apps</span>
-                </button>
-                
-                {appsMenuOpen && (
-                    <>
-                    <div className="fixed inset-0 z-40" onClick={() => setAppsMenuOpen(false)}></div>
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-[#0A0A0A]/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-200">
-                        <button
-                        onClick={() => { setAnalyticsOpen(true); setAppsMenuOpen(false); }}
-                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
-                        >
-                        <BarChart3 className="w-4 h-4 text-emerald-400" />
-                        Analytics
-                        </button>
-                        <button
-                        onClick={() => { setCouncilOpen(true); setAppsMenuOpen(false); }}
-                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
-                        >
-                        <Users className="w-4 h-4 text-amber-400" />
-                        The Council
-                        </button>
-                        <button
-                        onClick={() => { setSimulatorOpen(true); setAppsMenuOpen(false); }}
-                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
-                        >
-                        <Activity className="w-4 h-4 text-rose-400" />
-                        Simulator
-                        </button>
-                         <button
-                        onClick={() => { setNetworkHubOpen(true); setAppsMenuOpen(false); }}
-                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
-                        >
-                        <Users className="w-4 h-4 text-indigo-400" />
-                        Network Intel
-                        </button>
-                        <div className="h-px bg-white/10 my-1" />
-                        <button
-                        onClick={() => { setVoiceLabOpen(true); setAppsMenuOpen(false); }}
-                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
-                        >
-                        <Dna className="w-4 h-4 text-pink-400" />
-                        Voice Lab (DNA)
-                        </button>
-                        <button
-                        onClick={() => { setHistoryOpen(true); setAppsMenuOpen(false); }}
-                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
-                        >
-                        <Clock className="w-4 h-4 text-blue-400" />
-                        History
-                        </button>
-                        <button
-                        onClick={() => { setScheduleOpen(true); setAppsMenuOpen(false); }}
-                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
-                        >
-                        <Calendar className="w-4 h-4 text-orange-400" />
-                        Schedule
-                        </button>
-                         <button
-                        onClick={() => { setTeamSettingsOpen(true); setAppsMenuOpen(false); }}
-                        className="flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
-                        >
-                        <Users className="w-4 h-4 text-indigo-400" />
-                        Team
-                        </button>
-                    </div>
-                    </>
-                )}
-            </div>
 
-            <div className="h-6 w-px bg-white/10 mx-1"></div>
-
-            <button
-            onClick={() => setSettingsOpen(true)}
-            className="text-neutral-400 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full"
-            aria-label="Settings"
-            >
-            <SettingsIcon className="w-5 h-5" />
-            </button>
-        </div>
-      </header>
-
-      {/* Main Interface */}
-      <div className="max-w-5xl mx-auto">
+      <div className="flex-1 w-full">
         <StreamingConsole
           initialValue={input}
           onGenerationComplete={handleStreamingComplete}
@@ -443,6 +331,9 @@ export default function Home() {
           setUseSwarm={setUseSwarm}
           platform={platform}
           setPlatform={setPlatform}
+          isTeamMode={isTeamMode}
+          setIsTeamMode={setIsTeamMode}
+          vitals={vitals}
           onError={(msg) => showToast(msg, "error")}
         />
         {assets && (
@@ -472,6 +363,12 @@ export default function Home() {
         apiKey={apiKeys.gemini || ""}
       />
 
+      <ScheduleQueueDashboard 
+        isOpen={scheduleOpen}
+        onClose={() => setScheduleOpen(false)}
+        apiKey={apiKeys.gemini || ""}
+      />
+
       <HistorySidebar 
         isOpen={historyOpen}
         onClose={() => setHistoryOpen(false)}
@@ -493,16 +390,6 @@ export default function Home() {
         }}
       />
       
-      <TeamSettingsModal
-        isOpen={teamSettingsOpen}
-        onClose={() => setTeamSettingsOpen(false)}
-      />
-
-      <ScheduleCalendar
-        isOpen={scheduleOpen}
-        onClose={() => setScheduleOpen(false)}
-      />
-
       <GhostAgentDashboard
         isOpen={ghostOpen}
         onClose={() => setGhostOpen(false)}
@@ -514,6 +401,7 @@ export default function Home() {
         onIntercept={handleIntercept} 
         onComment={handleInterceptComment}
         apiKey={apiKeys.gemini} 
+        vitals={vitals}
       />
 
 

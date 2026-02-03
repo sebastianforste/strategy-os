@@ -35,7 +35,7 @@ Deploy the service using the flags below.
 > **Environment Variables Checklist:**
 > - `NEXT_PUBLIC_GEMINI_API_KEY`: Required for all AI.
 > - `NEXT_PUBLIC_SERPER_API_KEY`: Required for Deep Research & Agentic Mode.
-> - `NEXT_PUBLIC_GEMINI_PRIMARY_MODEL`: Recommended `models/gemini-2.0-flash-exp`.
+> - `NEXT_PUBLIC_GEMINI_PRIMARY_MODEL`: Recommended `models/gemini-2.5-flash-native-audio-latest`.
 > - `LINKEDIN_CLIENT_ID` / `..._SECRET`: Required for Auth.
 
 ```bash
@@ -48,7 +48,7 @@ gcloud run deploy strategy-os \
   --cpu 1 \
   --set-env-vars NEXT_PUBLIC_GEMINI_API_KEY="[YOUR_KEY_HERE]" \
   --set-env-vars NEXT_PUBLIC_SERPER_API_KEY="[YOUR_SERPER_KEY_HERE]" \
-  --set-env-vars NEXT_PUBLIC_GEMINI_PRIMARY_MODEL="models/gemini-2.0-flash-exp" \
+  --set-env-vars NEXT_PUBLIC_GEMINI_PRIMARY_MODEL="models/gemini-2.5-flash-native-audio-latest" \
   --set-env-vars LINKEDIN_CLIENT_ID="[LINKEDIN_ID]" \
   --set-env-vars LINKEDIN_CLIENT_SECRET="[LINKEDIN_SECRET]"
 ```

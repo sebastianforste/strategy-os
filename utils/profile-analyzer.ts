@@ -1,7 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { Persona } from "./personas";
+import { AI_CONFIG } from "./config";
 
-const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-1.5-flash";
+const PRIMARY_MODEL = AI_CONFIG.primaryModel;
 
 /**
  * PROFILE ANALYZER (THE CLONE ENGINE)

@@ -26,8 +26,10 @@ StrategyOS is a personal tool that helps you write high-status, contrarian Linke
 To run this app, you need:
 
 1.  **Node.js**: Version 18 or higher. [Download here](https://nodejs.org/).
-2.  **API Keys** (Optional for Demo Mode):
-    *   **Google Gemini API Key**: This single key powers text generation, Google Search (Grounding), and Image Generation (Imagen).
+2.  **API Keys** (See `.env.example`):
+    *   **Google Gemini API Key**: Required for AI generation.
+    *   **NextAuth Secret**: Required for authentication (run `openssl rand -base64 32` to generate).
+    *   **Social Keys** (Optional): LinkedIn/Twitter keys for collecting analytics/publishing.
 
 > **Note:** You can run the app in **Demo Mode** without any keys! Just enter `demo` in the settings menu.
 
@@ -41,7 +43,17 @@ To run this app, you need:
     npm install
     ```
 
-2.  **Run the App**
+    ```bash
+    npm install
+    ```
+
+2.  **Initialize Database**
+    Create the local SQLite database:
+    ```bash
+    npx prisma db push
+    ```
+
+3.  **Run the App**
     Start the local server:
     ```bash
     npm run dev
@@ -76,7 +88,7 @@ To run this app, you need:
 
 ## 🆘 Troubleshooting
 
-*   **"Quota Exceeded" Error**: You might be using a free Gemini key. Switch the model in `utils/ai-service.ts` to `gemini-flash-latest`.
+*   **"Quota Exceeded" Error**: You might be using a free Gemini key. Switch the model in `utils/config.ts` to `models/gemini-2.0-flash-exp`.
 *   **Images/Search not working**: Ensure your Gemini API Key has access to `Google Search` and `Imagen` features (Google AI Studio keys usually do).
 *   **App won't start**: Try running `npm install` again to ensure all packages are downloaded.
 

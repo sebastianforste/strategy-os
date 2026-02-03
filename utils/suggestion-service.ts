@@ -1,14 +1,16 @@
 "use server";
 
 import { GoogleGenAI } from "@google/genai";
+import { AI_CONFIG } from "./config";
+import { isRateLimitError } from "./gemini-errors";
 
 export interface Suggestion {
   id: string;
   angle: string;
 }
 
-const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest";
-const FALLBACK_MODEL = process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "models/gemini-3-flash-preview";
+const PRIMARY_MODEL = AI_CONFIG.primaryModel;
+const FALLBACK_MODEL = AI_CONFIG.fallbackModel;
 
 /**
  * Generates 3 provocative LinkedIn post angles for a given topic.
@@ -66,8 +68,8 @@ ONLY return the JSON array. No markdown.`;
         angle: String(angle).trim(),
       }));
     } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : "";
-      if (errorMessage.includes("429") || errorMessage.includes("Quota") || errorMessage.includes("quota")) {
+      // Provide safe fallback on rate limit
+      if (isRateLimitError(e)) {
         console.warn(`[Suggestions] Rate limit on ${modelName}, will try fallback`);
         return null; // Signal fallback
       }

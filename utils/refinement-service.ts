@@ -1,6 +1,7 @@
 "use server";
 
 import { GoogleGenAI } from "@google/genai";
+import { AI_CONFIG } from "./config";
 
 // 1. Cringe Guardrails (The "Ban List")
 const CRINGE_WORDS = [
@@ -74,7 +75,7 @@ export async function critiquePost(content: string, apiKey: string): Promise<Cri
   
   try {
      const result = await genAI.models.generateContent({
-        model: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest",
+        model: AI_CONFIG.primaryModel,
         contents: prompt,
         config: { responseMimeType: "application/json" }
      });
@@ -118,7 +119,7 @@ export async function refinePost(content: string, critique: Critique, apiKey: st
    
    try {
      const result = await genAI.models.generateContent({
-        model: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest",
+        model: AI_CONFIG.primaryModel,
         contents: prompt
      });
      return result.text || content;

@@ -7,12 +7,13 @@
 
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, Zap, ImageIcon, X } from "lucide-react";
+import { Sparkles, Zap, ImageIcon, X, Type } from "lucide-react";
 import { Signal } from "../../utils/signal-service";
 import SwarmConsole from "../SwarmConsole";
 import { SwarmMessage } from "../../utils/swarm-service";
+import { ViralService, ViralScore } from "../../utils/viral-service";
 
 export interface InputAreaProps {
   input: string;
@@ -23,6 +24,13 @@ export interface InputAreaProps {
   signals: Signal[];
   isFetchingSignals: boolean;
   useNewsjack: boolean;
+  isTeamMode: boolean;
+  coworkerName: string;
+  setCoworkerName: (val: string) => void;
+  coworkerRole: string;
+  setCoworkerRole: (val: string) => void;
+  coworkerRelation: string;
+  setCoworkerRelation: (val: string) => void;
   isDragActive: boolean;
   getRootProps: any;
   getInputProps: any;
@@ -31,6 +39,8 @@ export interface InputAreaProps {
   isSwarmRunning: boolean;
   isAgenticRunning: boolean;
   starterChips: Array<{ label: string; icon: any; prompt: string }>;
+  apiKey?: string;
+  onCheckCliches?: (text: string) => void;
 }
 
 export default function InputArea({
@@ -42,6 +52,13 @@ export default function InputArea({
   signals,
   isFetchingSignals,
   useNewsjack,
+  isTeamMode,
+  coworkerName,
+  setCoworkerName,
+  coworkerRole,
+  setCoworkerRole,
+  coworkerRelation,
+  setCoworkerRelation,
   isDragActive,
   getRootProps,
   getInputProps,
@@ -50,11 +67,94 @@ export default function InputArea({
   isSwarmRunning,
   isAgenticRunning,
   starterChips,
+  apiKey,
+  onCheckCliches,
 }: InputAreaProps) {
+  const [viralScore, setViralScore] = useState<ViralScore | null>(null);
+  const [isScoring, setIsScoring] = useState(false);
+
+  const checkViralScore = async () => {
+    if (!input || !apiKey) return;
+    setIsScoring(true);
+    const service = new ViralService(apiKey);
+    const score = await service.calculateViralScore(input);
+    setViralScore(score);
+    setIsScoring(false);
+  };
+
+  const [isFocused, setIsFocused] = useState(false);
+
   return (
-    <div className="relative flex flex-col min-h-[16rem]">
+    <div className={`relative flex flex-col transition-all duration-300 ease-in-out ${isFocused || input.length > 200 ? 'min-h-[24rem]' : 'min-h-[8rem]'}`}>
       <div {...getRootProps()} className="relative flex-1 flex flex-col">
         <input {...getInputProps()} />
+
+        {/* VIRAL SCORER */}
+        <div className="absolute top-4 right-6 z-30 flex items-center gap-2">
+            {viralScore && (
+                <motion.div 
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className={`px-3 py-1 rounded-full text-xs font-bold border ${viralScore.score > 80 ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-yellow-500/20 border-yellow-500 text-yellow-400'}`}
+                >
+                    Viral Score: {viralScore.score}/100
+                </motion.div>
+            )}
+            <button 
+                onClick={checkViralScore}
+                disabled={!input || isScoring}
+                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                title="Check Viral Score"
+            >
+                {isScoring ? <span className="animate-spin block">↻</span> : <Zap className="w-4 h-4" />}
+            </button>
+            
+            {/* CLICHE CHECKER TRIGGER */}
+             <button 
+                onClick={() => onCheckCliches && onCheckCliches(input)}
+                disabled={!input}
+                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                title="Cliche Killer"
+            >
+                <Type className="w-4 h-4" />
+            </button>
+        </div>
+
+        {/* TEAM MODE INPUTS */}
+        {isTeamMode && (
+           <div className="px-6 pt-4 pb-0 flex gap-3 animate-in fade-in slide-in-from-top-2">
+              <div className="flex-1">
+                 <label className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold mb-1 block">Ghostwriting For</label>
+                 <input 
+                   type="text"
+                   value={coworkerName}
+                   onChange={(e) => setCoworkerName(e.target.value)}
+                   placeholder="e.g. Sarah Chen"
+                   className="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 text-sm text-white placeholder-emerald-500/30 focus:border-emerald-500/50 outline-none"
+                 />
+              </div>
+              <div className="flex-1">
+                 <label className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold mb-1 block">Their Role</label>
+                 <input 
+                   type="text"
+                   value={coworkerRole}
+                   onChange={(e) => setCoworkerRole(e.target.value)}
+                   placeholder="e.g. VP Engineering"
+                   className="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 text-sm text-white placeholder-emerald-500/30 focus:border-emerald-500/50 outline-none"
+                 />
+              </div>
+              <div className="flex-1">
+                 <label className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold mb-1 block">Context</label>
+                 <input 
+                   type="text"
+                   value={coworkerRelation}
+                   onChange={(e) => setCoworkerRelation(e.target.value)}
+                   placeholder="e.g. I am her manager"
+                   className="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 text-sm text-white placeholder-emerald-500/30 focus:border-emerald-500/50 outline-none"
+                 />
+              </div>
+           </div>
+        )}
 
         {/* Dynamic Chips (Personalized) */}
         {dynamicChips.length > 0 && !input && (
@@ -75,6 +175,8 @@ export default function InputArea({
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           placeholder=" "
           className="w-full flex-1 bg-transparent text-white p-6 outline-none resize-none font-mono text-base leading-relaxed z-10 peer"
         />

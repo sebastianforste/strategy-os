@@ -9,17 +9,26 @@ vi.mock('@google/genai', () => {
     return {
         GoogleGenAI: class {
             models = {
-                embedContent: vi.fn().mockImplementation(async ({ contents }) => {
-                    // Simple mock embedding: Deterministic based on content length
-                    // This ensures search works if we query with same/similar content
-                    const val = contents.length / 100;
+                embedContent: vi.fn().mockImplementation(async (content) => {
+                    // Check if content.contents exists (Array structure) or direct string
+                    const inputs = content.contents ? content.contents : [content];
+                    const text = inputs[0]?.parts?.[0]?.text || (typeof inputs[0] === 'string' ? inputs[0] : ""); 
+                    const val = (text && text.length || 10) / 100;
                     return {
                         embedding: {
-                            values: Array(140).fill(val) // Mock 140-dim vector
+                            values: Array(140).fill(val)
                         }
                     };
+                }),
+                generateContent: vi.fn().mockResolvedValue({
+                    response: { text: () => "Mock generation" }
                 })
             }
+            // For safety, mock getGenerativeModel too if other parts use it
+            getGenerativeModel = vi.fn().mockReturnValue({
+                embedContent: vi.fn(),
+                generateContent: vi.fn()
+            })
         }
     };
 });

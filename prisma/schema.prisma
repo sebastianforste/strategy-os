@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -18,12 +18,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -94,7 +94,7 @@ enum Role {
 
 model Strategy {
   id          String       @id @default(cuid())
-  content     String       @db.Text
+  content     String
   title       String?
   platform    Platform     @default(LINKEDIN)
   persona     String       @default("cso")
@@ -113,6 +113,11 @@ model Strategy {
   isPublished Boolean      @default(false)
   publishedAt DateTime?
   externalId  String?      // LinkedIn/Twitter post ID
+
+  // Team Analytics (Phase 26)
+  isTeamPost     Boolean   @default(false)
+  teamMemberName String?
+  teamMemberRole String?
   
   // Relations
   author      User         @relation(fields: [authorId], references: [id])
@@ -127,7 +132,7 @@ model Strategy {
 
 model StrategyVersion {
   id          String   @id @default(cuid())
-  content     String   @db.Text
+  content     String
   version     Int
   changeNote  String?
   
@@ -150,9 +155,9 @@ model VoiceModel {
   name        String
   description String?
   
-  // Training data
-  examples    String[] @db.Text
-  styleNotes  String?  @db.Text
+  // Training data (JSON stringified)
+  examples    String
+  styleNotes  String?
   
   // Owner
   userId      String   @unique

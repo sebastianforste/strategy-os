@@ -1,4 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
+import { AI_CONFIG } from "./config";
+import { isRateLimitError } from "./gemini-errors";
 
 export interface CompetitorContent {
   title: string;
@@ -100,8 +102,8 @@ export async function fetchTrendingNews(topic: string, apiKey: string): Promise<
     }
 }
 
-const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest";
-const FALLBACK_MODEL = process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "models/gemini-3-flash-preview";
+const PRIMARY_MODEL = AI_CONFIG.primaryModel;
+const FALLBACK_MODEL = AI_CONFIG.fallbackModel;
 
 /**
  * TREND REPORT GENERATOR
@@ -150,8 +152,8 @@ export async function generateTrendReport(
       const text = result.text || "";
       return JSON.parse(text);
     } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : "";
-      if (errorMessage.includes("429") || errorMessage.includes("Quota") || errorMessage.includes("quota")) {
+      // Fallback on rate limit
+      if (isRateLimitError(e)) {
         console.warn(`[TrendReport] Rate limit on ${modelName}, will try fallback`);
         return null; // Signal fallback
       }

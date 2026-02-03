@@ -105,9 +105,24 @@ export default function PostButton({ text }: PostButtonProps) {
             className="absolute top-full right-0 mt-2 w-48 bg-[#1A1A1A] border border-neutral-800 rounded-lg shadow-xl overflow-hidden z-50"
           >
             <button
-              onClick={() => {
-                  alert("Scheduling coming in Phase 10.2!");
-                  setShowDropdown(false);
+              onClick={async () => {
+                  try {
+                    const { schedulePost, findScheduleGaps } = await import("../utils/archive-service");
+                    const gaps = await findScheduleGaps();
+                    const nextDate = gaps.length > 0 ? gaps[0].date : new Date(Date.now() + 3600000); // Default to 1h later
+                    
+                    await schedulePost({
+                      content: text,
+                      topic: text.split('\n')[0].substring(0, 50) || "Scheduled Post",
+                      scheduledFor: nextDate.toISOString(),
+                      platform: "linkedin",
+                    });
+                    
+                    alert("Strategy successfully queued for: " + nextDate.toLocaleString());
+                    setShowDropdown(false);
+                  } catch (e) {
+                    alert("Failed to schedule: " + (e instanceof Error ? e.message : "Internal Error"));
+                  }
               }}
               className="w-full text-left px-4 py-3 text-xs text-neutral-300 hover:bg-neutral-800 hover:text-white flex items-center gap-2 transition-colors"
             >

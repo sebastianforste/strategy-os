@@ -4,17 +4,27 @@ import { generateContent } from '../utils/ai-service-server';
 
 // MOCK: @google/genai
 vi.mock('@google/genai', () => {
+    const mockResponse = {
+        text: JSON.stringify({
+            textPost: "Mock response",
+            imagePrompt: "Mock prompt",
+            videoScript: "Mock script"
+        })
+    };
+
     return {
         GoogleGenAI: class {
             models = {
-                generateContent: vi.fn().mockResolvedValue({
-                    text: JSON.stringify({
-                        textPost: "Mock response",
-                        imagePrompt: "Mock prompt",
-                        videoScript: "Mock script"
-                    })
-                })
+                embedContent: vi.fn().mockImplementation(async () => ({
+                    embedding: { values: Array(140).fill(0.5) }
+                })),
+                generateContent: vi.fn().mockResolvedValue(mockResponse)
             };
+            // For safety, mock getGenerativeModel too
+            getGenerativeModel = vi.fn().mockReturnValue({
+                embedContent: vi.fn(),
+                generateContent: vi.fn()
+            })
         }
     };
 });
@@ -37,7 +47,7 @@ vi.mock('../utils/db', () => ({
 vi.mock('../utils/prompts', async (importOriginal) => {
     const actual = await importOriginal();
     return {
-        ...actual,
+        ...(actual as any),
         formatPrompt: vi.fn().mockImplementation((template, vars) => JSON.stringify(vars))
     };
 });
@@ -46,7 +56,7 @@ vi.mock('../utils/prompts', async (importOriginal) => {
 vi.mock('../utils/personas', async (importOriginal) => {
     const actual = await importOriginal();
     return {
-        ...actual,
+        ...(actual as any),
         PERSONAS: {
             cso: {
                 basePrompt: "Base System Prompt",
@@ -69,13 +79,21 @@ vi.mock('../utils/constraint-service', () => ({
 // Mock console.log to keep output clean but allow inspection
 const consoleSpy = vi.spyOn(console, 'log');
 
+// MOCK: utils/vector-store.ts
+vi.mock('../utils/vector-store', () => ({
+    searchVectorStore: vi.fn().mockImplementation(async (query) => {
+        // Return empty array for the "no resources" test
+        if (query === "EMPTY_TEST") return [];
+        return [{ text: "Mock vector search result" }];
+    })
+}));
+
 describe('AI Service - RAG Logic', () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
 
     it('should inject context when resources exist', async () => {
-        // Arrange
         const mockResources = [
             {
                 title: 'Test Doc',
@@ -88,29 +106,22 @@ describe('AI Service - RAG Logic', () => {
         ];
         mockFindMany.mockResolvedValue(mockResources);
 
-        // Act
-        // We trigger generation, which should internaly call fetchContext
         await generateContent("Test Input", "test-key", "cso");
 
-        // Assert
-        // 1. Verify Prisma was called
         expect(mockFindMany).toHaveBeenCalledWith({
             take: 3,
             orderBy: { createdAt: 'desc' },
             where: { type: 'pdf' }
         });
-
-        // 2. Verify console.log confirmed injection
-        // The implementation logs: "[AI Service] Injecting Strategic Context..."
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Injecting Strategic Context"));
     });
 
     it('should NOT inject context when no resources exist', async () => {
         // Arrange
-        mockFindMany.mockResolvedValue([]); // Empty list
+        mockFindMany.mockResolvedValue([]); 
 
-        // Act
-        await generateContent("Test Input", "test-key", "cso");
+        // Act - Use specific query to trigger empty vector search mock
+        await generateContent("EMPTY_TEST", "test-key", "cso");
 
         // Assert
         expect(mockFindMany).toHaveBeenCalled();

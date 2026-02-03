@@ -150,7 +150,7 @@ ${accumulated.trim()}
         // Using fallback/faster model for comments as per ai-service
         
         const result = await genAI.models.generateContent({
-            model: "models/gemini-2.5-flash-preview-09-2025",
+            model: "models/gemini-2.5-flash-native-audio-latest",
             contents: commentPrompt
         });
         const comment = result.text || "";

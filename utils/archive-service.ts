@@ -57,6 +57,16 @@ export interface ScheduledPost {
 const SCHEDULE_STORE = "schedule";
 const EVOLUTION_STORE = "evolution";
 
+export interface EvolutionReport {
+  id: string;
+  personaId: string;
+  originalPrompt: string;
+  mutatedPrompt: string;
+  improvements: string[];
+  analysis: string;
+  timestamp: string;
+}
+
 async function getDB(): Promise<IDBPDatabase> {
   return openDB(DB_NAME, 4, {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -193,6 +203,59 @@ export async function deleteScheduledPost(id: string) {
     await db.delete(SCHEDULE_STORE, id);
 }
 
+export interface ScheduleGap {
+  date: Date;
+  label: string; // e.g. "Tuesday Morning Rush"
+  reason: string;
+}
+
+export const VIRAL_SLOTS = [
+    { day: 1, hour: 8, label: "Monday Motivation" },
+    { day: 2, hour: 8, label: "Tuesday Morning Rush" }, // High viral potential
+    { day: 3, hour: 11, label: "Wednesday Mid-Day" },
+    { day: 4, hour: 8, label: "Thursday Thought Leader" },
+    { day: 5, hour: 9, label: "Friday Reflection" },
+];
+
+export async function findScheduleGaps(): Promise<ScheduleGap[]> {
+    const posts = await getScheduledPosts();
+    const gaps: ScheduleGap[] = [];
+    const now = new Date();
+    
+    // Look ahead 7 days
+    for (let d = 0; d < 7; d++) {
+      const checkDate = new Date(now);
+      checkDate.setDate(now.getDate() + d);
+      const dayOfWeek = checkDate.getDay();
+  
+      const slots = VIRAL_SLOTS.filter(s => s.day === dayOfWeek);
+  
+      for (const slot of slots) {
+         // Check if we have a post roughly at this time (+/- 2 hours)
+         const hasPost = posts.some(p => {
+            const pDate = new Date(p.scheduledFor);
+            return pDate.getDate() === checkDate.getDate() && 
+                   Math.abs(pDate.getHours() - slot.hour) < 2;
+         });
+  
+         if (!hasPost) {
+            const gapDate = new Date(checkDate);
+            gapDate.setHours(slot.hour, 0, 0, 0);
+            
+            if (gapDate > now) {
+               gaps.push({
+                 date: gapDate,
+                 label: slot.label,
+                 reason: "High engagement window is empty."
+               });
+            }
+         }
+      }
+    }
+    
+    return gaps.slice(0, 3); // Return top 3 gaps
+}
+
 export async function getUpcomingPosts(windowMinutes: number = 60): Promise<ScheduledPost[]> {
     const all = await getScheduledPosts();
     const now = Date.now();
@@ -205,17 +268,15 @@ export async function getUpcomingPosts(windowMinutes: number = 60): Promise<Sche
 }
 
 /**
- * EVOLUTION HISTORY
+ * EVOLUTION REPORT STORAGE
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function saveEvolutionReport(report: any) {
-    const db = await getDB();
-    const id = `evo-${Date.now()}`;
-    await db.put(EVOLUTION_STORE, { ...report, id });
+export async function saveEvolutionReport(report: EvolutionReport) {
+  const db = await getDB();
+  await db.put(EVOLUTION_STORE, report);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function getEvolutionHistory(): Promise<any[]> {
-    const db = await getDB();
-    return db.getAll(EVOLUTION_STORE);
+export async function getEvolutionHistory(personaId: string): Promise<EvolutionReport[]> {
+  const db = await getDB();
+  const all = await db.getAll(EVOLUTION_STORE);
+  return all.filter(r => r.personaId === personaId).sort((a,b) => b.timestamp.localeCompare(a.timestamp));
 }

@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, X, Plus, Trash2, Calendar, Clock, Loader2, Linkedin, Twitter, FileText, Sparkles } from "lucide-react";
-import { generateBatch, BatchRequest, BatchResult } from "../utils/batch-service";
+import { Zap, X, Plus, Trash2, Calendar, Clock, Loader2, Linkedin, Twitter, FileText, Sparkles, Layers } from "lucide-react";
+import { generateBatch, generateVolumeBatch, BatchRequest, VolumeRequest, BatchResult } from "../utils/batch-service";
 import { PersonaId, PERSONAS } from "../utils/personas";
+import { StrategyAngle } from "../utils/variant-generator";
 
 interface BatchGeneratorModalProps {
     isOpen: boolean;
@@ -21,6 +22,8 @@ export default function BatchGeneratorModal({ isOpen, onClose, apiKey, onComplet
     const [intervalHours, setIntervalHours] = useState(24);
     const [isGenerating, setIsGenerating] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [isVolumeMode, setIsVolumeMode] = useState(false);
+    const [selectedAngles, setSelectedAngles] = useState<StrategyAngle[]>(['educational', 'contrarian', 'checklist']);
 
     const addTopic = () => setTopics([...topics, ""]);
     const removeTopic = (index: number) => setTopics(topics.filter((_, i) => i !== index));
@@ -37,19 +40,32 @@ export default function BatchGeneratorModal({ isOpen, onClose, apiKey, onComplet
         setIsGenerating(true);
         setProgress(0);
 
-        const request: BatchRequest = {
-            topics: validTopics,
-            personaId,
-            platform,
-            startDate: new Date(startDate),
-            intervalHours
-        };
-
-        const result = await generateBatch(request, apiKey);
-        
-        setIsGenerating(false);
-        onComplete(result);
-        onClose();
+        if (isVolumeMode) {
+            const request: VolumeRequest = {
+                topics: validTopics,
+                personaId,
+                platform,
+                startDate: new Date(startDate),
+                intervalHours,
+                angles: selectedAngles
+            };
+            const result = await generateVolumeBatch(request, apiKey);
+            setIsGenerating(false);
+            onComplete(result);
+            onClose();
+        } else {
+            const request: BatchRequest = {
+                topics: validTopics,
+                personaId,
+                platform,
+                startDate: new Date(startDate),
+                intervalHours
+            };
+            const result = await generateBatch(request, apiKey);
+            setIsGenerating(false);
+            onComplete(result);
+            onClose();
+        }
     };
 
     if (!isOpen) return null;
@@ -144,6 +160,54 @@ export default function BatchGeneratorModal({ isOpen, onClose, apiKey, onComplet
                         </div>
                     </div>
 
+                    {/* Volume Multiplier Toggle */}
+                    <div className="p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-2xl space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Layers className="w-4 h-4 text-indigo-400" />
+                                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">100x Volume Multiplier</span>
+                            </div>
+                            <button 
+                                onClick={() => setIsVolumeMode(!isVolumeMode)}
+                                className={`w-10 h-5 rounded-full transition-all relative ${isVolumeMode ? 'bg-indigo-500' : 'bg-white/10'}`}
+                            >
+                                <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${isVolumeMode ? 'left-6' : 'left-1'}`} />
+                            </button>
+                        </div>
+
+                        {isVolumeMode && (
+                            <div className="space-y-3">
+                                <p className="text-[9px] text-indigo-500/70 font-mono uppercase tracking-widest">Select Pivot Angles:</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {['educational', 'contrarian', 'checklist', 'story', 'aggressive', 'philosophical'].map((angle) => (
+                                        <button 
+                                            key={angle}
+                                            onClick={() => {
+                                                const current = [...selectedAngles];
+                                                if (current.includes(angle as StrategyAngle)) {
+                                                    setSelectedAngles(current.filter(a => a !== angle));
+                                                } else {
+                                                    setSelectedAngles([...current, angle as StrategyAngle]);
+                                                }
+                                            }}
+                                            className={`px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-tighter transition-all ${
+                                                selectedAngles.includes(angle as StrategyAngle)
+                                                    ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300'
+                                                    : 'bg-black/20 border-white/5 text-neutral-600'
+                                            }`}
+                                        >
+                                            {angle}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex items-center gap-2 pt-2 text-[9px] font-bold text-indigo-400 italic">
+                                    <Sparkles className="w-3 h-3" />
+                                    Each topic will be expanded into {selectedAngles.length} variants.
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Scheduling */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -180,7 +244,7 @@ export default function BatchGeneratorModal({ isOpen, onClose, apiKey, onComplet
                     <button 
                         onClick={handleGenerate}
                         disabled={isGenerating || topics.filter(t => t.trim()).length === 0}
-                        className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm font-bold uppercase rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50"
+                        className={`w-full py-3 text-white text-sm font-bold uppercase rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50 ${isVolumeMode ? 'bg-indigo-600' : 'bg-gradient-to-r from-amber-500 to-orange-600'}`}
                     >
                         {isGenerating ? (
                             <>
@@ -190,7 +254,10 @@ export default function BatchGeneratorModal({ isOpen, onClose, apiKey, onComplet
                         ) : (
                             <>
                                 <Sparkles className="w-4 h-4" />
-                                Generate & Schedule {topics.filter(t => t.trim()).length} Posts
+                                {isVolumeMode 
+                                    ? `Generate ${topics.filter(t => t.trim()).length * selectedAngles.length} Volume Variants`
+                                    : `Generate & Schedule ${topics.filter(t => t.trim()).length} Posts`
+                                }
                             </>
                         )}
                     </button>

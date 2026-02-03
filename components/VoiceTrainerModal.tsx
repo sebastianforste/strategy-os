@@ -3,7 +3,10 @@
 import { useState, useEffect } from "react";
 import { Mic, Upload, Trash2, Plus, Sparkles, AlertCircle, FileText, CheckCircle2, X } from "lucide-react";
 import { addTrainingPost, getTrainingPosts, deleteTrainingPost, getTrainingStats, TrainingPost } from "../utils/voice-training-service";
+import { synthesizeVoiceDNAAction } from "../actions/generate";
+import { saveCustomPersona, getCustomPersonas } from "../utils/persona-store";
 import { motion, AnimatePresence } from "framer-motion";
+import ReactMarkdown from "react-markdown";
 
 interface VoiceTrainerModalProps {
   isOpen: boolean;
@@ -16,6 +19,10 @@ export default function VoiceTrainerModal({ isOpen, onClose, apiKey }: VoiceTrai
   const [newPost, setNewPost] = useState("");
   const [stats, setStats] = useState<{ totalPosts: number; averageLength: number; canTrain: boolean } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [styleDNA, setStyleDNA] = useState<string | null>(null);
+  const [showDNAPanel, setShowDNAPanel] = useState(false);
+  const [selectedSubStyle, setSelectedSubStyle] = useState<"professional" | "casual" | "provocative">("professional");
 
   useEffect(() => {
     if (isOpen) {
@@ -44,6 +51,45 @@ export default function VoiceTrainerModal({ isOpen, onClose, apiKey }: VoiceTrai
     await loadData();
   };
 
+  const handleSynthesize = async () => {
+    if (posts.length < 5) return;
+    setIsSynthesizing(true);
+    try {
+      const dna = await synthesizeVoiceDNAAction(posts.map(p => p.content), apiKey);
+      setStyleDNA(dna);
+      setShowDNAPanel(true);
+    } catch (e) {
+      console.error("Synthesis failed", e);
+    } finally {
+      setIsSynthesizing(false);
+    }
+  };
+
+  const handleApplyToPersona = async () => {
+    if (!styleDNA) return;
+    
+    // Get existing custom persona or create new one
+    const customs = await getCustomPersonas();
+    let myPersona = customs.find(p => p.id === "custom");
+    
+    if (!myPersona) {
+        myPersona = {
+            id: "custom",
+            name: "Your Voice",
+            description: "Digital twin trained on your content.",
+            styleDNA: styleDNA,
+            subStyle: selectedSubStyle
+        };
+    } else {
+        myPersona.styleDNA = styleDNA;
+        myPersona.subStyle = selectedSubStyle;
+    }
+    
+    await saveCustomPersona(myPersona);
+    alert("Style DNA applied to 'Your Voice' persona! ✨");
+    setShowDNAPanel(false);
+  };
+
   // Calculate generic "Voice DNA" (Simple metrics for display)
   const voiceDNA = stats ? [
     { label: "Avg Length", value: `${stats.averageLength} chars` },
@@ -61,7 +107,7 @@ export default function VoiceTrainerModal({ isOpen, onClose, apiKey }: VoiceTrai
            animate={{ opacity: 1, scale: 1 }}
            exit={{ opacity: 0, scale: 0.95 }}
            onClick={(e) => e.stopPropagation()}
-           className="bg-[#0A0A0A] border border-neutral-800 rounded-xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl"
+           className="bg-[#0A0A0A] border border-neutral-800 rounded-xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl relative"
         >
             {/* Header */}
             <div className="p-6 border-b border-neutral-800 flex items-center justify-between">
@@ -115,6 +161,24 @@ export default function VoiceTrainerModal({ isOpen, onClose, apiKey }: VoiceTrai
                             </div>
                         ))}
                     </div>
+
+                    {/* Synthesis Button */}
+                    <button 
+                        onClick={handleSynthesize}
+                        disabled={posts.length < 5 || isSynthesizing}
+                        className="w-full mt-2 group relative overflow-hidden bg-gradient-to-br from-amber-500 to-orange-600 p-3 rounded-xl border border-amber-400/20 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:grayscale"
+                    >
+                        <div className="relative z-10 flex items-center justify-center gap-2">
+                            <Sparkles className={`w-4 h-4 text-white ${isSynthesizing ? 'animate-spin' : 'animate-pulse'}`} />
+                            <span className="text-xs font-black text-white uppercase tracking-wider">
+                                {isSynthesizing ? "Extracting DNA..." : "SYNTHESIZE VOICE DNA"}
+                            </span>
+                        </div>
+                        <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                    {posts.length < 5 && (
+                        <p className="text-[10px] text-center text-neutral-500 italic mt-1">Need 5+ samples to decode your DNA.</p>
+                    )}
                 </div>
 
                 {/* RIGHT: List */}
@@ -160,6 +224,72 @@ export default function VoiceTrainerModal({ isOpen, onClose, apiKey }: VoiceTrai
                     </div>
                 </div>
             </div>
+
+            {/* DNA REVIEW OVERLAY */}
+            <AnimatePresence>
+                {showDNAPanel && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className="absolute inset-x-6 bottom-6 top-24 bg-neutral-900 border border-amber-500/30 rounded-2xl shadow-[0_0_100px_rgba(245,158,11,0.15)] z-30 flex flex-col overflow-hidden"
+                    >
+                        <div className="p-6 border-b border-neutral-800 flex items-center justify-between bg-black/40">
+                            <div className="flex items-center gap-3">
+                                <Sparkles className="w-5 h-5 text-amber-400" />
+                                <h3 className="text-lg font-bold text-white tracking-tight">Your Style DNA Decoded</h3>
+                            </div>
+                            <button onClick={() => setShowDNAPanel(false)} className="text-neutral-500 hover:text-white">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-8 prose prose-invert prose-xs max-w-none custom-scrollbar text-neutral-300">
+                            {/* SUB-STYLE SELECTOR */}
+                            <div className="mb-8 p-4 bg-black/40 border border-neutral-800 rounded-xl">
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-3 text-center">Select Delivery Mode (Sub-Style)</h4>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(["professional", "casual", "provocative"] as const).map((mode) => (
+                                        <button
+                                            key={mode}
+                                            onClick={() => setSelectedSubStyle(mode)}
+                                            className={`py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border ${
+                                                selectedSubStyle === mode 
+                                                ? 'bg-amber-500/20 border-amber-500 text-amber-400' 
+                                                : 'bg-neutral-900 border-neutral-800 text-neutral-500 hover:border-neutral-700'
+                                            }`}
+                                        >
+                                            {mode}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="mt-3 text-[10px] text-neutral-600 italic text-center leading-tight px-4 pb-1">
+                                    {selectedSubStyle === "professional" && "Polished, authoritative, and corporate-ready."}
+                                    {selectedSubStyle === "casual" && "Accessible, conversational, and analogy-driven."}
+                                    {selectedSubStyle === "provocative" && "Punchy, contrarian, and debate-sparking."}
+                                </p>
+                            </div>
+
+                            <ReactMarkdown>{styleDNA || ""}</ReactMarkdown>
+                        </div>
+
+                        <div className="p-6 bg-black/40 border-t border-neutral-800 flex justify-end gap-3">
+                            <button 
+                                onClick={() => setShowDNAPanel(false)}
+                                className="px-6 py-2 text-xs font-bold text-neutral-400 hover:text-white transition-colors"
+                            >
+                                DISCARD
+                            </button>
+                            <button 
+                                onClick={handleApplyToPersona}
+                                className="px-8 py-2 bg-white text-black text-xs font-black uppercase tracking-widest rounded-lg hover:bg-amber-400 transition-all shadow-[0_4px_20px_rgba(255,255,255,0.1)]"
+                            >
+                                APPLY TO DIGITAL TWIN
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </motion.div>
       </div>
     </AnimatePresence>

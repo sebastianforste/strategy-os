@@ -209,10 +209,70 @@ export async function POST(req: Request) {
             }
         }
 
+        // 4. DISCORD / SLACK WEBHOOKS
+        if (platform === 'discord' || platform === 'slack') {
+            const webhookUrl = platform === 'discord' 
+                ? process.env.DISCORD_WEBHOOK_URL 
+                : process.env.SLACK_WEBHOOK_URL;
+
+            // MOCK MODE if no webhook configured
+            if (!webhookUrl) {
+                console.warn(`[API/Distribute] Missing ${platform.toUpperCase()} webhook. Returning MOCK success.`);
+                await new Promise(r => setTimeout(r, 800));
+                return NextResponse.json({
+                    success: true,
+                    platform,
+                    postId: `mock-webhook-${Date.now()}`,
+                    message: `MOCK: Content sent to ${platform} (no webhook configured).`
+                });
+            }
+
+            try {
+                const messagePayload = platform === 'slack' 
+                    ? { text: `*StrategyOS Distribution*\n\n${content}` }
+                    : { 
+                        content: `**StrategyOS Distribution**\n\n${content}`,
+                        embeds: imageUrl ? [{ image: { url: imageUrl } }] : []
+                      };
+
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(messagePayload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`${platform.toUpperCase()} webhook returned ${response.status}`);
+                }
+
+                return NextResponse.json({
+                    success: true,
+                    platform,
+                    postId: `hook-${Date.now()}`,
+                    message: `Successfully pushed to ${platform}.`
+                });
+            } catch (hookError) {
+                console.error(`[API/Distribute] ${platform} webhook failed:`, hookError);
+                return NextResponse.json({ success: false, error: `${platform} webhook failed` }, { status: 500 });
+            }
+        }
+
+        // 5. SUBSTACK (FALLTHROUGH TO MOCK FOR NOW)
+        if (platform === 'substack') {
+            await new Promise(r => setTimeout(r, 600));
+            return NextResponse.json({
+                success: true,
+                platform,
+                postId: `mock-subs-${Date.now()}`,
+                message: "Substack draft simulated. Use 'Copy for Substack' in the UI for optimal results."
+            });
+        }
+
         return NextResponse.json({
             success: true,
             platform,
             postId: `post-${Date.now()}`,
+            url: platform === 'linkedin' ? "https://www.linkedin.com/feed/" : platform === 'twitter' ? "https://x.com/home" : undefined,
             message: "Distributed successfully (Fallthrough Mock)."
         });
 

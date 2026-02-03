@@ -5,13 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, X, Clipboard, Sparkles, Copy, RefreshCw, Zap, Search, Globe } from "lucide-react";
 import { generateCommentAction, findTrendsAction } from "../actions/generate";
 import Toast, { ToastType } from "./Toast";
+import { TrendResult } from "../utils/search-service";
 
 interface CommentGeneratorModalProps {
   isOpen: boolean;
   onClose: () => void;
   apiKey: string;
   personaId: string;
-  initialSignals?: any[];
+  initialSignals?: TrendResult[];
 }
 
 const TONES_V1 = [
@@ -46,7 +47,7 @@ export default function CommentGeneratorModal({ isOpen, onClose, apiKey, persona
   });
   
   // New State for Signal Integration
-  const [foundSignals, setFoundSignals] = useState<any[]>([]);
+  const [foundSignals, setFoundSignals] = useState<TrendResult[]>([]);
   const [isSearchingSignals, setIsSearchingSignals] = useState(false);
 
   // Sync initial signals
@@ -208,13 +209,38 @@ export default function CommentGeneratorModal({ isOpen, onClose, apiKey, persona
                                     Clear
                                 </button>
                             </div>
-                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                                {foundSignals.map((s, idx) => (
-                                    <div key={idx} className="flex-shrink-0 w-48 p-2 bg-white/5 border border-white/10 rounded-lg text-[10px] text-neutral-400 truncate">
-                                        <span className="text-white block truncate font-bold">{s.title}</span>
-                                        {s.source}
-                                    </div>
-                                ))}
+                            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+                                {foundSignals.map((s, idx) => {
+                                    const sentimentColor = 
+                                        s.sentiment === "Bullish" ? "text-green-400 bg-green-400/10 border-green-400/20" :
+                                        s.sentiment === "Bearish" ? "text-red-400 bg-red-400/10 border-red-400/20" :
+                                        s.sentiment === "Controversial" ? "text-purple-400 bg-purple-400/10 border-purple-400/20" :
+                                        "text-neutral-400 bg-white/5 border-white/10";
+
+                                    return (
+                                        <div key={idx} className="flex-shrink-0 w-56 p-3 bg-white/5 border border-white/10 rounded-xl space-y-2">
+                                            <div className="flex justify-between items-start">
+                                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter border ${sentimentColor}`}>
+                                                    {s.sentiment}
+                                                </span>
+                                                <div className="flex items-center gap-1">
+                                                    <Zap className="w-2.5 h-2.5 text-amber-400 fill-current" />
+                                                    <span className="text-[9px] font-bold text-neutral-500">{s.momentum}%</span>
+                                                </div>
+                                            </div>
+                                            <span className="text-white block font-bold text-[11px] leading-tight line-clamp-2">{s.title}</span>
+                                            <div className="flex justify-between items-center text-[9px] text-neutral-500">
+                                                <span className="truncate">{s.source}</span>
+                                                <div className="w-12 h-1 bg-white/5 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className="h-full bg-blue-500 rounded-full" 
+                                                        style={{ width: `${s.momentum}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}

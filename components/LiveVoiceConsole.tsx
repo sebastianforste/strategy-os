@@ -6,17 +6,14 @@ import { Mic, MicOff, PhoneOff, Activity } from "lucide-react";
 /**
  * GEMINI LIVE API CONFIG
  */
-const MODEL = "models/gemini-2.0-flash-exp";
-const HOST = "generativelanguage.googleapis.com";
-const URI = `wss://${HOST}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent`;
+const URI = "ws://localhost:8080";
 
 interface LiveVoiceConsoleProps {
   isOpen: boolean;
   onClose: () => void;
-  apiKey: string;
 }
 
-export default function LiveVoiceConsole({ isOpen, onClose, apiKey }: LiveVoiceConsoleProps) {
+export default function LiveVoiceConsole({ isOpen, onClose }: LiveVoiceConsoleProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false); // User is speaking
   const [isAIResponding, setIsAIResponding] = useState(false); // AI is speaking
@@ -55,17 +52,16 @@ export default function LiveVoiceConsole({ isOpen, onClose, apiKey }: LiveVoiceC
     try {
       setStatus("Dialing secure line...");
       
-      const url = `${URI}?key=${apiKey}`;
-      const ws = new WebSocket(url);
+      const ws = new WebSocket(URI);
       wsRef.current = ws;
 
       ws.onopen = () => {
         setStatus("Connected to The Council.");
         setIsConnected(true);
         // Send initial setup if needed (Model config, Voice settings)
+        // Send initial setup
         ws.send(JSON.stringify({
             setup: {
-                model: MODEL,
                 generation_config: {
                     response_modalities: ["AUDIO"]
                 }

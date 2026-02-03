@@ -26,7 +26,7 @@ async function testSideAssets() {
     console.log("Testing Side Asset Generation...");
     try {
         const result = await genAI.models.generateContent({
-            model: "models/gemini-flash-latest",
+            model: "models/gemini-2.5-flash-native-audio-latest",
             contents: prompt,
             config: { responseMimeType: "application/json" }
         });

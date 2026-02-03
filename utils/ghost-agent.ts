@@ -6,8 +6,9 @@ import { schedulePost } from "./archive-service";
 
 export interface GhostDraft {
   id: string;
-  topic: string;
-  trend: string;
+  topic: string; // The specific angle/topic chosen
+  trend: string; // The headline
+  trendSource?: string; // The origin event (e.g. "TechCrunch: AI Act Passed")
   assets: GeneratedAssets;
   createdAt: number;
   status: 'unread' | 'saved' | 'discarded' | 'scheduled';
@@ -48,11 +49,11 @@ export async function runGhostAgent(
   console.log(`[Ghost V2] Starting autonomous hunt. Drafts: ${draftCount}, AutoSchedule: ${autoSchedule}`);
 
   // 1. Dynamic Sector Selection: Pick sectors with active conflict signals
-  const selectedSectors = await selectTrendingSectors(apiKey, draftCount);
-  console.log(`[Ghost V2] Selected sectors: ${selectedSectors.join(", ")}`);
+  const selectedSectorObjects = await selectTrendingSectors(apiKey, draftCount);
+  console.log(`[Ghost V2] Selected sectors: ${selectedSectorObjects.map(s => s.sector).join(", ")}`);
 
   // 2. Generate drafts in parallel
-  const draftPromises = selectedSectors.map(sector => generateDraft(sector, apiKey));
+  const draftPromises = selectedSectorObjects.map(item => generateDraft(item.sector, apiKey, item.trendContext, item.source));
   const drafts = await Promise.all(draftPromises);
 
   // 3. Rank by virality score
@@ -76,65 +77,116 @@ export async function runGhostAgent(
   return drafts;
 }
 
+interface SectorOpportunity {
+    sector: string;
+    trendContext: string; // The raw news snippet to feed the prompt
+    source: string;
+}
+
 /**
- * Select sectors with active conflict signals
+ * Select sectors by analyzing real-time trends and mapping them to opportunities.
  */
-async function selectTrendingSectors(apiKey: string, count: number): Promise<string[]> {
+async function selectTrendingSectors(apiKey: string, count: number): Promise<SectorOpportunity[]> {
+  const opportunities: SectorOpportunity[] = [];
+  
   try {
-    // Try to find trending topics to inform sector selection
+    // 1. Fetch Chaos/Conflict Trends
+    console.log("[Ghost V2] Scanning for global business conflicts...");
     const generalTrends = await findTrends("business strategy controversy 2027", apiKey);
     
     if (generalTrends.length > 0) {
-      // Map trends to closest sectors
-      const trendTopics = generalTrends.slice(0, count).map(t => t.title);
-      // For now, we still use our sectors but could enhance with NLP matching
-      return SECTORS.slice(0, count);
+       // 2. Analyze top trends to find best sectors
+       // We'll take the top 5 trends and ask AI to map them
+       const trendSummary = generalTrends.slice(0, 5).map((t, i) => `${i+1}. "${t.title}" (${t.source}): ${t.snippet}`).join("\n");
+       
+       const analysisPrompt = `
+       TASK: Analyze these real-world trends and map them to the most relevant business sectors.
+       
+       TRENDS:
+       ${trendSummary}
+       
+       AVAILABLE SECTORS:
+       ${SECTORS.join(", ")}
+       
+       INSTRUCTIONS:
+       For the top ${count} most "viral" or "critical" trends, identifying the matching Sector.
+       If no existing sector fits, INVENT a new relevant sector name (e.g., "Neuromorphic Computing").
+       
+       OUTPUT JSON ONLY:
+       [
+         { "sector": "Sector Name", "trendIndex": 1 },
+         ...
+       ]
+       `;
+
+       const analysis = await generateContent(analysisPrompt, apiKey, "cso");
+       try {
+           const parsed = JSON.parse(analysis.textPost.replace(/```json|```/g, "").trim());
+           
+           if (Array.isArray(parsed)) {
+               parsed.forEach((p: any) => {
+                   const trendIdx = (p.trendIndex || 1) - 1;
+                   const trend = generalTrends[trendIdx];
+                   if (trend) {
+                       opportunities.push({
+                           sector: p.sector,
+                           trendContext: `REAL NEWS: "${trend.title}" - ${trend.snippet}`,
+                           source: trend.source
+                       });
+                   }
+               });
+           }
+       } catch (parseError) {
+           console.warn("[Ghost V2] Failed to parse sector map, using fallback mapping", parseError);
+           // Fallback: Just map 1-to-1 linearly
+           generalTrends.slice(0, count).forEach(t => {
+               opportunities.push({
+                   sector: "Emerging Market Trend",
+                   trendContext: `REAL NEWS: "${t.title}" - ${t.snippet}`,
+                   source: t.source
+               });
+           });
+       }
     }
   } catch (e) {
-    console.warn("[Ghost V2] Trend fetch failed, using random sectors");
+    console.warn("[Ghost V2] Trend fetch failed, using random sectors", e);
   }
   
-  // Fallback: Random selection
-  const shuffled = [...SECTORS].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count);
+  // Fill remaining slots with random sectors if needed
+  while (opportunities.length < count) {
+      const randomSector = SECTORS[Math.floor(Math.random() * SECTORS.length)];
+      // Ensure specific uniqueness in a real impl, but simple check here
+      opportunities.push({
+          sector: randomSector,
+          trendContext: "No breaking news. Invent a 'Silent Crisis' scenario common in this industry.",
+          source: "Ghost Logical Inference"
+      });
+  }
+  
+  return opportunities.slice(0, count);
 }
 
 /**
  * Generate a single draft for a sector
  */
-async function generateDraft(sector: string, apiKey: string): Promise<GhostDraft> {
+async function generateDraft(sector: string, apiKey: string, context: string, source: string): Promise<GhostDraft> {
   const startTime = Date.now();
   
-  // Hunt for conflict in this sector
-  const trends = await findTrends(sector, apiKey);
-  
-  let topic = sector;
-  let context = "";
-  
-  if (trends && trends.length > 0) {
-    const trend = trends[0];
-    topic = trend.title;
-    context = `
-    REAL NEWS CONTEXT:
-    Title: "${trend.title}"
-    Source: ${trend.source}
-    Snippet: "${trend.snippet}"
-    
-    Hook on this specific event, then pivot to the strategic failure.
-    `;
-  } else {
-    context = "No breaking news. Invent a 'Silent Crisis' scenario common in this industry.";
-  }
-
+  // Refined prompt using the specific context passed in
   const prompt = `
   MODE: GHOST AGENT V2 (Autonomous Draft)
   SECTOR: ${sector}
+  CONTEXT:
   ${context}
   
   INSTRUCTIONS:
   You are 'Ghost', the autonomous strategist.
-  Write a viral post exposing a conflict in the market.
+  Write a viral post exposing a conflict in the market based on the Context.
   Use the 'The Villain' framework: Identify who is lying or what is broken.
+  
+  IMPORTANT:
+  - If the context is real news, QUOTE it or reference it implicitly.
+  - If the context is a "Silent Crisis", make it feel urgent.
   `;
 
   const assets = await generateContent(prompt, apiKey, "cso");
@@ -147,7 +199,8 @@ async function generateDraft(sector: string, apiKey: string): Promise<GhostDraft
   return {
     id: crypto.randomUUID(),
     topic: sector,
-    trend: topic,
+    trend: assets.textPost.split('\n')[0].substring(0, 50) + "...", // Use first line as title/hook
+    trendSource: source,
     assets,
     createdAt: Date.now(),
     status: 'unread',

@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Plus, Minus, Layout, Loader2, Save, Sword, Link, Globe } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Plus, Minus, Layout, Loader2, Save, Sword, Link, Globe, Sparkles } from "lucide-react";
 import CanvasNode from "./CanvasNode";
 import WarRoomSidebar from "./WarRoomSidebar";
 import { CanvasNodeState, getCanvasNodes, saveCanvasNodePosition, removeCanvasNode, getArchivedStrategies } from "../utils/archive-service";
 import { simulateConflict, DefensibilityReport } from "../utils/war-room-service";
+import { syncService, SyncMessage, Collaborator } from "../utils/sync-service";
+import { PERSONAS } from "../utils/personas";
+import { aiOptimizerAction } from "../actions/collaborative-actions";
 
 interface StrategyCanvasProps {
   apiKey: string;
@@ -21,7 +24,10 @@ export default function StrategyCanvas({ apiKey }: StrategyCanvasProps) {
   const [isAnalyzingNodeId, setIsAnalyzingNodeId] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [isIngesting, setIsIngesting] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+    const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+    const [activePersonaId, setActivePersonaId] = useState<string | null>(null);
+    const [isAIOptimizing, setIsAIOptimizing] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
 
   const handleIngestURL = async () => {
     if (!urlInput.trim() || !urlInput.startsWith("http")) return;
@@ -82,14 +88,52 @@ export default function StrategyCanvas({ apiKey }: StrategyCanvasProps) {
         setIsLoading(false);
     }
     load();
+
+    // 3. Sync Setup
+    const unsubscribe = syncService.subscribe((msg: SyncMessage) => {
+        if (msg.senderId === syncService.getUserId()) return;
+
+        switch (msg.type) {
+            case 'node_move':
+                setNodes(prev => prev.map(n => n.id === msg.payload.id ? { ...n, x: msg.payload.x, y: msg.payload.y } : n));
+                break;
+            case 'node_add':
+                setNodes(prev => [...prev.filter(n => n.id !== msg.payload.id), msg.payload]);
+                break;
+            case 'node_remove':
+                setNodes(prev => prev.filter(n => n.id !== msg.payload));
+                break;
+            case 'collaborator_join':
+                setCollaborators(prev => [...prev.filter(c => c.id !== msg.payload.id), msg.payload]);
+                break;
+            case 'collaborator_leave':
+                setCollaborators(prev => prev.filter(c => c.id !== msg.payload));
+                break;
+        }
+    });
+
+    // Join channel
+    syncService.broadcast('collaborator_join', {
+        id: syncService.getUserId(),
+        name: 'You',
+        isAI: false,
+        lastActive: Date.now()
+    });
+
+    return () => {
+        unsubscribe();
+        syncService.broadcast('collaborator_leave', syncService.getUserId());
+    };
   }, []);
 
   const handleUpdateNode = async (id: string, x: number, y: number) => {
       // Update local state
       setNodes(prev => prev.map(n => n.id === id ? { ...n, x, y } : n));
       
+      // Broadcast shift
+      syncService.broadcast('node_move', { id, x, y });
+
       // Persist (debounce logic handled by caller usually, but here we just write)
-      // We find the node to save full state
       const node = nodes.find(n => n.id === id);
       if (node) {
           await saveCanvasNodePosition({ ...node, x, y });
@@ -98,6 +142,7 @@ export default function StrategyCanvas({ apiKey }: StrategyCanvasProps) {
 
   const handleRemoveNode = async (id: string) => {
       setNodes(prev => prev.filter(n => n.id !== id));
+      syncService.broadcast('node_remove', id);
       await removeCanvasNode(id);
   };
 
@@ -119,6 +164,34 @@ export default function StrategyCanvas({ apiKey }: StrategyCanvasProps) {
     }
     
     setIsAnalyzingNodeId(null);
+  };
+
+  const handleAICollaborate = async (personaId: string) => {
+    const persona = PERSONAS[personaId as keyof typeof PERSONAS];
+    if (!persona || !apiKey) return;
+
+    setIsAIOptimizing(true);
+    setActivePersonaId(personaId);
+
+    // Join AI to collaborators
+    const aiCollaborator: Collaborator = {
+        id: `ai-${personaId}`,
+        name: persona.name,
+        isAI: true,
+        lastActive: Date.now()
+    };
+    syncService.broadcast('collaborator_join', aiCollaborator);
+    setCollaborators(prev => [...prev.filter(c => c.id !== aiCollaborator.id), aiCollaborator]);
+
+    const result = await aiOptimizerAction(nodes, persona.basePrompt || "", apiKey);
+    
+    if (result) {
+        // We could apply positions here, but for now we suggest or draw connectors safely
+        console.log("AI STRATEGIC SUGGESTION:", result);
+        // In a real app, we'd draw the connectors between nodes
+    }
+    
+    setIsAIOptimizing(false);
   };
 
   if (isLoading) {
@@ -143,6 +216,24 @@ export default function StrategyCanvas({ apiKey }: StrategyCanvasProps) {
              transform: `translate(${position.x}px, ${position.y}px)`
          }}
        />
+
+       {/* Collaborators Bar */}
+       <div className="absolute bottom-4 right-4 z-[100] flex items-center gap-2">
+           <AnimatePresence>
+               {collaborators.map(c => (
+                   <motion.div
+                       initial={{ opacity: 0, x: 20 }}
+                       animate={{ opacity: 1, x: 0 }}
+                       exit={{ opacity: 0, x: 20 }}
+                       key={c.id}
+                       className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-[10px] font-bold ${c.isAI ? 'bg-indigo-500 border-indigo-400 text-white' : 'bg-neutral-800 border-white/20 text-neutral-400'}`}
+                       title={c.name}
+                   >
+                       {c.name.charAt(0)}
+                   </motion.div>
+               ))}
+           </AnimatePresence>
+       </div>
 
        {/* Controls */}
        <div className="absolute top-4 right-4 z-[100] flex flex-col gap-2 bg-neutral-900/80 backdrop-blur p-2 rounded-lg border border-white/10">
@@ -184,6 +275,25 @@ export default function StrategyCanvas({ apiKey }: StrategyCanvasProps) {
                >
                    {isIngesting ? <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" /> : <Link className="w-3.5 h-3.5" />}
                </button>
+           </div>
+
+           {/* AI Collaborate Trigger */}
+           <div className="flex bg-neutral-900/90 backdrop-blur border border-white/10 rounded-xl p-1.5 shadow-2xl">
+               <div className="flex items-center gap-2 px-2 text-neutral-500 border-r border-white/5 mr-2">
+                   <Sparkles className="w-3.5 h-3.5" />
+                   <span className="text-[10px] font-bold uppercase tracking-widest">AI Partner</span>
+               </div>
+               <select 
+                  onChange={(e) => handleAICollaborate(e.target.value)}
+                  className="bg-transparent border-none text-[10px] text-white focus:outline-none placeholder:text-neutral-600 appearance-none pr-4"
+                  defaultValue=""
+               >
+                   <option value="" disabled>Invite Persona...</option>
+                   <option value="cso">Strategy Officer</option>
+                   <option value="newsjacker">Newsjacker</option>
+                   <option value="vibrant">Vibrant Narrator</option>
+               </select>
+               {isAIOptimizing && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400 ml-2" />}
            </div>
        </div>
 

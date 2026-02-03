@@ -1,13 +1,35 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { streamText } from "ai";
+import { streamText, generateText } from "ai";
 import { constructEnrichedPrompt } from "../../../actions/generate";
 import { PERSONAS, PersonaId } from "../../../utils/personas";
+import { verifyConstraints } from "../../../utils/constraint-service";
 import { LinkedInAdapter } from "../../../utils/platforms/linkedin";
 import { TwitterAdapter } from "../../../utils/platforms/twitter";
+import { AI_CONFIG } from "../../../utils/config";
+import { isRateLimitError } from "../../../utils/gemini-errors";
 
 export async function POST(req: Request) {
   try {
-    const { prompt, input: manualInput, apiKeys, personaId, forceTrends, platform, useRAG, fewShotExamples, rlhfContext, images, customPersona } = await req.json();
+    const { 
+        prompt, 
+        input: manualInput, 
+        apiKeys, 
+        personaId, 
+        forceTrends, 
+        platform, 
+        useRAG, 
+        fewShotExamples, 
+        rlhfContext, 
+        styleMemory, 
+        styleDNA, // Added
+        images, 
+        customPersona, 
+        isTeamMode, 
+        coworkerName, 
+        coworkerRole, 
+        coworkerRelation,
+        subStyle
+    } = await req.json();
     const input = prompt || manualInput;
     
     // DEBUG LOGGING
@@ -17,8 +39,8 @@ export async function POST(req: Request) {
     const log = (msg: string) => fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
     
     // MODEL AGNOSTICISM: Load from environment variables per global instructions
-    const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest";
-    const FALLBACK_MODEL = process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "models/gemini-3-flash-preview";
+    const PRIMARY_MODEL = AI_CONFIG.primaryModel;
+    const FALLBACK_MODEL = AI_CONFIG.fallbackModel;
     
     log(`Incoming Request: InputLen=${input?.length || 0}, Persona=${personaId}, Model=${PRIMARY_MODEL}, Images=${images?.length || 0}`);
     
@@ -44,6 +66,8 @@ export async function POST(req: Request) {
     if (!apiKeys?.gemini) return new Response("Gemini API Key required", { status: 400 });
 
     const geminiKey = apiKeys.gemini.trim();
+    const { getAdaptationContext } = await import("../../../utils/adaptation-service");
+    const adaptationContext = await getAdaptationContext(personaId as PersonaId);
 
     // DEMO MODE HANDLER
     if (geminiKey.toLowerCase() === "demo") {
@@ -94,7 +118,15 @@ Data tells better lies than people do.
         adapter,
         useRAG, // Pass flag
         fewShotExamples, // Pass string content directly
-        rlhfContext // RLHF learning context
+        rlhfContext, // RLHF learning context
+        styleMemory, // Style learning context
+        styleDNA || (customPersona?.styleDNA || ""), // Pass styleDNA (synthesis anchor)
+        adaptationContext, // Darwin Engine v2 context
+        isTeamMode,
+        coworkerName,
+        coworkerRole,
+        coworkerRelation,
+        subStyle
     );
 
     // 2. Select Persona System Prompt
@@ -115,63 +147,86 @@ Data tells better lies than people do.
 
     log(`Enriched Prompt constructed. Length: ${enrichedInput.length}`);
 
-    // Helper function to attempt streaming with a specific model
-    async function tryStreamWithModel(modelName: string) {
-      log(`Trying streamText with ${modelName} (Safety OFF)...`);
+    // Helper function to attempt generation with validation and retry
+    async function tryGenerateWithRetry(modelName: string) {
+      log(`Trying generateText with ${modelName} (Safety OFF)...`);
       
-      // Construct User Message Content (Text + Images)
-      // Vercel AI SDK expects { type: 'text', text: ... } | { type: 'image', image: ... }
       const userContent: any[] = [{ type: 'text', text: enrichedInput }];
       
       if (images && Array.isArray(images)) {
           images.forEach((imgData: string) => {
-              // Ensure it's a valid data URL or base64
               if (imgData && imgData.startsWith('data:image')) {
                  userContent.push({ type: 'image', image: imgData });
               }
           });
       }
 
-      return streamText({
-        // @ts-expect-error - Safety settings are valid but types might be strict
-        model: google(modelName, {
-          safetySettings: [
-              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-          ]
-        }), 
-        system: streamingSystemPrompt,
-        messages: [
-            { role: 'user', content: userContent }
-        ],
-        temperature: 0.7,
-        onFinish: (result) => {
-            log(`Stream Finished (${modelName}). Total Tokens: ${result.usage.totalTokens}. Finish Reason: ${result.finishReason}`);
-        }
+      let currentMessages: any[] = [
+          { role: 'user', content: userContent }
+      ];
+      
+      let attempts = 0;
+      const MAX_ATTEMPTS = 3;
+      let lastText = "";
+
+      while (attempts < MAX_ATTEMPTS) {
+          attempts++;
+          log(`Attempt ${attempts}/${MAX_ATTEMPTS}`);
+
+          const result = await generateText({
+            // @ts-expect-error - Safety settings
+            model: google(modelName, {
+              safetySettings: [
+                  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+              ]
+            }), 
+            system: streamingSystemPrompt,
+            messages: currentMessages,
+            temperature: 0.7
+          });
+
+          lastText = result.text;
+          const validation = verifyConstraints(lastText);
+
+          if (validation.valid) {
+              log(`Constraint Check Passed: ${attempts} attempts`);
+              break;
+          }
+
+          log(`Constraint Check Failed: ${validation.reason}`);
+          
+          if (attempts < MAX_ATTEMPTS) {
+              // Add context for retry
+              currentMessages.push({ role: 'assistant', content: lastText });
+              currentMessages.push({ role: 'user', content: `CRITICAL INSTRUCTION: Your previous output failed quality control. \nReason: ${validation.reason}\n\nFIX THIS IMMEDIATELY. Regenerate the post adhering strictly to the constraints.` });
+          }
+      }
+
+      // Return as stream to satisfy client
+      const encoder = new TextEncoder();
+      const customStream = new ReadableStream({
+          async start(controller) {
+              controller.enqueue(encoder.encode(lastText));
+              controller.close();
+          }
+      });
+
+      return new Response(customStream, {
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
       });
     }
     
     // Try primary model first
     try {
-      const result = await tryStreamWithModel(PRIMARY_MODEL);
-      log("Returning stream response (primary model)...");
-      if (!result) throw new Error("Stream initialization failed (primary)");
-      return result.toTextStreamResponse();
+      return await tryGenerateWithRetry(PRIMARY_MODEL);
     } catch (primaryError: unknown) {
-      const errorMessage = primaryError instanceof Error ? primaryError.message : "";
-      
-      // If rate limited, try fallback model
-      if (errorMessage.includes("429") || errorMessage.includes("Quota") || errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED")) {
+      if (isRateLimitError(primaryError)) {
         log(`Primary model rate limited. Falling back to ${FALLBACK_MODEL}...`);
-        
-        const fallbackResult = await tryStreamWithModel(FALLBACK_MODEL);
-        log("Returning stream response (fallback model)...");
-        return fallbackResult.toTextStreamResponse();
+        return await tryGenerateWithRetry(FALLBACK_MODEL);
       }
-      
-      // Re-throw other errors
       throw primaryError;
     }
   } catch (error: unknown) {

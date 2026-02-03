@@ -2,28 +2,41 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, Clock, X, Trash2, Edit3, Send, RefreshCw, Plus, Linkedin, Twitter, FileText, Zap, CheckCircle2, AlertCircle, Ghost, Loader2 } from "lucide-react";
-import { getScheduledPosts, deleteScheduledPost, updateScheduledPost, ScheduledPost } from "../utils/archive-service";
-import { publishToPlatform, getPlatformConfig } from "../utils/distribution-service";
+import { Calendar, Clock, X, Trash2, Edit3, Send, RefreshCw, Plus, Linkedin, Twitter, FileText, Zap, CheckCircle2, AlertCircle, Ghost, Loader2, MessageSquare, Hash } from "lucide-react";
+import { getScheduledPosts, deleteScheduledPost, updateScheduledPost, findScheduleGaps, ScheduleGap, ScheduledPost } from "../utils/archive-service";
+import { schedulingService } from "../utils/scheduling-service";
+import { dispatchToPlatform } from "../utils/distribution-agent";
+import { getPlatformConfig } from "../utils/distribution-service";
+import CalendarView, { CalendarEvent } from "./Schedule/CalendarView";
 
 interface ScheduleQueueDashboardProps {
     isOpen: boolean;
     onClose: () => void;
+    apiKey?: string;
 }
 
-export default function ScheduleQueueDashboard({ isOpen, onClose }: ScheduleQueueDashboardProps) {
+export default function ScheduleQueueDashboard({ isOpen, onClose, apiKey }: ScheduleQueueDashboardProps) {
     const [posts, setPosts] = useState<ScheduledPost[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isDispatching, setIsDispatching] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+    const [gaps, setGaps] = useState<ScheduleGap[]>([]);
 
     useEffect(() => {
-        if (isOpen) loadPosts();
+        if (isOpen) {
+            loadPosts();
+        }
     }, [isOpen]);
 
     const loadPosts = async () => {
         setIsLoading(true);
         const data = await getScheduledPosts();
         setPosts(data);
+        
+        // Load Gaps
+        const smartGaps = await findScheduleGaps();
+        setGaps(smartGaps);
+        
         setIsLoading(false);
     };
 
@@ -47,10 +60,14 @@ export default function ScheduleQueueDashboard({ isOpen, onClose }: ScheduleQueu
             return;
         }
 
-        if (!confirm(`Dispatch Now? StrategyOS will post this content directly to ${post.platform === 'linkedin' ? 'LinkedIn' : 'X'} using the Ghost Protocol.`)) return;
+        if (!confirm(`Dispatch Now? StrategyOS will post this content directly to ${post.platform.toUpperCase()} using the Ghost Protocol.`)) return;
 
         setIsDispatching(post.id);
-        const result = await publishToPlatform(post.platform === 'substack' ? 'linkedin' : post.platform as any, post.content, config);
+        const result = await dispatchToPlatform({
+            platform: post.platform as any,
+            content: post.content,
+            title: post.topic
+        });
         setIsDispatching(null);
 
         if (result.success) {
@@ -62,11 +79,44 @@ export default function ScheduleQueueDashboard({ isOpen, onClose }: ScheduleQueu
         }
     };
 
+    const handleAutoFill = async () => {
+        if (!apiKey) {
+            alert("API Key required for Auto-Fill.");
+            return;
+        }
+        if (gaps.length === 0) {
+            alert("No temporal gaps detected.");
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const { autoFillQueueAction } = await import("../actions/schedule");
+            const results = await autoFillQueueAction(gaps, apiKey);
+            const successCount = results.filter(r => r.status === 'filled').length;
+            
+            if (successCount > 0) {
+                await loadPosts();
+                alert(`Successfully filled ${successCount} gaps in your content calendar.`);
+            } else {
+                alert("Failed to fill gaps. Check logs for details.");
+            }
+        } catch (e) {
+            console.error("Auto-fill failed", e);
+            alert("Critical failure during autonomous fill.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const getPlatformIcon = (platform: string) => {
         switch (platform) {
             case 'linkedin': return <Linkedin className="w-3 h-3 text-blue-400" />;
-            case 'twitter': return <Twitter className="w-3 h-3 text-sky-400" />;
+            case 'twitter': 
+            case 'x': return <Twitter className="w-3 h-3 text-sky-400" />;
             case 'substack': return <FileText className="w-3 h-3 text-orange-400" />;
+            case 'discord': return <Hash className="w-3 h-3 text-indigo-400" />;
+            case 'slack': return <MessageSquare className="w-3 h-3 text-emerald-400" />;
             default: return <Send className="w-3 h-3" />;
         }
     };
@@ -112,6 +162,21 @@ export default function ScheduleQueueDashboard({ isOpen, onClose }: ScheduleQueu
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                         <div className="flex bg-white/5 rounded-lg p-1 border border-white/5 mr-2">
+                            <button
+                                onClick={() => setViewMode("list")}
+                                className={`px-3 py-1 text-xs rounded-md transition-all ${viewMode === "list" ? "bg-white/10 text-white" : "text-neutral-500 hover:text-white"}`}
+                            >
+                                List
+                            </button>
+                            <button
+                                onClick={() => setViewMode("calendar")}
+                                className={`px-3 py-1 text-xs rounded-md transition-all ${viewMode === "calendar" ? "bg-purple-500/20 text-purple-300" : "text-neutral-500 hover:text-white"}`}
+                            >
+                                Calendar
+                            </button>
+                         </div>
+
                         <button 
                             onClick={loadPosts} 
                             disabled={isLoading}
@@ -132,6 +197,23 @@ export default function ScheduleQueueDashboard({ isOpen, onClose }: ScheduleQueu
                             <RefreshCw className="w-8 h-8 text-purple-500 animate-spin" />
                             <p className="text-sm text-neutral-500 font-mono text-center">ACCESSING VAULT...<br/><span className="text-[10px] opacity-50">SYNCING TEMPORAL FLOWS</span></p>
                         </div>
+                    ) : viewMode === "calendar" ? (
+                         <CalendarView 
+                            events={posts.map(p => ({
+                                id: p.id,
+                                title: p.topic || "Untitled Post",
+                                start: new Date(p.scheduledFor),
+                                end: new Date(new Date(p.scheduledFor).getTime() + 60 * 60 * 1000), // +1 hour
+                                resource: p
+                            }))}
+                            onEventDrop={async ({ event, start, end }: any) => {
+                                const newDate = start as Date;
+                                if (confirm(`Reschedule "${event.title}" to ${newDate.toLocaleString()}?`)) {
+                                    await updateScheduledPost(event.id, { scheduledFor: newDate.toISOString() });
+                                    loadPosts();
+                                }
+                            }}
+                         />
                     ) : posts.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-64 gap-4 text-neutral-500">
                             <Calendar className="w-16 h-16 opacity-20" />
@@ -160,9 +242,15 @@ export default function ScheduleQueueDashboard({ isOpen, onClose }: ScheduleQueu
                                                 {getStatusBadge(post.status)}
                                             </div>
                                             <p className="text-xs text-neutral-400 line-clamp-2 mb-2">{post.content}</p>
-                                            <div className="flex items-center gap-1 text-[10px] text-neutral-600">
-                                                <Clock className="w-3 h-3" />
-                                                <span>{formatScheduleTime(post.scheduledFor)}</span>
+                                            <div className="flex items-center gap-3 text-[10px] text-neutral-600">
+                                                <div className="flex items-center gap-1">
+                                                    <Clock className="w-3 h-3" />
+                                                    <span>{formatScheduleTime(post.scheduledFor)}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1 text-purple-400 font-mono">
+                                                    <Zap className="w-2.5 h-2.5" />
+                                                    <span>Fit: {schedulingService.calculateFitScore(post)}%</span>
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-1">
@@ -213,6 +301,43 @@ export default function ScheduleQueueDashboard({ isOpen, onClose }: ScheduleQueu
                         </div>
                     )}
                 </div>
+
+                {/* Smart Slots Recommendations */}
+                {viewMode === "calendar" && (
+                    <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 p-3 border-t border-white/5">
+                       <div className="flex items-start gap-4">
+                          <div className="p-2 bg-purple-500/20 rounded-lg">
+                             <Zap className="w-4 h-4 text-purple-400" />
+                          </div>
+                           <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                 <h4 className="text-xs font-bold text-white uppercase tracking-tighter">Temporal Gaps Detected</h4>
+                                 <button 
+                                    onClick={handleAutoFill}
+                                    disabled={isLoading}
+                                    className={`px-3 py-1 bg-purple-500 text-white text-[9px] font-black rounded-full transition-transform ${isLoading ? 'opacity-50 animate-pulse' : 'hover:scale-105'}`}
+                                 >
+                                    {isLoading ? 'FILLING...' : 'AUTO-FILL QUEUE'}
+                                 </button>
+                              </div>
+                             <div className="flex flex-wrap gap-2">
+                                {gaps.length === 0 ? (
+                                    <p className="text-[10px] text-neutral-600 italic">No gaps detected. Your schedule is optimized.</p>
+                                ) : (
+                                   gaps.map((gap, i) => (
+                                    <div key={i} className="flex items-center justify-between p-2 bg-purple-500/5 border border-purple-500/10 rounded-lg group">
+                                         <span className="text-[10px] text-purple-300 font-mono">
+                                            {gap.date.toLocaleDateString('en-US', { weekday: 'short' })} {gap.date.getHours()}:00
+                                         </span>
+                                         <span className="text-[10px] text-neutral-500">{gap.label}</span>
+                                      </div>
+                                   ))
+                                )}
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+                )}
 
                 {/* Footer Stats */}
                 <div className="p-4 border-t border-white/5 bg-black/20 flex items-center justify-between">

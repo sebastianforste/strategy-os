@@ -9,6 +9,8 @@
  * 3. Calls `imagen-4.0-generate-001`.
  * 4. Returns the result as a Base64 Data URI for immediate display.
  */
+import { AI_CONFIG } from "./config";
+
 export async function generateImage(prompt: string, apiKey: string): Promise<string> {
   // Mock mode for image gen
   if (apiKey.toLowerCase().trim() === "demo") {
@@ -18,7 +20,7 @@ export async function generateImage(prompt: string, apiKey: string): Promise<str
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/${AI_CONFIG.imageModel}:predict?key=${apiKey}`,
       {
         method: "POST",
         headers: {

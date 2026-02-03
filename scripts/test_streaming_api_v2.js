@@ -62,7 +62,7 @@ async function runTests() {
     for (let i = 0; i < topics.length; i++) {
         await testTopic(topics[i], i);
         // Add a small delay
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 3000));
     }
     console.log("\n🏁 All tests completed.");
 }

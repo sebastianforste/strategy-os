@@ -7,8 +7,10 @@
 import { GoogleGenAI } from "@google/genai";
 import { schedulePost } from "./archive-service";
 import { Persona, PERSONAS, PersonaId } from "./personas";
+import { AI_CONFIG } from "./config";
+import { generateStrategyVariants, StrategyAngle } from "./variant-generator";
 
-const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-2.0-flash-exp";
+const PRIMARY_MODEL = AI_CONFIG.primaryModel;
 
 export interface BatchRequest {
     topics: string[];
@@ -16,6 +18,10 @@ export interface BatchRequest {
     platform: 'linkedin' | 'twitter' | 'substack';
     startDate: Date;
     intervalHours: number; // Hours between posts
+}
+
+export interface VolumeRequest extends BatchRequest {
+    angles: StrategyAngle[];
 }
 
 export interface BatchResult {
@@ -79,6 +85,53 @@ export async function generateBatch(request: BatchRequest, apiKey: string): Prom
 
         // Move to next time slot
         currentScheduleTime = new Date(currentScheduleTime.getTime() + request.intervalHours * 60 * 60 * 1000);
+    }
+
+    return result;
+}
+
+/**
+ * GENERATE VOLUME BATCH
+ * Expands topics into a full matrix of variants based on angles.
+ */
+export async function generateVolumeBatch(request: VolumeRequest, apiKey: string): Promise<BatchResult> {
+    const result: BatchResult = {
+        scheduled: 0,
+        failed: 0,
+        posts: []
+    };
+
+    let currentScheduleTime = new Date(request.startDate);
+
+    for (const topic of request.topics) {
+        try {
+            console.log(`[BatchService] Generating Volume Matrix for: ${topic}`);
+            
+            // Generate multiple variants per topic
+            const variants = await generateStrategyVariants(topic, request.angles, apiKey, request.platform);
+            
+            for (const variant of variants) {
+                const id = await schedulePost({
+                    content: variant.content,
+                    topic: `${topic} (${variant.angle})`,
+                    scheduledFor: currentScheduleTime.toISOString(),
+                    platform: request.platform
+                });
+
+                result.posts.push({
+                    topic: `${topic} (${variant.angle})`,
+                    scheduledFor: currentScheduleTime.toISOString(),
+                    id
+                });
+                result.scheduled++;
+
+                // Increment time for EACH variant
+                currentScheduleTime = new Date(currentScheduleTime.getTime() + request.intervalHours * 60 * 60 * 1000);
+            }
+        } catch (e) {
+            console.error(`Volume generation failed for topic: ${topic}`, e);
+            result.failed++;
+        }
     }
 
     return result;

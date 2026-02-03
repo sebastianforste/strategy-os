@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { AI_CONFIG } from "./config";
 
 export interface ContentDNA {
   tone: string;
@@ -59,7 +60,7 @@ export async function analyzeCorpus(corpus: string[], apiKey: string): Promise<C
   try {
     const genAI = new GoogleGenAI({ apiKey });
     const result = await genAI.models.generateContent({
-        model: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest",
+        model: AI_CONFIG.primaryModel,
         contents: prompt,
         config: { responseMimeType: "application/json" }
     });
@@ -144,7 +145,7 @@ export async function generateCommentStrategy(
     try {
         const genAI = new GoogleGenAI({ apiKey });
         const result = await genAI.models.generateContent({
-            model: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest",
+            model: AI_CONFIG.primaryModel,
             contents: prompt,
             config: { responseMimeType: "application/json" }
         });

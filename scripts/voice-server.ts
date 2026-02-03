@@ -22,8 +22,8 @@ wss.on("connection", (clientWs) => {
   // Connect to Gemini Multimodal Live API
   // Using the v1alpha BidiGenerateContent endpoint
   // Model: gemini-2.0-flash-exp (or gemini-1.5-pro-latest depending on availability)
-  // Note: "gemini-2.0-flash-exp" is the current recommendation for Live
-  const MODEL = "gemini-2.0-flash-exp"; 
+  // Note: "gemini-2.5-flash-native-audio-latest" is the current recommendation for Live
+  const MODEL = "gemini-2.5-flash-native-audio-latest"; 
   const HOST = "generativelanguage.googleapis.com";
   const PATH = `/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`;
   
@@ -31,22 +31,7 @@ wss.on("connection", (clientWs) => {
 
   geminiWs.on("open", () => {
     console.log("Connected to Gemini Live API");
-    
-    // Send initial setup message to Gemini
-    // We configure it for AUDIO input and AUDIO output
-    const setupMessage = {
-      setup: {
-        model: `models/${MODEL}`,
-        generationConfig: {
-          responseModalities: ["AUDIO"], 
-          speechConfig: {
-             voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } } // "Puck", "Charon", "Kore", "Fenrir", "Aoede"
-          }
-        }
-      }
-    };
-    
-    geminiWs.send(JSON.stringify(setupMessage));
+    // We wait for the client to send the first message which should be the setup or the first audio chunk
   });
 
   geminiWs.on("message", (data) => {
@@ -68,8 +53,32 @@ wss.on("connection", (clientWs) => {
 
   // Relay messages from Client -> Gemini
   clientWs.on("message", (data) => {
+    const message = JSON.parse(data.toString());
+    
+    // If client sends setup, we ensure it has the right model and robust instructions
+    if (message.setup) {
+        message.setup.model = `models/${MODEL}`;
+        
+        // Inject / Enhance system instructions to handle "STRATEGIC PULSE" requests
+        const existingInstruction = message.setup.generationConfig?.systemInstruction?.parts?.[0]?.text || "";
+        const enhancedInstruction = `${existingInstruction}
+        
+        CRITICAL OPERATING RULE:
+        When the user asks for a "STRATEGIC PULSE", you must immediately shift from 'Listening' mode to 'Synthesis' mode. 
+        Provide a bulleted list of the top 3-5 strategic insights, decisions, or pivots. 
+        Start your response with the prefix "STRATEGIC PULSE:" so the UI can route it to the insights panel. 
+        Be cold, objective, and focus on leverage.
+        `;
+        
+        if (message.setup.generationConfig) {
+            message.setup.generationConfig.systemInstruction = {
+                parts: [{ text: enhancedInstruction }]
+            };
+        }
+    }
+
     if (geminiWs.readyState === WebSocket.OPEN) {
-      geminiWs.send(data);
+      geminiWs.send(JSON.stringify(message));
     }
   });
 

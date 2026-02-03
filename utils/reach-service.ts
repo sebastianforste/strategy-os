@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { AI_CONFIG } from "./config";
 
 export interface ReachForecast {
   estimatedImpressions: string;
@@ -53,7 +54,7 @@ export async function getReachForecast(content: string, apiKey: string): Promise
   try {
     const genAI = new GoogleGenAI({ apiKey });
     const result = await genAI.models.generateContent({
-        model: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-flash-latest",
+        model: AI_CONFIG.primaryModel,
         contents: prompt,
         config: { responseMimeType: "application/json" }
     });

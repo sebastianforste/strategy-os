@@ -1,8 +1,15 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Mic, MicOff, X, Activity, Volume2 } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Mic, MicOff, X, Activity, Volume2, Monitor, Disc, Save } from "lucide-react";
+import { VaultService } from "../../utils/vault-service";
 import { motion, AnimatePresence } from "framer-motion";
+import { 
+  convertFloat32ToInt16, 
+  convertInt16ToBase64, 
+  decodeBase64ToFloat32, 
+  calculateVolume 
+} from "../../utils/audio-utils";
 
 interface LiveSessionProps {
   isOpen: boolean;
@@ -13,6 +20,11 @@ export default function LiveSession({ isOpen, onClose }: LiveSessionProps) {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
   const [isMuted, setIsMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(0);
+  const [sourceType, setSourceType] = useState<"mic" | "system">("mic");
+  const [isRecording, setIsRecording] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [summaries, setSummaries] = useState<{ id: string; text: string; timestamp: Date }[]>([]);
+  const lastSummaryTimeRef = useRef<number>(0);
   
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -31,31 +43,9 @@ export default function LiveSession({ isOpen, onClose }: LiveSessionProps) {
     
     try {
       if (chunk) {
-        // Decode base64 to buffer
-        const binaryString = window.atob(chunk);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        // Convert PCM 16kHz Little Endian to Float32
-        // Assuming Gemini sends PCM directly? Or WAV?
-        // Actually, Gemini sends raw PCM. We need to construct an AudioBuffer.
-        // Simplified approach: Decode via AudioContext if headerless, else standard decode.
-        
-        // NOTE: For robustness, we might need a PCM decoder helper if decodeAudioData fails on raw PCM.
-        // Let's assume standard decoding for now, but Gemini typically sends raw PCM.
-        
-        // Create AudioBuffer from PCM data (assuming 24000Hz or 16000Hz 16-bit mono)
-        // Gemini Live defaults: 24kHz, 1 channel, PCM.
-        
-        const float32Data = new Float32Array(bytes.length / 2);
-        for (let i = 0; i < bytes.length; i += 2) {
-           const int16 = (bytes[i + 1] << 8) | bytes[i]; // Little Endian
-           float32Data[i / 2] = int16 >= 0x8000 ? -(0x10000 - int16) / 0x8000 : int16 / 0x8000;
-        }
+        const float32Data = decodeBase64ToFloat32(chunk);
 
+        // Microsoft Teams / Gemini Live optimized sample rate (24000Hz)
         const audioBuf = audioContextRef.current.createBuffer(1, float32Data.length, 24000);
         audioBuf.getChannelData(0).set(float32Data);
 
@@ -98,12 +88,56 @@ export default function LiveSession({ isOpen, onClose }: LiveSessionProps) {
 
       ws.onopen = () => {
         setStatus("connected");
-        startMicrophone();
+        
+        // Define system instructions based on mode
+        const systemInstruction = sourceType === 'system' 
+            ? "You are a 'Meeting Orchestrator'. Your job is to listen to this meeting audio, identify key decisions, action items, and strategic pivots. Do not interrupt frequently. If you speak, be concise and offer a strategic synthesis of what was just said."
+            : "You are the 'Strategy OS Voice'. You are a high-stakes strategic partner. Be punchy, contrarian, and focus on leverage and speed.";
+
+        // Send Initial Setup Message
+        const setupMessage = {
+          setup: {
+            generationConfig: {
+              responseModalities: ["AUDIO"], 
+              speechConfig: {
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } }
+              },
+              systemInstruction: {
+                parts: [{ text: systemInstruction }]
+              }
+            }
+          }
+        };
+        
+        ws.send(JSON.stringify(setupMessage));
+
+        // Start Audio
+        if (sourceType === "mic") {
+            startMicrophone();
+        } else {
+            startSystemAudio();
+        }
       };
 
       ws.onmessage = async (event) => {
         const data = JSON.parse(event.data);
         
+        // Handle Transcript (if Gemini sends text parts)
+        if (data.serverContent?.modelTurn?.parts?.[0]?.text) {
+             const text = data.serverContent.modelTurn.parts[0].text;
+             
+             // Check if this looks like a summary/insight (e.g., contains specific markdown or is a response to our pulse request)
+             if (text.includes("STRATEGIC PULSE") || text.includes("INSIGHT:")) {
+                setSummaries(prev => [{
+                    id: Math.random().toString(36).substr(2, 9),
+                    text: text.replace("STRATEGIC PULSE:", "").replace("INSIGHT:", "").trim(),
+                    timestamp: new Date()
+                }, ...prev]);
+             } else {
+                setTranscript(prev => prev + " " + text);
+             }
+        }
+
         // Handle Server -> Client Audio
         if (data.serverContent?.modelTurn?.parts?.[0]?.inlineData) {
           const audioBase64 = data.serverContent.modelTurn.parts[0].inlineData.data;
@@ -137,7 +171,53 @@ export default function LiveSession({ isOpen, onClose }: LiveSessionProps) {
     
     wsRef.current = null;
     audioContextRef.current = null;
+    lastSummaryTimeRef.current = 0; // Reset timer on disconnect
     setStatus("disconnected");
+  };
+
+  // --- AUDIO PROCESSOR LOGIC ---
+
+  const setupAudioProcessor = (stream: MediaStream) => {
+    if (!audioContextRef.current) return;
+
+    const source = audioContextRef.current.createMediaStreamSource(stream);
+    const processor = audioContextRef.current.createScriptProcessor(512, 1, 1);
+    processorRef.current = processor;
+
+    processor.onaudioprocess = (e) => {
+        if (isMuted || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+        const inputData = e.inputBuffer.getChannelData(0); 
+        setVolumeLevel(calculateVolume(inputData));
+
+        const pcmData = convertFloat32ToInt16(inputData);
+        const base64Audio = convertInt16ToBase64(pcmData);
+
+        wsRef.current.send(JSON.stringify({
+            realtimeInput: {
+                mediaChunks: [{
+                    mimeType: "audio/pcm",
+                    data: base64Audio
+                }]
+            }
+        }));
+
+        // Check for periodic summary trigger (every 2 mins = 120000ms for testing/frequent pulse)
+        if (isRecording && Date.now() - lastSummaryTimeRef.current > 120000) {
+            lastSummaryTimeRef.current = Date.now();
+            wsRef.current.send(JSON.stringify({
+                clientContent: {
+                    turns: [{
+                        role: "user",
+                        parts: [{ text: "GIVE ME A STRATEGIC PULSE: What are the 3 most important strategic pivots or decisions discussed in the last few minutes? Label as 'STRATEGIC PULSE:'." }]
+                    }]
+                }
+            }));
+        }
+    };
+
+    source.connect(processor);
+    processor.connect(audioContextRef.current.destination);
   };
 
   // --- MICROPHONE INPUT ---
@@ -151,51 +231,58 @@ export default function LiveSession({ isOpen, onClose }: LiveSessionProps) {
         } 
       });
       mediaStreamRef.current = stream;
-
-      const source = audioContextRef.current!.createMediaStreamSource(stream);
-      // Processor: bufferSize 512, 1 input, 1 output
-      const processor = audioContextRef.current!.createScriptProcessor(512, 1, 1);
-      processorRef.current = processor;
-
-      processor.onaudioprocess = (e) => {
-        if (isMuted || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-
-        const inputData = e.inputBuffer.getChannelData(0); // Float32
-        
-        // Calculate volume for visualizer
-        let sum = 0;
-        for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
-        setVolumeLevel(Math.sqrt(sum / inputData.length));
-
-        // Convert to PCM 16-bit
-        const pcmData = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          const s = Math.max(-1, Math.min(1, inputData[i]));
-          pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-        }
-
-        // Base64 encode
-        const base64Audio = btoa(
-          new Uint8Array(pcmData.buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-        );
-
-        // Send to Gemini
-        wsRef.current.send(JSON.stringify({
-          realtimeInput: {
-            mediaChunks: [{
-              mimeType: "audio/pcm",
-              data: base64Audio
-            }]
-          }
-        }));
-      };
-
-      source.connect(processor);
-      processor.connect(audioContextRef.current!.destination); // Connect to dest to keep alive (mute output)
-
+      setupAudioProcessor(stream);
     } catch (e) {
       console.error("Mic access denied", e);
+      setStatus("error");
     }
+  };
+
+  const startSystemAudio = async () => {
+    try {
+      const stream = await (navigator.mediaDevices as any).getDisplayMedia({ 
+        video: true,
+        audio: {
+          channelCount: 1,
+          sampleRate: 16000,
+          echoCancellation: true,
+          noiseSuppression: true
+        } 
+      });
+      mediaStreamRef.current = stream;
+
+      const audioTrack = stream.getAudioTracks()[0];
+      if (!audioTrack) {
+          throw new Error("No system audio track found. Make sure to check 'Share system audio'.");
+      }
+
+      setupAudioProcessor(new MediaStream([audioTrack]));
+
+      // Stop video track if captured
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) videoTrack.stop();
+    } catch (e) {
+      console.error("System audio access denied", e);
+      setStatus("disconnected");
+      setSourceType("mic");
+    }
+  };
+
+  const handleSaveToVault = () => {
+      if (!transcript.trim() && summaries.length === 0) return;
+      const vault = new VaultService();
+      vault.saveAsset(
+          "meeting_summary", 
+          { 
+              transcript, 
+              summaries: summaries.map(s => s.text),
+              notes: "Automated meeting capture via Gemini Live." 
+          },
+          `Meeting Recap - ${new Date().toLocaleDateString()}`
+      );
+      setTranscript("");
+      setSummaries([]);
+      setIsRecording(false);
   };
 
   if (!isOpen) return null;
@@ -251,15 +338,101 @@ export default function LiveSession({ isOpen, onClose }: LiveSessionProps) {
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-6">
-            <button 
-                onClick={() => setIsMuted(!isMuted)}
-                className={`p-6 rounded-3xl transition-all ${isMuted ? 'bg-red-500/20 text-red-500' : 'bg-white/10 text-white hover:bg-white/20'}`}
-            >
-                {isMuted ? <MicOff className="w-8 h-8" /> : <Mic className="w-8 h-8" />}
-            </button>
+        <div className="flex flex-col items-center gap-8">
+            <div className="flex items-center gap-4 bg-white/5 p-2 rounded-2xl border border-white/10">
+                <button 
+                    onClick={() => {
+                        setSourceType("mic");
+                        if (status === "connected") disconnect();
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${sourceType === 'mic' ? 'bg-indigo-500 text-white' : 'text-neutral-500 hover:text-white'}`}
+                >
+                    <Mic className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase">Microphone</span>
+                </button>
+                <button 
+                    onClick={() => {
+                        setSourceType("system");
+                        if (status === "connected") disconnect();
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${sourceType === 'system' ? 'bg-indigo-500 text-white' : 'text-neutral-500 hover:text-white'}`}
+                >
+                    <Monitor className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase">System Audio</span>
+                </button>
+            </div>
+
+            <div className="flex items-center gap-6">
+                <button 
+                    onClick={() => setIsMuted(!isMuted)}
+                    className={`p-6 rounded-3xl transition-all ${isMuted ? 'bg-red-500/20 text-red-500' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                >
+                    {isMuted ? <MicOff className="w-8 h-8" /> : <Mic className="w-8 h-8" />}
+                </button>
+
+                {status === "connected" && (
+                    <button 
+                        onClick={() => setIsRecording(!isRecording)}
+                        className={`p-6 rounded-3xl transition-all ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                        title={isRecording ? "Stop Recording" : "Start Recording"}
+                    >
+                        <Disc className="w-8 h-8" />
+                    </button>
+                )}
+
+                {transcript.length > 0 && !isRecording && (
+                    <button 
+                        onClick={handleSaveToVault}
+                        className="p-6 rounded-3xl bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all border border-green-500/20"
+                        title="Save Recap to Vault"
+                    >
+                        <Save className="w-8 h-8" />
+                    </button>
+                )}
+            </div>
+            
+            {isRecording && (
+                <div className="flex items-center gap-2 text-red-400 animate-pulse">
+                    <div className="w-2 h-2 rounded-full bg-red-400" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Capturing Meeting Logic...</span>
+                </div>
+            )}
         </div>
 
+        {/* SIDEBAR: Strategic Summaries */}
+        <AnimatePresence>
+            {summaries.length > 0 && (
+                <motion.div 
+                    initial={{ x: 300, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: 300, opacity: 0 }}
+                    className="absolute right-8 top-32 bottom-32 w-80 bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md overflow-hidden flex flex-col"
+                >
+                    <div className="flex items-center gap-2 mb-6 border-b border-white/5 pb-4">
+                        <Activity className="w-4 h-4 text-indigo-400" />
+                        <h3 className="text-sm font-bold text-white uppercase tracking-widest">Strategic Pulse</h3>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                        {summaries.map((s) => (
+                            <motion.div 
+                                key={s.id}
+                                initial={{ y: 20, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                className="p-4 bg-white/5 border border-white/5 rounded-2xl relative"
+                            >
+                                <p className="text-xs text-neutral-300 leading-relaxed italic">
+                                    "{s.text}"
+                                </p>
+                                <div className="mt-2 text-[8px] font-mono text-neutral-600">
+                                    {s.timestamp.toLocaleTimeString()}
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );

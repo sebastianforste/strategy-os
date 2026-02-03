@@ -9,9 +9,10 @@ interface InterceptionPanelProps {
   onIntercept: (signal: Signal) => void;
   onComment?: (signal: Signal) => void;
   apiKey?: string;
+  vitals?: import("../utils/vitals-service").SystemVitals;
 }
 
-export default function InterceptionPanel({ onIntercept, onComment, apiKey }: InterceptionPanelProps) {
+export default function InterceptionPanel({ onIntercept, onComment, apiKey, vitals }: InterceptionPanelProps) {
   const [isActive, setIsActive] = useState(false);
   const [activeSignal, setActiveSignal] = useState<Signal | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -39,6 +40,28 @@ export default function InterceptionPanel({ onIntercept, onComment, apiKey }: In
   return (
     <div className="fixed bottom-8 right-8 z-30 flex flex-col items-end gap-4 pointer-events-none">
       
+      {/* Pulse Alerts - System Disruptions */}
+      <AnimatePresence>
+        {vitals && (vitals.api === 'offline' || vitals.api === 'limited') && (
+            <motion.div
+               initial={{ opacity: 0, scale: 0.8 }}
+               animate={{ opacity: 1, scale: 1 }}
+               exit={{ opacity: 0, scale: 0.8 }}
+               className="pointer-events-auto bg-red-950/40 backdrop-blur-md border border-red-500/50 p-3 rounded-xl flex items-center gap-3 w-80 shadow-[0_0_30px_rgba(220,38,38,0.2)]"
+            >
+               <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center animate-pulse">
+                   <Activity className="w-5 h-5 text-white" />
+               </div>
+               <div>
+                   <p className="text-[10px] font-black text-red-400 uppercase tracking-widest leading-none mb-1">Pulse Guard: Disruption</p>
+                   <p className="text-[11px] text-white font-bold leading-tight">
+                       Gemini {vitals.api === 'offline' ? 'is unreachable' : 'is heavily rate-limited'}.
+                   </p>
+               </div>
+            </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Alert Card */}
       <AnimatePresence>
         {activeSignal && (
