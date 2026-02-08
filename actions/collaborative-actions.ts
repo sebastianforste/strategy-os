@@ -29,6 +29,10 @@ export async function aiOptimizerAction(nodes: CanvasNodeState[], personaDNA: st
             { "from": "id1", "to": "id3", "label": "Strategic Pivot" }
         ]
     }
+
+    CONSTRAINTS:
+    - NO ROBOT WORDS: Do not use "Leverage", "Delve", "Synergy", "Optimize", "Facilitate".
+    - BE SPECIFIC: Use concrete terms (e.g., "Cost Reduction" instead of "Optimization").
     `;
 
     const google = createGoogleGenerativeAI({ apiKey: geminiKey });

@@ -30,7 +30,7 @@ export function calculateReadability(text: string): number {
  * Helper: Check signature phrases
  */
 const SIGNATURE_PHRASES: Record<string, string[]> = {
-  cso: ["leverage", "strategic", "equity", "trajectory", "stakeholder"],
+  cso: ["advantage", "strategic", "equity", "trajectory", "stakeholder"],
   contrarian: ["dead", "wrong", "fail", "lie", "trap"],
   storyteller: ["journey", "remember", "connect", "felt", "moment"],
   colleague: ["excited", "team", "proud", "work", "together"]

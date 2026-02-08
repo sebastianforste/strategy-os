@@ -3,7 +3,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { AI_CONFIG } from "./config";
 
-import { BANNED_WORDS as CRINGE_WORDS } from "./text-processor";
+import { BANNED_WORDS as CRINGE_WORDS, applyAntiRobotFilter } from "./text-processor";
 
 export interface Critique {
   score: number; // 0-100
@@ -140,5 +140,6 @@ export async function optimizeContent(content: string, apiKey: string): Promise<
     console.log("[Viral Opt] invoking Refiner...");
     const refined = await refinePost(content, critique, apiKey);
     
-    return refined;
+    // 5. Final Safety Net: Deterministic Filter
+    return applyAntiRobotFilter(refined);
 }
