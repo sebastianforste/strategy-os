@@ -1,23 +1,23 @@
-# StrategyOS 🧠
+# StrategyOS 🧠 (World-Class Edition)
 
 **The high-velocity content engine for the modern Chief Strategy Officer.**
 
-StrategyOS is a personal tool that helps you write high-status, contrarian LinkedIn content in seconds, not hours. It combines the analytical precision of a Fortune 500 CSO with the viral hook mastery of a ghostwriter.
+StrategyOS is a premium AI Strategist that helps you write high-status, contrarian LinkedIn content. Restored to its peak February 3rd design, it now enforces "World-Class" standards for every asset generated.
 
 ---
 
 ## 🚀 Key Features
 
 *   **AI Drafting Engine**: Generates 3 assets (Text, Image Prompt, Video Script) from one topic.
-*   **World-Class Personas (NEW)**: Choose from the Strategist, the Founder, the High-Performer, or the Provocateur—each with unique biographies, emotional arcs, and signature phrases.
-*   **Comment Generator**: Generate high-status, persona-aligned replies to external posts in seconds.
-*   **Anti-Detection Layer (NEW)**: Automatically varies sentence structure, list lengths, and inserts human-like "micro-specifics" to bypass AI detectors.
-*   **Anti-Robot Core**: Automatically filters out "ChatGPT words" (e.g., *delve, unlock, tapestry*) to ensure your content sounds human and premium.
-*   **Trend Hunter**: Scans the web (via Google Grounding) for real-time news to ground your posts in reality.
-*   **Visualize Value Images**: Creates minimalist, high-contrast vector art (via Google Imagen 4).
-*   **Template Library**: Save your best posts as reusable templates with "Mad Libs" style variables.
-*   **Smart Export**: Copy perfectly formatted posts for Notion (Markdown) or Google Docs (HTML).
-*   **Team Workspaces**: Switch between different brand contexts or clients.
+*   **World-Class Personas**: Choose from the Strategist (CSO), the Founder, or the Provocateur—now calibrated for maximum authority and zero "AI-smell."
+*   **Viral Syntax (Bro-etry)**: Guaranteed vertical rhythm. Every sentence is its own paragraph. Single sentences separated by double line breaks.
+*   **Anti-Robot Core V2**: Automatic filtering of 24+ high-frequency "LLM words" (e.g., *embark, delve, leverage*).
+*   **Cinematic Dark Theme**: A premium, "Visualize Value" inspired UI with noise textures and aurora gradients.
+*   **Trend Hunter**: Scans the web via Google Grounding for real-time strategic context.
+*   **Visualize Value Images**: Minimalist vector art via Google Imagen 4.
+*   **Comment Generator**: Persona-aligned, high-status replies to spark engagement.
+*   **Smart Export**: One-click copy for Notion, Google Docs, or direct to social.
+*   **Local-First Architecture**: Secure, fast, and private.
 
 ---
 

@@ -10,7 +10,7 @@ export const SYSTEM_PROMPTS = {
   // --- CORE GENERATION ---
   CORE_GENERATION_V1: `
     Analyze this input and generate a 5-pillar content strategy for 2028:
-    1. LinkedIn Text Post (following the rules).
+    1. LinkedIn Text Post (FOLLOW VIRAL SYNTAX: One sentence per paragraph. Double space between sentences. No AI-isms).
     2. X Thread (JSON array of 5-10 tweets, punchy, high curiosity gaps, max 280 chars each).
     3. Substack Essay (A long-form, highly intellectual exploration, structured with headers, 1000+ words).
     4. "Visualize Value" Image Prompt (Minimalist vector line art, white on black, geometric representation of the concept).
@@ -18,6 +18,9 @@ export const SYSTEM_PROMPTS = {
     6. YouTube Thumbnail Prompt (High-CTR, "MrBeast style" or "Figma minimalist", focusing on facial expression and bold text).
     7. 60s Video Script (Cinematic, viral hook, regular retention cuts).
 
+    ANTI-ROBOT PROTOCOL:
+    BANNED: Delve, Leverage, Unleash, Unlock, Embark, Navigate, Foster, Facilitate, Optimize, Revolutionize, Transform, Spearhead, Tapestry, Game-changer, Seamless, Robust, Dynamic, Intricate, Myriad, Plethora, Crucial.
+    
     INPUT:
     "{{input}}"
     {{signalContext}}
@@ -68,7 +71,7 @@ export const SYSTEM_PROMPTS = {
     2. ADD VALUE: Provide a strategic pivot, a contrarian angle, or a clarifying framework that the author missed.
     3. INTERACT: Treat the author as a peer. Challenge them or support them with logic.
     4. BREVITY: Keep it under 50 words. No "I hope this helps" or fluff.
-    5. NO ROBOT SPEAK: Follow the "Anti-Robot Filter" (No 'Delve', 'Unleash', 'Game-changer').
+    5. NO ROBOT SPEAK: Follow the "Anti-Robot Filter" (BANNED: Delve, Leverage, Unleash, Unlock, Embark, Navigate, Foster, Facilitate, Optimize, Revolutionize, Transform, Spearhead, Tapestry, Game-changer, Seamless, Robust, Dynamic, Intricate, Myriad, Plethora, Crucial).
     
     The comment should feel like it's part of a high-level executive conversation.
     
@@ -147,7 +150,7 @@ ANTI-DETECTION LAYER (CRITICAL FOR AUTHENTICITY):
 EXECUTION RULES:
 1. Start with substance immediately. NEVER: "Great post!" "Thanks for sharing!" "I agree that..."
 2. Zero hashtags. Zero emojis.
-3. Eliminate AI clichés: delve, landscape, unlock, unleash, tapestry, ecosystem, holistic, leverage (as verb), paradigm.
+3. ELIMINATE AI CLICHÉS: Delve, Leverage, Unleash, Unlock, Embark, Navigate, Foster, Facilitate, Optimize, Revolutionize, Transform, Spearhead, Tapestry, Game-changer, Seamless, Robust, Dynamic, Intricate, Myriad, Plethora, Crucial.
 4. Write as a peer, not a supplicant. Assume equal status.
 5. If you reference data/frameworks, be specific. No hand-waving.
 6. Natural language only. Avoid formulaic structures that telegraph AI authorship.

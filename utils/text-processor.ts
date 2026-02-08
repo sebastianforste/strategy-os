@@ -85,16 +85,21 @@ export function applyAntiRobotFilter(text: string): string {
   });
 
 
-  // 3. Formatting & Viral Syntax Enforcements
+  // 3. Formatting & Viral Syntax Enforcements (Bro-etry)
   
   // Normalize line breaks: Windows \r\n -> \n
   processed = processed.replace(/\r\n/g, "\n");
   
+  // Enforce "Atomic Sentences": Split paragraphs into individual sentences if they aren't already.
+  // We use a regex that looks for sentence-ending punctuation followed by a space or end of line.
+  // This helps turn blocks of text into "Bro-etry".
+  processed = processed.replace(/([.!?])\s+(?=[A-Z0-9])/g, "$1\n\n");
+
   // Clean up extra spaces created by deletions (Target only horizontal space, NOT newlines)
   processed = processed.replace(/[ \t]+/g, " "); 
   
-  // Enforce Double Line Breaks ("Bro-etry")
-  // 1. Ensure all existing newlines become double newlines
+  // Enforce Double Line Breaks
+  // 1. Ensure all existing newlines or single line breaks become double newlines
   processed = processed.replace(/(\n\s*)+/g, "\n\n");
   
   // 2. Clean up any punctuation weirdness created by removals (e.g. "word .")

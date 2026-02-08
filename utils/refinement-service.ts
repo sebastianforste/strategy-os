@@ -3,24 +3,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { AI_CONFIG } from "./config";
 
-// 1. Cringe Guardrails (The "Ban List")
-const CRINGE_WORDS = [
-  "delve",
-  "tapestry",
-  "landscape",
-  "game changer",
-  "unlock",
-  "supercharge",
-  "elevate",
-  "leverage",
-  "synergy",
-  "paradigm shift",
-  "thought leader",
-  "ninja",
-  "guru",
-  "rockstar",
-  "hustle",
-];
+import { BANNED_WORDS as CRINGE_WORDS } from "./text-processor";
 
 export interface Critique {
   score: number; // 0-100
@@ -111,8 +94,9 @@ export async function refinePost(content: string, critique: Critique, apiKey: st
      INSTRUCTIONS:
      1. Fix all issues identified by the editor.
      2. Make the hook significantly punchier (under 12 words).
-     3. Remove all "cringe" words (delve, tapestry, unlock).
-     4. Keep the core insight but make it sound human and high-status.
+     3. Remove all "cringe" words (delve, tapestry, unlock, leverage, unleash, navigate, embark, facilitate).
+     4. VIRAL SYNTAX (CRITICAL): EVERY SINGLE SENTENCE must be its own paragraph. Use DOUBLE newline breaks between EVERY sentence.
+     5. Keep the core insight but make it sound human and high-status.
      
      Return ONLY the rewritten post text.
    `;

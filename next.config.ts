@@ -13,9 +13,13 @@ const withPWA = withPWAInit({
 const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["@lancedb/lancedb"], // Required for native modules like LanceDB/Sharp
-  experimental: {},
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
   transpilePackages: ["@react-pdf/renderer"],
-  turbopack: {}, 
+  turbopack: {
+    root: ".",
+  },
   webpack: (config) => {
     config.resolve.alias.canvas = false;
     return config;

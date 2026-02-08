@@ -39,7 +39,7 @@ export default function VisualGenerator({ concept, apiKey }: VisualGeneratorProp
     try {
         const genAI = new GoogleGenAI({ apiKey });
         const result = await genAI.models.generateContent({
-            model: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-2.5-flash-native-audio-latest",
+            model: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "models/gemini-2.0-flash",
             contents: prompt
         });
         

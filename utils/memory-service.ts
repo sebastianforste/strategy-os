@@ -47,7 +47,11 @@ async function getEmbedding(text: string, apiKey: string): Promise<number[]> {
         model: "text-embedding-004",
         contents: [{ parts: [{ text }] }]
     });
-    return (result as any).embeddings[0].values;
+    const response = (result as any);
+    if (!response.embeddings || !response.embeddings[0] || !response.embeddings[0].values) {
+        throw new Error("[MemoryService] Failed to retrieve valid embedding from Gemini API");
+    }
+    return response.embeddings[0].values;
 }
 
 /**

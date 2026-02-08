@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "vitest": "^4.0.18"
+  },
+  "_npx": {
+    "packages": [
+      "vitest"
+    ]
+  }
+}
