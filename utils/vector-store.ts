@@ -5,10 +5,20 @@ import { AI_CONFIG } from "./config";
 
 const DB_PATH = ".lancedb";
 const EMBEDDING_MODEL = AI_CONFIG.embeddingModel;
-const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
 
-// Singleton for GenAI
-const genAI = new GoogleGenAI({ apiKey: API_KEY });
+// Lazy GenAI singleton - initialized on first use to avoid module load errors
+let genAIInstance: GoogleGenAI | null = null;
+
+function getGenAI(): GoogleGenAI {
+  if (!genAIInstance) {
+    const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
+    if (!apiKey) {
+      throw new Error("No API key found. Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable.");
+    }
+    genAIInstance = new GoogleGenAI({ apiKey });
+  }
+  return genAIInstance;
+}
 
 // Singleton for LanceDB
 let dbInstance: lancedb.Connection | null = null;
@@ -33,7 +43,7 @@ export interface VectorDocument {
 export async function getEmbedding(text: string): Promise<number[]> {
   try {
     // @ts-ignore - SDK type definitions can be inconsistent
-    const response = await genAI.models.embedContent({
+    const response = await getGenAI().models.embedContent({
       model: EMBEDDING_MODEL,
       contents: [text]
     });

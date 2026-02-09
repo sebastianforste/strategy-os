@@ -33,7 +33,7 @@ export async function embedText(text: string, apiKey: string): Promise<number[]>
     
     try {
         const response = await genAI.models.embedContent({
-            model: "text-embedding-004",
+            model: "models/text-embedding-004",
             contents: text
         });
         
