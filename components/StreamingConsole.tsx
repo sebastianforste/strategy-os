@@ -420,7 +420,7 @@ MODE: High Authority
                 <input 
                     type="text" 
                     placeholder="Search intelligence, trends, or agent commands... (Cmd+K)"
-                    className="w-full bg-[#0c0c0c] border border-white/5 rounded-2xl py-2.5 pl-12 pr-4 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-white/20 transition-all hover:bg-neutral-900 shadow-2xl"
+                    className="w-full bg-black/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl py-2.5 pl-12 pr-4 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-indigo-500/50 focus:shadow-[0_0_20px_rgba(99,102,241,0.15)] transition-all hover:bg-black/60 shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
                     onClick={() => setIsCommandOpen(true)}
                     readOnly
                 />
@@ -760,14 +760,14 @@ function AppIconCard({ label, onClick, icon }: { label: string, onClick: () => v
     return (
         <button 
             onClick={onClick}
-            className="group relative p-6 bg-[#0c0c0c] border border-white/5 rounded-3xl hover:border-white/20 transition-all text-left flex flex-col gap-4 overflow-hidden"
+            className="group relative p-6 bg-black/40 backdrop-blur-xl border border-white/[0.06] rounded-3xl hover:border-indigo-500/30 hover:shadow-[0_0_30px_rgba(99,102,241,0.1)] transition-all duration-300 text-left flex flex-col gap-4 overflow-hidden"
         >
-            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="p-3 bg-white/5 rounded-2xl w-fit group-hover:scale-110 transition-transform">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] via-transparent to-purple-500/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="p-3 bg-white/[0.06] rounded-2xl w-fit group-hover:scale-110 group-hover:bg-white/[0.1] transition-all duration-300">
                 {icon}
             </div>
             <div>
-                <h3 className="text-sm font-bold text-white group-hover:text-indigo-200 transition-colors uppercase tracking-wider">{label}</h3>
+                <h3 className="text-sm font-bold text-white group-hover:text-indigo-200 transition-colors duration-300 uppercase tracking-wider">{label}</h3>
                 <p className="text-[10px] text-neutral-500 mt-1 uppercase tracking-tight font-mono">Execute Operational Module</p>
             </div>
         </button>

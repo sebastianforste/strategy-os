@@ -49,7 +49,7 @@ export default function SidebarRail({
             <div className="lg:hidden fixed top-6 left-6 z-[100]">
                 <button 
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    className="p-3 bg-[#080808] border border-white/10 rounded-xl text-white shadow-2xl"
+                    className="p-3 glass-panel bg-black/80 border border-white/10 rounded-xl text-white shadow-2xl backdrop-blur-xl"
                 >
                     {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                 </button>
@@ -60,7 +60,7 @@ export default function SidebarRail({
                 animate={{ 
                     x: isMenuOpen ? 0 : (typeof window !== 'undefined' && window.innerWidth < 1024 ? -100 : 0)
                 }}
-                className={`fixed left-0 top-0 bottom-0 w-20 bg-[#080808] border-r border-white/5 flex flex-col items-center py-8 z-50 transition-transform duration-300 lg:translate-x-0 ${isMenuOpen ? 'translate-x-0 shadow-2xl shadow-black' : '-translate-x-full lg:translate-x-0'} ${isGhostActive ? 'grayscale' : ''}`}
+                className={`fixed left-0 top-0 bottom-0 w-20 bg-black/60 backdrop-blur-2xl border-r border-white/[0.08] flex flex-col items-center py-8 z-50 transition-all duration-300 lg:translate-x-0 ${isMenuOpen ? 'translate-x-0 shadow-[0_0_60px_rgba(0,0,0,0.8)]' : '-translate-x-full lg:translate-x-0'} ${isGhostActive ? 'grayscale' : ''}`}
             >
                 {/* Logo & Workspace Area */}
                 <div className="mb-10 flex flex-col items-center gap-4 px-2">
@@ -179,14 +179,14 @@ function RailItem({ icon, label, active, onClick }: { icon: React.ReactNode, lab
             onClick={onClick}
             className="group relative flex items-center justify-center w-12 h-12 transition-all"
         >
-            <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-in-out ${active ? 'bg-white/10 scale-100' : 'bg-transparent scale-90 group-hover:bg-white/5 opacity-0 group-hover:opacity-100'}`} />
+            <div className={`absolute inset-0 rounded-xl transition-all duration-300 ease-out ${active ? 'bg-gradient-to-br from-indigo-500/20 to-purple-500/10 scale-100 shadow-[0_0_20px_rgba(99,102,241,0.15)]' : 'bg-transparent scale-90 group-hover:bg-white/[0.06] group-hover:scale-100 opacity-0 group-hover:opacity-100'}`} />
             
             <div className={`relative transition-all duration-200 ease-in-out ${active ? 'text-white scale-110' : 'text-neutral-500 group-hover:text-neutral-300'}`}>
                 {icon}
             </div>
 
             {/* Tooltip */}
-            <div className="absolute left-full ml-4 px-2 py-1 bg-[#111] border border-white/10 text-white text-[10px] font-black rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap uppercase tracking-[0.2em] shadow-2xl z-[60]">
+            <div className="absolute left-full ml-4 px-3 py-1.5 bg-black/90 backdrop-blur-xl border border-white/[0.08] text-white text-[10px] font-black rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap uppercase tracking-[0.15em] shadow-[0_4px_20px_rgba(0,0,0,0.5)] z-[60]">
                 {label}
             </div>
 
@@ -194,7 +194,7 @@ function RailItem({ icon, label, active, onClick }: { icon: React.ReactNode, lab
             {active && (
                 <motion.div 
                     layoutId="activeRail"
-                    className="absolute -left-[34px] w-1 h-8 bg-white rounded-r-full shadow-[0_0_10px_rgba(255,255,255,0.5)]"
+                    className="absolute -left-[34px] w-1 h-8 bg-gradient-to-b from-indigo-400 to-purple-500 rounded-r-full shadow-[0_0_20px_rgba(129,140,248,0.6)]"
                 />
             )}
         </button>
