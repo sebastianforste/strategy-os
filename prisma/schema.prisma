@@ -2,12 +2,12 @@
 // Phase 17: Team Collaboration & Cloud Persistence
 
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "library"
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 // --- AUTHENTICATION (NextAuth) ---
@@ -98,6 +98,11 @@ model Strategy {
   title       String?
   platform    Platform     @default(LINKEDIN)
   persona     String       @default("cso")
+  
+  // Phase 24: Data Intelligence Layer
+  input       String       @default("")
+  assets      String       @default("{}") // JSON: GeneratedAssets
+  rating      String?      // "viral", "good", "meh", "flopped"
   
   // Performance
   score       Int?
