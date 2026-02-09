@@ -186,7 +186,7 @@ export default function MastermindDashboard({
                              <Target className="w-4 h-4 text-purple-400" />
                              Oracle Forecasts
                         </h3>
-                        <span className="text-[10px] text-purple-400 font-mono">NEXT 7 DAYS</span>
+                        <span className="text-[10px] text-purple-300 font-mono font-bold tracking-wide">NEXT 7 DAYS</span>
                      </div>
                      <div className="space-y-3 relative z-10">
                          {topPredictions.length === 0 ? (
@@ -222,17 +222,17 @@ export default function MastermindDashboard({
                              <Sparkles className="w-4 h-4 text-orange-400" />
                              Top Voice Opportunities
                         </h3>
-                        <span className="text-[10px] text-orange-400 font-mono">GOLD BADGE PROTOCOL</span>
+                        <span className="text-[10px] text-orange-300 font-mono font-bold tracking-wide">GOLD BADGE PROTOCOL</span>
                      </div>
                      <div className="space-y-3 relative z-10">
                          {collabOpportunities.map((art, i) => (
                              <div key={i} className="p-3 bg-orange-500/5 rounded-lg border border-orange-500/20 hover:border-orange-500/40 transition-colors cursor-pointer group/item">
                                  <div className="flex items-start justify-between">
-                                    <p className="text-xs text-neutral-200 font-medium line-clamp-1 group-hover/item:text-orange-200 transition-colors">{art.title}</p>
+                                    <p className="text-xs text-neutral-100 font-medium line-clamp-1 group-hover/item:text-orange-200 transition-colors">{art.title}</p>
                                     <ArrowUpRight className="w-3 h-3 text-neutral-600 group-hover/item:text-orange-400" />
                                  </div>
                                  <div className="flex items-center gap-3 mt-2">
-                                     <span className="text-[9px] text-neutral-500">{art.currentContributions} contributions</span>
+                                     <span className="text-[9px] text-neutral-400">{art.currentContributions} contributions</span>
                                      <span className="text-[9px] text-orange-500/80 font-bold">{art.badgePotential}% POTENTIAL</span>
                                  </div>
                              </div>
@@ -248,7 +248,7 @@ export default function MastermindDashboard({
                         </div>
                         <div>
                             <h3 className="font-bold text-white">Viral Engine</h3>
-                            <p className="text-xs text-neutral-500">Farm engagement.</p>
+                            <p className="text-xs text-neutral-400 group-hover:text-neutral-300 transition-colors">Farm engagement.</p>
                         </div>
                      </div>
                      <div className="flex items-center gap-2">
@@ -265,7 +265,7 @@ export default function MastermindDashboard({
                         </div>
                         <div>
                             <h3 className="font-bold text-white">Media Agent</h3>
-                            <p className="text-xs text-neutral-500">Podcast outreach.</p>
+                            <p className="text-xs text-neutral-400 group-hover:text-neutral-300 transition-colors">Podcast outreach.</p>
                         </div>
                      </div>
                      <div className="flex items-center gap-2">
@@ -282,7 +282,7 @@ export default function MastermindDashboard({
                         </div>
                         <div>
                             <h3 className="font-bold text-white">Cliche Killer</h3>
-                            <p className="text-xs text-neutral-500">Anti-generic defense.</p>
+                            <p className="text-xs text-neutral-400 group-hover:text-neutral-300 transition-colors">Anti-generic defense.</p>
                         </div>
                      </div>
                      <div className="flex items-center gap-2">
@@ -322,7 +322,7 @@ export default function MastermindDashboard({
                         ) : briefing ? (
                             <div className="space-y-8">
                                 <div>
-                                    <p className="text-lg text-neutral-300 leading-relaxed font-medium italic mb-2">
+                                    <p className="text-lg text-white leading-relaxed font-medium italic mb-2 drop-shadow-md">
                                         "{briefing.summary}"
                                     </p>
                                     <div className="h-1 w-20 bg-indigo-500/50 rounded-full" />
@@ -340,14 +340,14 @@ export default function MastermindDashboard({
                                                 <ArrowUpRight className="w-3 h-3 text-neutral-600" />
                                             </div>
                                             <p className="text-sm font-bold text-white mb-1">{p.task}</p>
-                                            <p className="text-xs text-neutral-500">{p.reason}</p>
+                                            <p className="text-xs text-neutral-400">{p.reason}</p>
                                         </div>
                                     ))}
                                 </div>
 
                                 <div className="pt-6 border-t border-white/5">
                                     <p className="text-[10px] text-neutral-600 font-bold uppercase tracking-[0.2em]">VIBE CHECK</p>
-                                    <p className="text-neutral-400 mt-1 font-mono">{briefing.vibeCheck}</p>
+                                    <p className="text-neutral-300 mt-1 font-mono text-xs">{briefing.vibeCheck}</p>
                                 </div>
                             </div>
                         ) : (
@@ -431,7 +431,7 @@ export default function MastermindDashboard({
                             </motion.div>
                         )}
                     </div>
-                        <p className="text-[10px] text-neutral-500 leading-relaxed">
+                        <p className="text-[10px] text-neutral-400 leading-relaxed">
                             {isAutoPilot 
                                 ? "Ghost Agent is active. High-integrity posts will be distributed autonomously." 
                                 : "Manual approval required for all distribution."}
@@ -444,7 +444,7 @@ export default function MastermindDashboard({
                         </p>
                         <button 
                             onClick={() => onViewChange('feed')}
-                            className="w-full py-3 bg-white text-indigo-600 font-black rounded-xl text-xs hover:scale-[1.02] transition-transform shadow-lg"
+                            className="w-full py-3 bg-white text-indigo-600 font-black rounded-xl text-xs hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center gap-2"
                         >
                             GENERATE TODAY'S ASSETS
                         </button>
@@ -501,7 +501,7 @@ function StatCard({ label, value, trend, icon, onClick }: { label: string, value
                 </div>
                 {trend && <span className="text-[10px] font-bold text-indigo-400/80 uppercase tracking-widest">{trend}</span>}
             </div>
-            <p className="text-[10px] text-neutral-600 font-black uppercase tracking-[0.2em]">{label}</p>
+            <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-[0.2em] group-hover:text-neutral-300 transition-colors">{label}</p>
             <p className="text-2xl font-black text-white mt-1 uppercase tracking-tighter">{value}</p>
         </div>
     );

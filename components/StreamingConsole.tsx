@@ -740,18 +740,18 @@ MODE: High Authority
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function OutputFormatSelector({ format, setFormat }: { format: string; setFormat: (f: any) => void }) {
   return (
-    <div className="flex items-center bg-black/40 rounded-lg p-0.5 border border-white/5">
-      <button onClick={() => setFormat("text")} className={`p-1.5 rounded-md transition-all ${format === "text" ? "bg-white/10 text-white" : "text-neutral-500 hover:text-white"}`}><FileText className="w-3.5 h-3.5" /></button>
-      <button onClick={() => setFormat("video")} className={`p-1.5 rounded-md transition-all ${format === "video" ? "bg-red-500/20 text-red-400" : "text-neutral-500 hover:text-white"}`} title="Video Script"><Brain className="w-3.5 h-3.5" /></button>
-      <button onClick={() => setFormat("audio")} className={`p-1.5 rounded-md transition-all ${format === "audio" ? "bg-purple-500/20 text-purple-400" : "text-neutral-500 hover:text-white"}`} title="Audio Narration"><Database className="w-3.5 h-3.5" /></button>
+    <div className="flex items-center bg-black/40 backdrop-blur-md rounded-lg p-0.5 border border-white/10">
+      <button onClick={() => setFormat("text")} className={`p-1.5 rounded-md transition-all ${format === "text" ? "bg-white/10 text-white shadow-sm" : "text-neutral-400 hover:text-white hover:bg-white/5"}`}><FileText className="w-3.5 h-3.5" /></button>
+      <button onClick={() => setFormat("video")} className={`p-1.5 rounded-md transition-all ${format === "video" ? "bg-red-500/20 text-red-300 shadow-sm ring-1 ring-red-500/20" : "text-neutral-400 hover:text-white hover:bg-white/5"}`} title="Video Script"><Brain className="w-3.5 h-3.5" /></button>
+      <button onClick={() => setFormat("audio")} className={`p-1.5 rounded-md transition-all ${format === "audio" ? "bg-purple-500/20 text-purple-300 shadow-sm ring-1 ring-purple-500/20" : "text-neutral-400 hover:text-white hover:bg-white/5"}`} title="Audio Narration"><Database className="w-3.5 h-3.5" /></button>
     </div>
   );
 }
 
 function PlatformIcon({ platform }: { platform: "linkedin" | "twitter" }) {
   return (
-    <div className={`p-1.5 rounded-lg border border-white/5 ${platform === 'linkedin' ? 'bg-blue-600/20 text-blue-400' : 'bg-white/10 text-white'}`}>
-       <span className="text-[10px] font-bold uppercase">{platform === 'linkedin' ? 'Li' : 'X'}</span>
+    <div className={`p-1.5 rounded-lg border ${platform === 'linkedin' ? 'bg-blue-600/20 border-blue-500/30 text-blue-300 shadow-[0_0_10px_rgba(37,99,235,0.1)]' : 'bg-white/10 border-white/10 text-white'}`}>
+       <span className="text-[10px] font-black uppercase tracking-tight">{platform === 'linkedin' ? 'Li' : 'X'}</span>
     </div>
   );
 }
@@ -760,15 +760,15 @@ function AppIconCard({ label, onClick, icon }: { label: string, onClick: () => v
     return (
         <button 
             onClick={onClick}
-            className="group relative p-6 bg-black/40 backdrop-blur-xl border border-white/[0.06] rounded-3xl hover:border-indigo-500/30 hover:shadow-[0_0_30px_rgba(99,102,241,0.1)] transition-all duration-300 text-left flex flex-col gap-4 overflow-hidden"
+            className="group relative p-6 bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl hover:border-indigo-500/40 hover:bg-black/60 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all duration-300 text-left flex flex-col gap-4 overflow-hidden"
         >
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] via-transparent to-purple-500/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <div className="p-3 bg-white/[0.06] rounded-2xl w-fit group-hover:scale-110 group-hover:bg-white/[0.1] transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.05] via-transparent to-purple-500/[0.05] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="p-3 bg-white/10 rounded-2xl w-fit group-hover:scale-110 group-hover:bg-white/20 transition-all duration-300 shadow-inner">
                 {icon}
             </div>
             <div>
-                <h3 className="text-sm font-bold text-white group-hover:text-indigo-200 transition-colors duration-300 uppercase tracking-wider">{label}</h3>
-                <p className="text-[10px] text-neutral-500 mt-1 uppercase tracking-tight font-mono">Execute Operational Module</p>
+                <h3 className="text-sm font-black text-white group-hover:text-indigo-200 transition-colors duration-300 uppercase tracking-wider">{label}</h3>
+                <p className="text-[10px] text-neutral-400 mt-1 uppercase tracking-tight font-mono group-hover:text-neutral-300">Execute Operational Module</p>
             </div>
         </button>
     );
