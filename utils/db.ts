@@ -5,6 +5,7 @@
  * Uses standard PrismaClient without native adapters for Next.js compatibility.
  */
 
+import "server-only";
 import { PrismaClient } from "@prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 

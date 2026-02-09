@@ -118,7 +118,7 @@ function PersonalAnalytics({ apiKey, onPersonaMutated }: { apiKey: string, onPer
     const loadAnalytics = async () => {
         setIsLoading(true);
         try {
-            // Priority: Try to fetch real-world analytics from DB/API
+            // Fetch analytics from API route (server-side)
             const response = await fetch("/api/analytics/dashboard");
             if (response.ok) {
                 const data = await response.json();
@@ -126,16 +126,21 @@ function PersonalAnalytics({ apiKey, onPersonaMutated }: { apiKey: string, onPer
                 return;
             }
             
-            // Fallback: Generate intelligence from local archived data + AI synthesis
-            console.warn("API Analytics failed, falling back to local.");
-            const { generateAnalyticsReport } = await import("../utils/analytics-service");
-            const report = await generateAnalyticsReport(apiKey);
+            // Fallback: Use server action
+            console.warn("API Analytics failed, falling back to server action.");
+            const { getAnalyticsReport } = await import("../actions/analytics");
+            const report = await getAnalyticsReport(apiKey);
             setInsights(report);
         } catch (e) {
-            console.error("Failed to load real-time analytics, falling back to local archive", e);
-            const { generateAnalyticsReport } = await import("../utils/analytics-service");
-            const report = await generateAnalyticsReport(apiKey);
-            setInsights(report);
+            console.error("Failed to load analytics", e);
+            // Final fallback: Use server action
+            try {
+                const { getAnalyticsReport } = await import("../actions/analytics");
+                const report = await getAnalyticsReport(apiKey);
+                setInsights(report);
+            } catch (innerError) {
+                console.error("Server action also failed", innerError);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -149,8 +154,8 @@ function PersonalAnalytics({ apiKey, onPersonaMutated }: { apiKey: string, onPer
 
         setIsEvolving(true);
         try {
-            const { evolvePersonaAction } = await import("../actions/generate");
-            const report = await evolvePersonaAction("cso", apiKey);
+            const { runDarwinEvolution } = await import("../actions/analytics");
+            const report = await runDarwinEvolution("cso", apiKey);
             setEvolutionReport(report);
         } catch (e) {
             alert(`Evolution failed: ${e instanceof Error ? e.message : "Unknown error"}`);
@@ -160,11 +165,10 @@ function PersonalAnalytics({ apiKey, onPersonaMutated }: { apiKey: string, onPer
     };
 
     const handleApplyMutation = async (report: EvolutionReport) => {
-        const { savePersonaEvolution } = await import("../utils/evolution-service");
-        
-        setIsEvolving(true); // Show loader during persistence
+        setIsEvolving(true);
         try {
-            await savePersonaEvolution(report);
+            const { applyEvolutionMutation } = await import("../actions/analytics");
+            await applyEvolutionMutation(report);
             if (onPersonaMutated) {
                 onPersonaMutated(report.mutatedPrompt);
             }
