@@ -18,12 +18,14 @@
     "@ducanh2912/next-pwa": "^10.2.9",
     "@google/genai": "^1.38.0",
     "@lancedb/lancedb": "^0.23.0",
-    "@prisma/client": "^6.2.1",
+    "@prisma/adapter-better-sqlite3": "^7.3.0",
+    "@prisma/client": "7.3.0",
     "@react-pdf/renderer": "^4.3.2",
     "@tailwindcss/typography": "^0.5.19",
     "@types/react-big-calendar": "^1.16.3",
     "ai": "^6.0.49",
     "autoprefixer": "^10.4.24",
+    "better-sqlite3": "^12.6.2",
     "classnames": "^2.5.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
@@ -36,7 +38,6 @@
     "next-auth": "^4.24.7",
     "openai": "^6.16.0",
     "postcss": "^8.5.6",
-    "prisma": "^6.2.1",
     "react": "19.2.3",
     "react-big-calendar": "^1.19.4",
     "react-dom": "19.2.3",
@@ -52,6 +53,7 @@
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -60,9 +62,15 @@
     "eslint": "^9",
     "eslint-config-next": "^16.1.6",
     "jsdom": "^27.4.0",
+    "prisma": "^7.3.0",
     "server-only": "^0.0.1",
     "tailwindcss": "^4.1.18",
     "typescript": "^5",
     "vitest": "^4.0.18"
+  },
+  "overrides": {
+    "glob": "^11.0.0",
+    "inflight": "npm:lru-cache@^10.0.0",
+    "sourcemap-codec": "npm:@jridgewell/sourcemap-codec@^1.5.0"
   }
 }

@@ -32,3 +32,4 @@ export interface GeneratedAssets {
 
 // Re-export type if needed for other components
 export type { PersonaId };
+export type { SectorId } from "./sectors";

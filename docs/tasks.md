@@ -189,8 +189,14 @@
     - [x] Create "Golden Set" of inputs to test regarding regressions (Covered by E2E)
     - [x] GitHub Actions workflow for automated checks
 
-## Phase 21: Comment Generation Engine (COMPLETE ✅)
-- [x] Specialized "Reply Mode" AI logic
-- [x] Persona integration for replies
-- [x] Clipboard pasting support
-- [x] UI/UX: Reply Modal with Tone Selection
+## Phase 23: Ghost Agent V2 (Dynamic Sector Selection) (COMPLETE ✅)
+- [x] `utils/sectors.ts` Definitions
+- [x] Sector Selector UI in `ToolBar.tsx`
+- [x] Context Injection in `actions/generate.ts`
+- [x] Verification (Code Inspection & Script)
+
+## Phase 24: Data Intelligence Layer ("The Coach") (CURRENT)
+- [ ] **Infrastructure Upgrade**: Migrate History from LocalStorage to Prisma (SQLite)
+- [ ] **Analytics Service**: Create Server-side aggregation for deep insights
+- [ ] **Virality Engine**: Implement V2 scoring based on real user performance history
+- [ ] **Feedback Loop**: "Coach" mode that suggests improvements based on past wins

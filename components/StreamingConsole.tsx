@@ -22,6 +22,7 @@ import { SystemVitals, checkVitals } from "../utils/vitals-service";
 // Types
 import { StreamingConsoleProps, DEFAULT_STARTER_CHIPS } from "./StreamingConsole/types";
 import { PersonaId, PERSONAS } from "../utils/personas";
+import { SectorId } from "../utils/sectors";
 
 // Hooks
 import { useInput } from "./StreamingConsole/hooks/useInput";
@@ -129,6 +130,9 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
   const [coworkerRole, setCoworkerRole] = useState("");
   const [coworkerRelation, setCoworkerRelation] = useState("");
   
+  // Sector Selection (Phase 23)
+  const [sectorId, setSectorId] = useState<SectorId>("general");
+
   // Agentic Mode State
   const [isAgenticRunning, setIsAgenticRunning] = useState(false);
   const [agenticPhase, setAgenticPhase] = useState("");
@@ -261,6 +265,7 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
     coworkerRelation,
     customPersonas,
     outputFormat,
+    sectorId,
     onGenerationComplete: handleGenerationComplete,
     onError: (msg) => setLocalError(msg),
   });
@@ -608,6 +613,8 @@ MODE: High Authority
                 onOpenGrowthSimulator={() => setIsGrowthSimulatorOpen(true)}
                 onOpenVault={() => setIsVaultOpen(true)}
                 onOpenCompetitor={() => setIsCompetitorOpen(true)}
+                sectorId={sectorId}
+                setSectorId={setSectorId}
               />
                 
                 <div className="absolute bottom-4 right-4 flex items-center gap-3 z-[60]">

@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BarChart3, TrendingUp, Lightbulb, RefreshCw, Award, ThumbsUp, MessageSquare, Share2, X, Dna, Sparkles, Loader2, Activity } from "lucide-react";
-import { generateAnalyticsReport, AnalyticsInsight } from "../utils/analytics-service";
-import { evolvePersona, EvolutionReport } from "../utils/evolution-service";
+import type { AnalyticsInsight } from "../utils/analytics-service";
+import type { EvolutionReport } from "../utils/evolution-service";
 import { PERSONAS, PersonaId } from "../utils/personas";
 import EvolutionModal from "./EvolutionModal";
 import TeamAnalyticsDashboard from "./TeamAnalyticsDashboard";
@@ -128,10 +128,12 @@ function PersonalAnalytics({ apiKey, onPersonaMutated }: { apiKey: string, onPer
             
             // Fallback: Generate intelligence from local archived data + AI synthesis
             console.warn("API Analytics failed, falling back to local.");
+            const { generateAnalyticsReport } = await import("../utils/analytics-service");
             const report = await generateAnalyticsReport(apiKey);
             setInsights(report);
         } catch (e) {
             console.error("Failed to load real-time analytics, falling back to local archive", e);
+            const { generateAnalyticsReport } = await import("../utils/analytics-service");
             const report = await generateAnalyticsReport(apiKey);
             setInsights(report);
         } finally {

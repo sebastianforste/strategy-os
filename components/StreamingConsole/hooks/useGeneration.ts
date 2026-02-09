@@ -11,6 +11,7 @@ import { ApiKeys } from "../../SettingsModal";
 import { PersonaId, Persona } from "../../../utils/personas";
 import { GeneratedAssets } from "../../../utils/ai-service";
 import { Signal } from "../../../utils/signal-service";
+import { SectorId } from "../../../utils/sectors";
 import { generateSideAssetsAction } from "../../../actions/generate";
 import { runSwarmDebate, SwarmMessage } from "../../../utils/swarm-service";
 import { generateVideoScript, formatVideoScriptForDisplay } from "../../../utils/video-service";
@@ -38,6 +39,7 @@ export interface GenerationOptions {
   coworkerRelation?: string;
   customPersonas: Persona[];
   outputFormat: "text" | "video" | "audio";
+  sectorId: SectorId;
   onGenerationComplete: (result: string | GeneratedAssets) => void;
   onError?: (msg: string) => void;
 }
@@ -68,6 +70,7 @@ export function useGeneration(options: GenerationOptions) {
     coworkerRelation,
     customPersonas,
     outputFormat,
+    sectorId,
     onGenerationComplete,
     onError,
   } = options;
@@ -98,6 +101,7 @@ export function useGeneration(options: GenerationOptions) {
       fewShotExamples: useFewShot ? trainingExamples : undefined,
       customPersona: customPersonas.find((p) => p.id === personaId),
       subStyle: customPersonas.find((p) => p.id === personaId)?.subStyle,
+      sectorId,
     },
     onFinish: (_prompt: string, result: string) => {
       if (result && result.length > 5) {

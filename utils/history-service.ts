@@ -129,3 +129,41 @@ export function getTopRatedPosts(personaId?: string, limit: number = 3): History
     return [];
   }
 }
+
+export async function migrateHistoryToCloud(): Promise<{ success: boolean; migrated: number; failed: number; message: string }> {
+  try {
+    const history = getHistory();
+    if (history.length === 0) {
+      return { success: true, migrated: 0, failed: 0, message: "No history to migrate." };
+    }
+
+    const response = await fetch("/api/migrate-history", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ historyItems: history }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Migration failed");
+    }
+
+    return {
+      success: true,
+      migrated: data.migrated,
+      failed: data.failed,
+      message: `Successfully migrated ${data.migrated} items. ${data.failed > 0 ? `(${data.failed} failed)` : ""}`
+    };
+  } catch (error) {
+    console.error("Migration error:", error);
+    return {
+      success: false,
+      migrated: 0,
+      failed: 0,
+      message: error instanceof Error ? error.message : "Unknown error occurred"
+    };
+  }
+}

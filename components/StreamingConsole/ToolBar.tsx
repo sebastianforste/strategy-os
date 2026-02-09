@@ -11,6 +11,7 @@ import { UserCircle2, Zap, Brain, Sparkles, Users, Mic, Bot, FileText, Command, 
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { PERSONAS, PersonaId, Persona } from "../../utils/personas";
+import { SECTORS, SectorId, Sector } from "../../utils/sectors";
 import { buttonVariants } from "../../utils/animations";
 
 export interface ToolBarProps {
@@ -19,6 +20,10 @@ export interface ToolBarProps {
   setPersonaId: (id: PersonaId) => void;
   customPersonas: Persona[];
   
+  // Sector
+  sectorId: SectorId;
+  setSectorId: (id: SectorId) => void;
+
   // Feature toggles
   useNewsjack: boolean;
   setUseNewsjack: (val: boolean) => void;
@@ -84,9 +89,12 @@ export default function ToolBar({
   onOpenGrowthSimulator,
   onOpenVault,
   onOpenCompetitor,
+  sectorId,
+  setSectorId,
 }: ToolBarProps) {
   const [showTools, setShowTools] = useState<'config' | 'dashboards' | null>(null);
   const allPersonas = [...Object.values(PERSONAS), ...customPersonas];
+  const activeSector = SECTORS[sectorId] || SECTORS.general;
 
   return (
     <div className="border-t border-white/5 bg-white/5 p-3 flex flex-wrap items-center justify-between gap-4 rounded-b-xl backdrop-blur-md">
@@ -102,6 +110,29 @@ export default function ToolBar({
             {allPersonas.map((p) => (
               <option key={p.id} value={p.id} className="bg-neutral-900">
                 {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Sector Selector */}
+        <div className="flex items-center gap-2 group relative">
+          <button 
+             className="flex items-center gap-2 text-sm text-neutral-400 font-medium hover:text-white transition-colors"
+          >
+             <LayoutGrid className="w-4 h-4" />
+             <span className="max-w-[100px] truncate">{activeSector.name}</span>
+             <ChevronDown className="w-3 h-3 opacity-50" />
+          </button>
+          
+          <select
+            value={sectorId}
+            onChange={(e) => setSectorId(e.target.value as SectorId)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          >
+            {Object.values(SECTORS).map((s) => (
+              <option key={s.id} value={s.id} className="bg-neutral-900">
+                {s.name}
               </option>
             ))}
           </select>

@@ -13,6 +13,7 @@ import { GeneratedAssets } from "../../utils/ai-service";
 import { PostingJob } from "../../utils/posting-agent";
 import { SwarmMessage } from "../../utils/swarm-service";
 import { SystemVitals } from "../../utils/vitals-service";
+import { SectorId } from "../../utils/sectors";
 
 export interface StreamingConsoleProps {
   initialValue: string;
@@ -34,6 +35,8 @@ export interface StreamingConsoleProps {
   setIsTeamMode: (val: boolean) => void;
   vitals?: SystemVitals;
   onError?: (msg: string) => void;
+  sectorId: SectorId;
+  setSectorId: (id: SectorId) => void;
 }
 
 export interface ConsoleState {
@@ -132,6 +135,8 @@ export interface ConsoleState {
   setCustomPersonas: (val: Persona[]) => void;
   vitals: SystemVitals;
   setVitals: (val: SystemVitals) => void;
+  sectorId: SectorId;
+  setSectorId: (val: SectorId) => void;
 }
 
 export interface StarterChip {

@@ -1,43 +1,42 @@
-#!/bin/bash
+# Source shell profile to get node/npm in PATH (needed when launched from Finder)
+if [ -f "$HOME/.zshrc" ]; then
+    source "$HOME/.zshrc" 2>/dev/null
+elif [ -f "$HOME/.bash_profile" ]; then
+    source "$HOME/.bash_profile" 2>/dev/null
+fi
+
+# Ensure we are in the script's directory
+cd "$(dirname "$0")" || exit 1
+
 echo "Starting StrategyOS..."
-WORKDIR="/Users/sebastian/Developer/strategy-os"
-cd "$WORKDIR"
+
 
 cleanup() {
     echo "--- PRE-FLIGHT CLEANUP ---"
     
-    # 1. Remove build artifacts that often cause locks
-    [ -d "node_modules/.bin/.vitest" ] && rm -rf "node_modules/.bin/.vitest" && echo "Removed .vitest artifacts"
-    [ -f "tsconfig.tsbuildinfo" ] && rm -f "tsconfig.tsbuildinfo" && echo "Removed tsconfig.tsbuildinfo"
+    # 1. Remove build artifacts (silent fail if locked)
+    rm -rf "node_modules/.bin/.vitest" "tsconfig.tsbuildinfo" 2>/dev/null && echo "Build artifacts cleared."
     
-    # 2. Clear SingletonLock for Edge Profile
+    # 2. Clear SingletonLock (user mode only)
     LOCKFILE="/Users/sebastian/.beck_export_edge_profile/SingletonLock"
-    if [ -f "$LOCKFILE" ]; then
-        rm -f "$LOCKFILE"
-        echo "Successfully cleared SingletonLock."
-    fi
+    rm -f "$LOCKFILE" 2>/dev/null && echo "SingletonLock cleared."
 
-    # 3. Clear file flags (nouchg) to prevent EPERM on build folders
-    echo "Ensuring build folders are writable..."
-    sudo chflags -R nouchg .next node_modules 2>/dev/null || chflags -R nouchg .next node_modules 2>/dev/null
+    # 3. Clear file flags - best effort (user mode)
+    echo "Unlocking build folders..."
+    chflags -R nouchg .next node_modules 2>/dev/null || true
 }
 
 # Execute cleanup
 cleanup
 
-# Open the browser (waits a moment to ensure server spin-up starts)
-(sleep 3 && open http://localhost:3000) &
+# Launch browser (background)
+(sleep 3 && open "http://localhost:3000") &
 
-# Start the application with error awareness
+# Start StrategyOS
 echo "Launching StrategyOS..."
 if ! npm run dev; then
-    ERROR_CODE=$?
     echo "---"
-    echo "ERROR: StrategyOS failed to start (Exit code: $ERROR_CODE)"
-    
-    # Check for EPERM in the output would be better but we can't easily capture it and re-display it perfectly
-    # So we provide a general hint if it fails
-    echo "TIP: If you see 'EPERM: Operation not permitted', please ensure your terminal"
-    echo "has 'Full Disk Access' in: System Settings > Privacy & Security > Full Disk Access"
-    exit $ERROR_CODE
+    echo "Launch Failed."
+    echo "Tip: Check 'Full Disk Access' if errors persist."
+    exit 1
 fi

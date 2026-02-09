@@ -176,6 +176,30 @@ export default function VoiceTrainerModal({ isOpen, onClose, apiKey }: VoiceTrai
                         </div>
                         <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>
+
+                    {/* NEW: Sync to Vector Store (Style RAG) */}
+                    <button 
+                        onClick={async () => {
+                            if (posts.length === 0) return;
+                            setIsLoading(true);
+                            try {
+                                const { ingestStyleSamplesAction } = await import("../actions/style");
+                                await ingestStyleSamplesAction(posts.map(p => p.content));
+                                alert("Style Memory updated! The AI can now reference these examples.");
+                            } catch (e) {
+                                console.error(e);
+                                alert("Failed to sync style memory.");
+                            } finally {
+                                setIsLoading(false);
+                            }
+                        }}
+                        disabled={posts.length === 0 || isLoading}
+                        className="w-full mt-2 p-3 rounded-xl border border-neutral-800 hover:bg-neutral-800 transition-colors text-xs font-bold text-neutral-400 hover:text-white flex items-center justify-center gap-2"
+                    >
+                        <CheckCircle2 className="w-4 h-4" />
+                        SYNC TO STYLE MEMORY
+                    </button>
+
                     {posts.length < 5 && (
                         <p className="text-[10px] text-center text-neutral-500 italic mt-1">Need 5+ samples to decode your DNA.</p>
                     )}

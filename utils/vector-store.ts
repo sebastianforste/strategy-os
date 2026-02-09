@@ -170,3 +170,64 @@ export async function searchVectorStore(query: string, limit = 5) {
     return [];
   }
 }
+
+// --- Style RAG (Phase 24) ---
+
+/**
+ * INGEST STYLE SAMPLES
+ * batch processes a user's "hall of fame" posts to create a style reference index.
+ */
+export async function ingestStyleSamples(texts: string[]) {
+  const db = await getDB();
+  
+  // Create embeddings in parallel
+  const entries = await Promise.all(texts.map(async (text, i) => {
+    const vector = await getEmbedding(text);
+    if (vector.length === 0) return null;
+    
+    return {
+      id: `style_${Date.now()}_${i}`,
+      text,
+      metadata: JSON.stringify({ type: 'style_reference', source: 'user_upload' }),
+      vector,
+      createdAt: Date.now()
+    };
+  }));
+
+  const validEntries = entries.filter(e => e !== null) as any[]; // Cast for valid lancedb input
+  if (validEntries.length === 0) return;
+
+  const tableName = "style_references";
+  try {
+    const table = await db.openTable(tableName);
+    await table.add(validEntries);
+  } catch {
+    await db.createTable(tableName, validEntries);
+  }
+}
+
+/**
+ * SEARCH STYLE MEMORY
+ * Retrieves the most stylistically relevant past posts for a given topic/emotion.
+ */
+export async function searchStyleMemory(query: string, limit = 3) {
+  const db = await getDB();
+  const queryVector = await getEmbedding(query);
+  if (queryVector.length === 0) return [];
+
+  const tableName = "style_references";
+  try {
+    const table = await db.openTable(tableName);
+    const results = await table.vectorSearch(queryVector)
+      .limit(limit)
+      .toArray();
+      
+    return results.map(r => ({
+      ...r,
+      metadata: JSON.parse(r.metadata as string)
+    }));
+  } catch (error) {
+    // If table doesn't exist, just return empty (user hasn't uploaded samples yet)
+    return [];
+  }
+}

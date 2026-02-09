@@ -12,6 +12,7 @@ import {
     PERSONAS, 
     Persona 
 } from "../utils/personas";
+import { SectorId, SECTORS } from "../utils/sectors";
 import { createColleaguePersona } from "../utils/colleague-persona";
 import { searchCompetitorContent, generateTrendReport, fetchTrendingNews, CompetitorContent, TrendReport } from "../utils/trend-service";
 import fs from "fs";
@@ -227,7 +228,8 @@ export async function constructEnrichedPrompt(
     coworkerRole?: string,
     coworkerRelation?: string,
     subStyle: "professional" | "casual" | "provocative" = "professional",
-    isTopVoiceMode: boolean = false
+    isTopVoiceMode: boolean = false,
+    sectorId: SectorId = "general"
 ): Promise<{ prompt: string; mode: string }> {
     const startTime = Date.now();
     console.log(`[Prompt Construction] START Persona: ${personaId}, Newsjack: ${forceTrends}`);
@@ -271,6 +273,26 @@ export async function constructEnrichedPrompt(
             }
         } catch (e) {
             console.warn("[RAG V2] Voice memory retrieval failed:", e);
+        }
+    }
+
+    // PHASE 24: STYLE MEMORY (User-uploaded samples)
+    let styleRagContext = "";
+    if (useRAG) {
+        try {
+            const { searchStyleMemory } = await import("../utils/vector-store");
+            const styles = await searchStyleMemory(input, 2);
+            if (styles.length > 0) {
+                 styleRagContext = `
+                 USER STYLE REFERENCES (Mimic this exact writing style):
+                 ${styles.map((s, i) => `[Style Reference ${i+1}]:\n${s.text}`).join("\n\n")}
+                 
+                 CRITICAL: ADOPT THE VOCABULARY, SENTENCE STRUCTURE, AND RHYTHM OF THESE SAMPLES.
+                 `;
+                 console.log(`[Style RAG] Found ${styles.length} style references`);
+            }
+        } catch (e) {
+            console.warn("[Style RAG] Retrieval failed:", e);
         }
     }
 
@@ -336,6 +358,19 @@ export async function constructEnrichedPrompt(
         
         SUB-STYLE OVERLAY:
         ${subStyleInstr}
+        `;
+    }
+
+    // SECTOR CONTEXT INJECTION (Phase 23)
+    let sectorSection = "";
+    if (sectorId && SECTORS[sectorId]) {
+        const sector = SECTORS[sectorId];
+        sectorSection = `
+        SECTOR CONTEXT (${sector.name}):
+        ${sector.contextPrompt}
+
+        KEY TERMINOLOGY TO USE: ${sector.jargon.join(", ")}
+        AVOID: ${sector.antiPatterns.join(", ")}
         `;
     }
 
@@ -419,8 +454,10 @@ export async function constructEnrichedPrompt(
         ${rlhfSection}
         ${styleSection}
         ${dnaSection}
+        ${sectorSection}
         ${adaptationSection}
         ${voiceMemoryContext}
+        ${styleRagContext}
         ${strategicRealism}
         ${topVoiceInstr}
 
@@ -455,8 +492,10 @@ export async function constructEnrichedPrompt(
                     ${rlhfSection}
                     ${styleSection}
                     ${dnaSection}
+                    ${sectorSection}
                     ${adaptationSection}
                     ${voiceMemoryContext}
+                    ${styleRagContext}
                     ${strategicRealism}
                     ${topVoiceInstr}
 
@@ -486,8 +525,10 @@ export async function constructEnrichedPrompt(
                     ${rlhfSection}
                     ${styleSection}
                     ${dnaSection}
+                    ${sectorSection}
                     ${adaptationSection}
                     ${voiceMemoryContext}
+                    ${styleRagContext}
                     ${strategicRealism}
                     ${topVoiceInstr}
 
@@ -507,8 +548,10 @@ export async function constructEnrichedPrompt(
                 ${rlhfSection}
                 ${styleSection}
                 ${dnaSection}
+                ${sectorSection}
                 ${adaptationSection}
                 ${voiceMemoryContext}
+                ${styleRagContext}
                 ${strategicRealism}
                 ${topVoiceInstr}
 
@@ -539,7 +582,8 @@ export async function processInput(
   coworkerRelation?: string,
   styleDNA?: string,
   subStyle: "professional" | "casual" | "provocative" = "professional",
-  isTopVoiceMode: boolean = false
+  isTopVoiceMode: boolean = false,
+  sectorId: SectorId = "general"
 ): Promise<GeneratedAssets> { // GeneratedAssets is { textPost, imagePrompt, videoScript, imageUrl? }
   if (!input) throw new Error("Input required");
   if (!apiKeys.gemini) throw new Error("Gemini API Key required");
@@ -571,7 +615,8 @@ export async function processInput(
       coworkerRole,
       coworkerRelation,
       subStyle,
-      isTopVoiceMode
+      isTopVoiceMode,
+      sectorId
   );
 
   // 1b. Dynamic Persona Override (Phase 27)
