@@ -169,34 +169,49 @@ export async function searchGrounding(query: string, apiKey?: string, maxResults
     Output ONLY valid JSON array.
   `;
 
-  try {
-      const genAI = new GoogleGenAI({ apiKey });
-      const result = await genAI.models.generateContent({
-          model: PRIMARY_MODEL,
-          contents: prompt,
-          config: {
-             tools: [{ googleSearch: {} }]
-          }
-      });
+  async function tryWithModel(modelName: string): Promise<{ title: string; link: string; snippet: string; source: string }[] | null> {
+    try {
+        const genAI = new GoogleGenAI({ apiKey: apiKey! });
+        const result = await genAI.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+               tools: [{ googleSearch: {} }]
+            }
+        });
 
-      const text = result.text || "[]";
-      const jsonText = text.replace(/```json|```/g, "").trim();
-      
-      let data;
-      try {
-          data = JSON.parse(jsonText);
-      } catch {
-          return [];
-      }
+        const text = result.text || "[]";
+        const jsonText = text.replace(/```json|```/g, "").trim();
+        
+        let data;
+        try {
+            data = JSON.parse(jsonText);
+        } catch {
+            return [];
+        }
 
-      // Normalized extraction
-      if (Array.isArray(data)) return data;
-      if (data.results) return data.results;
-      if (data.items) return data.items;
-      
-      return [];
-  } catch (e) {
-      console.error("[SearchService] Grounding failed:", e);
-      return [];
+        // Normalized extraction
+        if (Array.isArray(data)) return data;
+        if (data.results) return data.results;
+        if (data.items) return data.items;
+        
+        return [];
+    } catch (error: unknown) {
+        if (isRateLimitError(error)) {
+            console.warn(`[SearchService] Rate limit on ${modelName}, will try fallback`);
+            return null;
+        }
+        console.error("[SearchService] Grounding failed:", error);
+        return [];
+    }
   }
+
+  // Try primary, fallback on rate limit
+  let result = await tryWithModel(PRIMARY_MODEL);
+  if (result === null) {
+    console.log("[SearchService] Trying fallback model...");
+    result = await tryWithModel(FALLBACK_MODEL);
+  }
+  // If still rate limited, return empty gracefully
+  return result || [];
 }

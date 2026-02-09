@@ -179,7 +179,7 @@ export default function MastermindDashboard({
             {/* Oracle & Top Voice Panel */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Oracle Insights Preview */}
-                <div className="bg-[#111] border border-white/10 rounded-2xl p-6 relative overflow-hidden group">
+                <div className="bg-black/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-6 relative overflow-hidden group hover:border-purple-500/20 transition-all duration-300">
                      <div className="absolute inset-0 bg-gradient-to-br from-purple-900/10 to-transparent pointer-events-none" />
                      <div className="flex items-center justify-between mb-6 relative z-10">
                         <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -215,7 +215,7 @@ export default function MastermindDashboard({
                 </div>
 
                 {/* Collaborative Opportunities */}
-                <div className="bg-[#111] border border-white/10 rounded-2xl p-6 relative overflow-hidden group">
+                <div className="bg-black/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-6 relative overflow-hidden group hover:border-orange-500/20 transition-all duration-300">
                      <div className="absolute inset-0 bg-gradient-to-br from-orange-900/10 to-transparent pointer-events-none" />
                      <div className="flex items-center justify-between mb-6 relative z-10">
                         <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -241,7 +241,7 @@ export default function MastermindDashboard({
                 </div>
 
                 {/* Viral Engine Entry */}
-                <div onClick={() => setViewMode("viral_deck")} className="bg-[#111] border border-white/10 rounded-2xl p-6 flex items-center justify-between group cursor-pointer hover:border-indigo-500/50 transition-colors">
+                <div onClick={() => setViewMode("viral_deck")} className="bg-black/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-6 flex items-center justify-between group cursor-pointer hover:border-indigo-500/30 hover:shadow-[0_0_25px_rgba(99,102,241,0.1)] transition-all duration-300">
                      <div className="flex items-center gap-4">
                         <div className="p-3 bg-indigo-500/10 rounded-xl group-hover:scale-110 transition-transform">
                             <MessageSquare className="w-6 h-6 text-indigo-500" />
@@ -258,7 +258,7 @@ export default function MastermindDashboard({
                 </div>
 
                 {/* Media Agent Entry */}
-                <div onClick={() => setViewMode("media_kit")} className="bg-[#111] border border-white/10 rounded-2xl p-6 flex items-center justify-between group cursor-pointer hover:border-indigo-500/50 transition-colors">
+                <div onClick={() => setViewMode("media_kit")} className="bg-black/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-6 flex items-center justify-between group cursor-pointer hover:border-pink-500/30 hover:shadow-[0_0_25px_rgba(236,72,153,0.1)] transition-all duration-300">
                      <div className="flex items-center gap-4">
                         <div className="p-3 bg-pink-500/10 rounded-xl group-hover:scale-110 transition-transform">
                             <Mic className="w-6 h-6 text-pink-500" />
@@ -275,7 +275,7 @@ export default function MastermindDashboard({
                 </div>
 
                 {/* Cliche Killer Entry */}
-                <div onClick={() => setViewMode("cliche_killer")} className="bg-[#111] border border-white/10 rounded-2xl p-6 flex items-center justify-between group cursor-pointer hover:border-indigo-500/50 transition-colors">
+                <div onClick={() => setViewMode("cliche_killer")} className="bg-black/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-6 flex items-center justify-between group cursor-pointer hover:border-red-500/30 hover:shadow-[0_0_25px_rgba(239,68,68,0.1)] transition-all duration-300">
                      <div className="flex items-center gap-4">
                         <div className="p-3 bg-red-500/10 rounded-xl group-hover:scale-110 transition-transform">
                             <Type className="w-6 h-6 text-red-500" />
@@ -295,7 +295,7 @@ export default function MastermindDashboard({
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Main Briefing: High Density AI Intelligence */}
-                <div className="lg:col-span-2 bg-[#111] border border-white/10 rounded-3xl p-8 relative overflow-hidden group">
+                <div className="lg:col-span-2 bg-black/40 backdrop-blur-xl border border-white/[0.06] rounded-3xl p-8 relative overflow-hidden group hover:border-indigo-500/20 transition-all duration-500">
                     <div className="absolute top-0 right-0 p-8 opacity-20 group-hover:opacity-40 transition-opacity">
                         <Sparkles className="w-16 h-16 text-indigo-500" />
                     </div>
@@ -493,10 +493,10 @@ function StatCard({ label, value, trend, icon, onClick }: { label: string, value
     return (
         <div 
             onClick={onClick}
-            className={`bg-[#0c0c0c] border border-white/5 rounded-2xl p-5 hover:border-white/10 transition-all group ${onClick ? 'cursor-pointer' : ''} shadow-xl`}
+            className={`bg-black/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-5 hover:border-indigo-500/30 hover:shadow-[0_0_30px_rgba(99,102,241,0.08)] transition-all duration-300 group ${onClick ? 'cursor-pointer' : ''} shadow-[0_4px_20px_rgba(0,0,0,0.3)]`}
         >
             <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-white/5 rounded-lg group-hover:scale-110 transition-transform">
+                <div className="p-2 bg-white/[0.06] rounded-lg group-hover:scale-110 group-hover:bg-white/[0.1] transition-all duration-300">
                     {icon}
                 </div>
                 {trend && <span className="text-[10px] font-bold text-indigo-400/80 uppercase tracking-widest">{trend}</span>}
