@@ -34,6 +34,21 @@ vi.mock('../utils/refinement-service', () => ({
 // Mock server-only since we're in Vitest
 vi.mock('server-only', () => ({}));
 
+// Mock Vector Store to prevent embedding API calls
+vi.mock('../utils/vector-store', () => ({
+  searchVoiceMemory: vi.fn().mockResolvedValue([]),
+  searchStyleMemory: vi.fn().mockResolvedValue([]),
+  getEmbedding: vi.fn().mockResolvedValue([]),
+  upsertToVoiceMemory: vi.fn().mockResolvedValue(undefined),
+  addToVectorStore: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Mock RAG Service
+vi.mock('../utils/rag-service', () => ({
+  findRelevantConcepts: vi.fn().mockResolvedValue([]),
+  embedText: vi.fn().mockResolvedValue([]),
+}));
+
 describe('Sector-Specific Generation', () => {
   // Use a dummy key if none provided to ensure tests are evaluated
   const geminiKey = process.env.GEMINI_API_KEY || "demo";
