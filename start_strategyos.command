@@ -34,6 +34,8 @@ cleanup
 
 # Start StrategyOS
 echo "Launching StrategyOS..."
+export PRISMA_CLIENT_ENGINE_TYPE=library
+npx prisma generate
 if ! npm run dev; then
     echo "---"
     echo "Launch Failed."
