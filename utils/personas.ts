@@ -25,6 +25,7 @@ export interface Persona {
   jsonSchema?: string;
   styleDNA?: string;
   subStyle?: "professional" | "casual" | "provocative";
+  geminiModelId?: string;
 }
 
 export const PERSONAS: Record<string, Persona> = {

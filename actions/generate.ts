@@ -20,6 +20,9 @@ import path from "path";
 import { LinkedInAdapter } from "../utils/platforms/linkedin";
 import { TwitterAdapter } from "../utils/platforms/twitter";
 import { PlatformAdapter } from "../utils/platforms/types";
+import { stitchService } from "../utils/stitch-service";
+import { moltbookService } from "../utils/moltbook-service";
+import { getServerSession } from "next-auth/next";
 
 // Helper to sanitize filename
 function sanitizeFilename(text: string): string {
@@ -105,8 +108,15 @@ export async function generateCommentAction(
 
 export async function generateHooksAction(topic: string, apiKey: string) {
     if (!apiKey) throw new Error("API Key required");
-    const { generateHooks } = await import("../utils/hook-lab");
-    return await generateHooks(topic, apiKey);
+    const { generateAlternativeHooks } = await import("../utils/virality-scorer");
+    return await generateAlternativeHooks(topic, "Current hook placeholder", apiKey); // Note: We might need to pass current hook if available, or just topic
+}
+
+// Phase 25: Virality Scorecard
+export async function scoreViralityAction(content: string, apiKey: string) {
+    if (!apiKey) throw new Error("API Key required");
+    const { scorePostVirality } = await import("../utils/virality-scorer");
+    return await scorePostVirality(content, apiKey);
 }
 
 export async function refineAuthorityAction(
@@ -400,6 +410,46 @@ export async function constructEnrichedPrompt(
     
 
 
+    // PHASE 28: STITCH DESIGN DNA
+    let stitchDnaContext = "";
+    try {
+        const session = await getServerSession();
+        const dna = await stitchService.getDesignDNA((session as any)?.accessToken);
+        if (dna) {
+            stitchDnaContext = stitchService.formatDNAForPrompt(dna);
+            console.log(`[Stitch] Design DNA injected for visual grounding via OAuth.`);
+        }
+    } catch (e) {
+        console.warn("[Stitch] DNA retrieval failed:", e);
+    }
+
+    // PHASE 28: MOLTBOOK TRENDS & SEARCH (AI Social Ingestion)
+    let moltbookContext = "";
+    try {
+        const submolt = sectorId === "general" ? "strategy" : sectorId.toLowerCase();
+        
+        // Parallel fetch: Trending AND Semantic Search
+        const [trendingPosts, searchResults] = await Promise.all([
+            moltbookService.getTrending(submolt),
+            moltbookService.search(input, 3)
+        ]);
+
+        if (trendingPosts.length > 0 || searchResults.length > 0) {
+            moltbookContext = `
+            MOLTBOOK AGENT DISCOURSE (Real-time Social context):
+            
+            ${trendingPosts.length > 0 ? `[Trending in submolt/${submolt}]:\n${trendingPosts.slice(0, 2).map((p, i) => `- Agent Discourse ${i+1}: ${p.content}`).join("\n")}` : ""}
+            
+            ${searchResults.length > 0 ? `[Semantic Search Results for "${input}"]:\n${searchResults.map((p, i) => `- Relevant Insight ${i+1}: ${p.content}`).join("\n")}` : ""}
+            
+            ADAPT TO THESE TRENDS: If these agents are debating a new mental model or contrarian angle, weave it into your response to stay "AI Native" and authoritative.
+            `;
+            console.log(`[Moltbook] Injected ${trendingPosts.length} trending and ${searchResults.length} search results.`);
+        }
+    } catch (e) {
+        console.warn("[Moltbook] Context retrieval failed:", e);
+    }
+    
     let enrichedInput = input;
     let mode = "Newsjacker"; // Default
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -460,6 +510,8 @@ export async function constructEnrichedPrompt(
         ${styleRagContext}
         ${strategicRealism}
         ${topVoiceInstr}
+        ${stitchDnaContext}
+        ${moltbookContext}
 
         MODE: THE TRANSLATOR (Document/URL Analysis)
         INPUT SOURCE: ${input}
@@ -498,6 +550,7 @@ export async function constructEnrichedPrompt(
                     ${styleRagContext}
                     ${strategicRealism}
                     ${topVoiceInstr}
+                    ${stitchDnaContext}
 
                     MODE: THE NEWSJACKER (Trend Hunter)
                     TOPIC: ${input}
@@ -531,6 +584,8 @@ export async function constructEnrichedPrompt(
                     ${styleRagContext}
                     ${strategicRealism}
                     ${topVoiceInstr}
+                    ${stitchDnaContext}
+                    ${moltbookContext}
 
                     MODE: THE NEWSJACKER (Standard)
                     TOPIC: ${input}
@@ -554,6 +609,8 @@ export async function constructEnrichedPrompt(
                 ${styleRagContext}
                 ${strategicRealism}
                 ${topVoiceInstr}
+                ${stitchDnaContext}
+                ${moltbookContext}
 
                 MODE: THE NEWSJACKER (Standard)
                 TOPIC: ${input}
@@ -583,7 +640,8 @@ export async function processInput(
   styleDNA?: string,
   subStyle: "professional" | "casual" | "provocative" = "professional",
   isTopVoiceMode: boolean = false,
-  sectorId: SectorId = "general"
+  sectorId: SectorId = "general",
+  publishToMoltbook: boolean = false
 ): Promise<GeneratedAssets> { // GeneratedAssets is { textPost, imagePrompt, videoScript, imageUrl? }
   if (!input) throw new Error("Input required");
   if (!apiKeys.gemini) throw new Error("Gemini API Key required");
@@ -695,11 +753,21 @@ ${finalAssets.videoScript}
 `;
 
     fs.writeFileSync(filePath, fileContent, "utf8");
-    console.log(`[Server Action] Saved post to: ${filePath}`);
+      console.log(`[Server Action] Saved post to: ${filePath}`);
     
   } catch (fsError) {
       console.error("[Server Action] Failed to save file:", fsError);
-      // We don't block the return if saving fails
+  }
+
+  // 5. Moltbook Integration (Phase 28)
+  if (publishToMoltbook) {
+    try {
+        console.log(`[Moltbook] Publishing to AI social network...`);
+        const submolt = sectorId === "general" ? "strategy" : sectorId.toLowerCase();
+        await moltbookService.postToMoltbook(finalAssets.textPost, submolt);
+    } catch (e) {
+        console.error("[Moltbook] Auto-publish failed:", e);
+    }
   }
 
   return finalAssets;

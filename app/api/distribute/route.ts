@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "../../../utils/db";
 import { getCurrentUserProfile, createPost, createPostWithImage } from "../../../utils/linkedin-api-v2";
+import { moltbookService } from "../../../utils/moltbook-service";
 
 /**
  * API DISTRIBUTE ROUTE - Ghost Protocol
@@ -11,7 +12,7 @@ import { getCurrentUserProfile, createPost, createPostWithImage } from "../../..
 
 export async function POST(req: Request) {
     try {
-        const { platform, content, imageUrl, persona } = await req.json();
+        const { platform, content, imageUrl, persona, title } = await req.json();
 
         if (!platform || !content) {
             return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
@@ -257,7 +258,29 @@ export async function POST(req: Request) {
             }
         }
 
-        // 5. SUBSTACK (FALLTHROUGH TO MOCK FOR NOW)
+        // 5. MOLTBOOK PUBLISHING
+        if (platform === 'moltbook') {
+            const submolt = "strategy"; // Default
+            try {
+                const result = await moltbookService.postToMoltbook(content, submolt);
+                if (result.success) {
+                    return NextResponse.json({
+                        success: true,
+                        platform,
+                        postId: result.data?.id || `molt-${Date.now()}`,
+                        url: result.data?.id ? `https://www.moltbook.com/post/${result.data.id}` : "https://www.moltbook.com",
+                        message: "Published successfully to Moltbook."
+                    });
+                } else {
+                    return NextResponse.json({ success: false, error: result.error || "Moltbook post failed" }, { status: 500 });
+                }
+            } catch (moltError: any) {
+                console.error("[API/Distribute] Moltbook failed:", moltError);
+                return NextResponse.json({ success: false, error: moltError.message }, { status: 500 });
+            }
+        }
+
+        // 6. SUBSTACK (FALLTHROUGH TO MOCK FOR NOW)
         if (platform === 'substack') {
             await new Promise(r => setTimeout(r, 600));
             return NextResponse.json({

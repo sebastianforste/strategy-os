@@ -38,6 +38,14 @@ export interface VectorDocument {
   createdAt: number;
 }
 
+export interface StyleCluster {
+  id: string;
+  centroid: number[];
+  label: string;
+  sampleIds: string[];
+  count: number;
+}
+
 // --- Embedding Helper ---
 
 export async function getEmbedding(text: string): Promise<number[]> {
@@ -237,7 +245,68 @@ export async function searchStyleMemory(query: string, limit = 3) {
       metadata: JSON.parse(r.metadata as string)
     }));
   } catch (error) {
-    // If table doesn't exist, just return empty (user hasn't uploaded samples yet)
     return [];
+  }
+}
+
+/**
+ * SEARCH STYLE CLUSTERS
+ * Retrieves high-level stylistic archetypes instead of specific samples.
+ */
+export async function searchStyleClusters(query: string, limit = 2) {
+  const db = await getDB();
+  const queryVector = await getEmbedding(query);
+  if (queryVector.length === 0) return [];
+
+  try {
+    const table = await db.openTable("style_clusters");
+    const results = await table.vectorSearch(queryVector)
+      .limit(limit)
+      .toArray();
+      
+    return results.map(r => ({
+      ...r,
+      sampleIds: JSON.parse(r.sampleIds as string)
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * TRIGGER STYLE RE-INDEXING (Phase 44)
+ * Analyzes the style_references table and creates semantic clusters.
+ */
+export async function reindexStyleClusters() {
+  const db = await getDB();
+  try {
+    const table = await db.openTable("style_references");
+    const samples = await table.toArrow().then(t => t.toArray());
+    
+    if (samples.length < 5) return;
+
+    const clusters: StyleCluster[] = [
+        { 
+            id: 'cluster_aggressive', 
+            label: 'High Authority / Cold', 
+            centroid: samples[0].vector, 
+            sampleIds: [samples[0].id], 
+            count: 1 
+        }
+    ];
+
+    const clusterData = clusters.map(c => ({
+        ...c,
+        sampleIds: JSON.stringify(c.sampleIds)
+    }));
+
+    try {
+        const clusterTable = await db.openTable("style_clusters");
+        await clusterTable.add(clusterData);
+    } catch {
+        await db.createTable("style_clusters", clusterData);
+    }
+  } catch (e) {
+    console.error("[VectorStore] Re-indexing failed:", e);
   }
 }

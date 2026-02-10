@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, RefreshCw, ThumbsUp, ThumbsDown, Minus, ArrowRight, Eye, FileText, Check, MessageSquare, LayoutGrid, ImageIcon, Sparkles, Video, Layers, Mic, Mail, Zap, Loader2, Database, Sword, Layout } from "lucide-react";
+import { 
+  Share2, Download, Copy, Check, RotateCcw, AlertCircle, ShieldCheck, ShieldAlert, Sparkles, 
+  Wand2, Eye, FileText, Send, Lock, ChevronDown, ChevronRight, Play, Info, MoreHorizontal, 
+  Maximize2, Minimize2, Trash2, MessageSquare, LayoutGrid, Video, Mic, ImageIcon, Layers, 
+  ThumbsUp, Minus, ThumbsDown, Loader2, Activity, Layout, RefreshCw, Mail, Zap, Sword, Globe
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import dynamic from "next/dynamic";
@@ -9,7 +14,7 @@ import { GeneratedAssets } from "../utils/ai-service";
 import LinkedInPreview from "./LinkedInPreview";
 
 // Lazy loaded feature components
-const CarouselBuilder = dynamic(() => import("./CarouselBuilder"), { ssr: false, loading: () => <div className="w-full h-96 bg-neutral-900 animate-pulse rounded-xl" /> });
+const CarouselFactory = dynamic(() => import("./CarouselFactory"), { ssr: false, loading: () => <div className="w-full h-96 bg-neutral-900 animate-pulse rounded-xl" /> });
 const VisualGenerator = dynamic(() => import("./VisualGenerator"), { ssr: false, loading: () => <div className="w-full aspect-square bg-neutral-900 animate-pulse rounded-xl" /> });
 const VideoDirector = dynamic(() => import("./VideoDirector"), { ssr: false, loading: () => <div className="w-full h-[600px] bg-neutral-900 animate-pulse rounded-xl" /> });
 const AudioStudio = dynamic(() => import("./AudioStudio"), { ssr: false, loading: () => <div className="w-full h-64 bg-neutral-900 animate-pulse rounded-xl" /> });
@@ -23,14 +28,20 @@ import PostingGraph from "./PostingGraph";
 import { archiveStrategy } from "../utils/archive-service";
 import { VISUAL_THEMES, VisualThemeId } from "../utils/theme-service";
 import { publishToPlatform } from "../utils/platform-api";
-import { Globe, ShieldAlert } from "lucide-react";
 const AdversarialConsole = dynamic(() => import("./AdversarialConsole"), { ssr: false });
 const CitationEngine = dynamic(() => import("./CitationEngine"), { ssr: false });
 const VisualStudio = dynamic(() => import("./VisualStudio"), { ssr: false });
 import TruthShield from "./TruthShield";
+import TemplateVaultModal from "./TemplateVaultModal";
 import { performDeepResearch } from "../utils/research-agent";
 import { extractProprietarySparks, ProprietarySpark } from "../utils/insight-extractor";
 import { generateVisualAssets, DesignAsset } from "../utils/visual-engine";
+import { scoreViralityAction } from "../actions/generate";
+import { ViralityScore } from "../utils/virality-scorer";
+import { publishPostAction } from "../actions/publish";
+import { verifyContentAction } from "../actions/research";
+
+export type StrategyStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'PUBLISHED' | 'REJECTED';
 
 interface AssetDisplayProps {
   assets: GeneratedAssets;
@@ -39,20 +50,33 @@ interface AssetDisplayProps {
   onUpdateAssets: (newAssets: GeneratedAssets) => void;
   geminiKey?: string;
   personaId?: string;
+  onRegenerate?: () => void;
+  isLoading?: boolean;
+  status?: StrategyStatus;
+  complianceScore?: number;
 }
 
 type PerformanceRating = "viral" | "good" | "meh" | "flopped" | null;
 
 import { explainPost, Explanation } from "../utils/explainer-service";
 
-export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdateAssets, geminiKey, personaId }: AssetDisplayProps) {
+export default function AssetDisplay(props: AssetDisplayProps) {
+  const { assets, linkedinClientId, onRate, onUpdateAssets, geminiKey, personaId, onRegenerate, isLoading, status = "DRAFT", complianceScore = 100 } = props;
   const [activeTab, setActiveTab] = useState<"text" | "preview" | "image" | "video" | "carousel" | "visual" | "x" | "substack" | "audio" | "thumbnail" | "visual-studio" | "visuals">("text");
   const [isClient, setIsClient] = useState(false);
   const [userRating, setUserRating] = useState<PerformanceRating>(null);
   const [remixModalOpen, setRemixModalOpen] = useState(false);
   const [isRemixing, setIsRemixing] = useState(false);
   const [remixType, setRemixType] = useState<"punchier" | "story" | "contrarian">("punchier");
-  
+
+  // Truth Shield State
+  const [verifications, setVerifications] = useState<any[]>([]);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [showTruthShield, setShowTruthShield] = useState(false);
+
+  // Template Vault State
+  const [templateVaultOpen, setTemplateVaultOpen] = useState(false);
+
   // Explanation State
   const [explanation, setExplanation] = useState<Explanation[] | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
@@ -71,6 +95,12 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
   const [visuals, setVisuals] = useState<DesignAsset[]>([]);
   const [isVisualsLoading, setIsVisualsLoading] = useState(false);
   const [sparks, setSparks] = useState<ProprietarySpark[]>([]);
+  
+  // Virality Score State
+  const [viralityScore, setViralityScore] = useState<ViralityScore | null>(null);
+  const [isScoring, setIsScoring] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
 
   const content = {
     text: assets.textPost,
@@ -152,6 +182,25 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
       }
   };
 
+  const handleVerify = async () => {
+    if (isVerifying || !geminiKey) return;
+    setIsVerifying(true);
+    try {
+        const result = await verifyContentAction(assets.textPost, geminiKey);
+        if (result.success && result.results) {
+            setVerifications(result.results);
+            setShowTruthShield(true);
+            showToast("Content verified with Google Grounding", "success");
+        } else {
+             showToast("Verification failed", "error");
+        }
+    } catch (e) {
+        console.error("Verification error", e);
+    } finally {
+        setIsVerifying(false);
+    }
+  };
+
   const handleDeepResearch = async () => {
     if (!geminiKey || isResearching) return;
     setIsResearching(true);
@@ -182,10 +231,46 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
     }
   };
 
+  const handleScore = async () => {
+    if (!geminiKey || isScoring) return;
+    setIsScoring(true);
+    try {
+        const score = await scoreViralityAction(assets.textPost, geminiKey);
+        setViralityScore(score);
+    } catch (e) {
+        console.error("Scoring failed", e);
+    } finally {
+        setIsScoring(false);
+    }
+  };
+
   const handleShareEmail = () => {
       const subject = encodeURIComponent("Draft Post for Review");
       const body = encodeURIComponent(`Here is a draft post generated for you:\n\n${assets.textPost}\n\nThinking of posting this? Let me know!`);
       window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const handlePublish = async () => {
+    if (isPublishing || publishedUrl) return;
+    setIsPublishing(true);
+    
+    // Determine platform based on active tab
+    const platform = activeTab === "x" ? "twitter" : "linkedin";
+    
+    try {
+        const result = await publishPostAction("temp-id", platform); // Placeholder ID needs real ID
+        if (result.success && result.url) {
+            setPublishedUrl(result.url);
+            showToast(`Published to ${platform === "twitter" ? "X" : "LinkedIn"} successfully!`, "success");
+        } else {
+            showToast(result.error || "Publishing failed", "error");
+        }
+    } catch (e) {
+        console.error("Publishing error", e);
+        showToast("Publishing failed", "error");
+    } finally {
+        setIsPublishing(false);
+    }
   };
 
   const handleCopySlack = () => {
@@ -224,8 +309,37 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
 
   if (!isClient) return null;
 
+  const getStatusColor = (s: string) => {
+    switch(s) {
+      case 'APPROVED': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      case 'PENDING_APPROVAL': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      case 'REJECTED': return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+      default: return 'bg-white/5 text-white/40 border-white/10';
+    }
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto space-y-8 animate-in fade-in duration-700">
+      {/* HEADER CONTROLS */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-xl">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-indigo-500/20 rounded-2xl">
+            <ShieldCheck className="w-6 h-6 text-indigo-400" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Strategy Assets</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-widest ${getStatusColor(status)}`}>
+                {status}
+              </span>
+              <span className="text-[10px] text-white/40 uppercase tracking-widest flex items-center gap-1">
+                <ShieldCheck className={`w-3 h-3 ${complianceScore >= 90 ? 'text-emerald-400' : 'text-amber-400'}`} />
+                Compliance: {complianceScore}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
       
       {/* 2028 Reach Forecast Header */}
       {reachForecast && (
@@ -356,7 +470,7 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                   
                   <div className="h-px w-full bg-white/5" />
 
-                  <CarouselBuilder initialPost={assets.textPost} apiKey={geminiKey || ""} />
+                  <CarouselFactory initialContent={assets.textPost} apiKey={geminiKey || ""} />
              </div>
         ) : activeTab === "visual" ? (
             <div className="space-y-6 text-left">
@@ -400,13 +514,22 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                 <div className="absolute top-4 right-4 flex items-center gap-2">
                     {activeTab === "text" && (
                         <div className="flex items-center gap-2">
-                             
                              <PublishingControl 
                                 content={assets.textPost}
                                 imageUrl={assets.imageUrl}
                                 personaId={personaId}
                                 title={assets.textPost.split('\n')[0].substring(0, 50)}
                              />
+
+                             <button
+                                onClick={handlePublish}
+                                disabled={isPublishing || !!publishedUrl}
+                                className={`flex items-center gap-2 px-3 py-1.5 ${publishedUrl ? 'bg-blue-500 text-white' : 'bg-blue-600/20 text-blue-400 border-blue-500/50'} border rounded-md text-[10px] font-bold uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-all ml-2`}
+                                title={activeTab === ("x" as string) ? "Publish to X" : "Publish to LinkedIn"}
+                             >
+                                {isPublishing ? <Loader2 className="w-3 h-3 animate-spin"/> : publishedUrl ? <Check className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
+                                {isPublishing ? "POSTING..." : publishedUrl ? "PUBLISHED" : activeTab === ("x" as string) ? "POST THREAD" : "POST NOW"}
+                             </button>
 
                              <button
                                 onClick={() => {
@@ -429,6 +552,16 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                                 STRESS TEST
                              </button>
 
+                             <button
+                                onClick={handleScore}
+                                disabled={isScoring}
+                                className={`flex items-center gap-2 px-3 py-1.5 bg-green-950/30 text-green-400 border border-green-500/30 rounded-md text-[10px] font-black uppercase tracking-wider hover:bg-green-500 hover:text-white transition-all ml-2 ${isScoring ? 'animate-pulse' : ''}`}
+                                title="Analyze Viral Potential"
+                             >
+                                {isScoring ? <Loader2 className="w-3 h-3 animate-spin"/> : <Activity className="w-3 h-3" />}
+                                {isScoring ? "SCORING..." : "VIRALITY SCORE"}
+                             </button>
+
                              <button 
                   onClick={handleGenerateVisuals}
                   disabled={isVisualsLoading}
@@ -447,7 +580,28 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                                 <RefreshCw className={`w-4 h-4 ${isRemixing ? 'animate-spin' : ''}`} />
                             </button>
                             
-                            <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-md">
+                            <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-md ml-2">
+                                <button
+                                    onClick={() => setTemplateVaultOpen(true)}
+                                    className="p-2 text-neutral-500 hover:text-purple-400 transition-colors border-r border-neutral-800"
+                                    title="Save as Template / Open Vault"
+                                >
+                                    <Layers className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={handleVerify}
+                                    className={`p-2 transition-colors border-r border-neutral-800 ${showTruthShield ? 'text-green-400 bg-green-500/10' : 'text-neutral-500 hover:text-green-400'}`}
+                                    title="Run Truth Shield (Fact Check)"
+                                >
+                                    {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert className="w-4 h-4" />}
+                                </button>
+                                <button
+                                    onClick={() => setAdversarialOpen(true)}
+                                    className="p-2 text-neutral-500 hover:text-red-400 transition-colors border-r border-neutral-800"
+                                    title="Run Adversarial Simulation"
+                                >
+                                    <Sword className="w-4 h-4" />
+                                </button>
                                 <button
                                     onClick={handleCopy}
                                     className="p-2 text-neutral-500 hover:text-white transition-colors border-r border-neutral-800"
@@ -474,6 +628,61 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                     )}
                 </div>
 
+                {viralityScore && activeTab === "text" && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-8 p-6 bg-black/40 border border-white/10 rounded-xl"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg ${viralityScore.totalScore >= 80 ? 'bg-green-500/20 text-green-400' : viralityScore.totalScore >= 50 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                                    <Activity className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-bold text-white">VIRALITY SCORECARD</h4>
+                                    <p className="text-xs text-neutral-500 font-mono">Predicted Performance</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-3xl font-black text-white">{viralityScore.totalScore}/100</div>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-4 mb-6">
+                            <div className="p-3 bg-white/5 rounded-lg text-center">
+                                <div className="text-[10px] uppercase text-neutral-500 font-bold mb-1">Hook</div>
+                                <div className={`text-xl font-bold ${viralityScore.hookScore >= 30 ? 'text-green-400' : 'text-neutral-400'}`}>{viralityScore.hookScore}/40</div>
+                            </div>
+                            <div className="p-3 bg-white/5 rounded-lg text-center">
+                                <div className="text-[10px] uppercase text-neutral-500 font-bold mb-1">Readability</div>
+                                <div className={`text-xl font-bold ${viralityScore.readabilityScore >= 20 ? 'text-green-400' : 'text-neutral-400'}`}>{viralityScore.readabilityScore}/30</div>
+                            </div>
+                            <div className="p-3 bg-white/5 rounded-lg text-center">
+                                <div className="text-[10px] uppercase text-neutral-500 font-bold mb-1">Strategy</div>
+                                <div className={`text-xl font-bold ${viralityScore.strategyScore >= 20 ? 'text-green-400' : 'text-neutral-400'}`}>{viralityScore.strategyScore}/30</div>
+                            </div>
+                        </div>
+
+                        {viralityScore.feedback.length > 0 && (
+                            <div className="space-y-2">
+                                <h5 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                    <Zap className="w-3 h-3 text-amber-400" />
+                                    Optimization Plan
+                                </h5>
+                                <ul className="space-y-1">
+                                    {viralityScore.feedback.map((tip, i) => (
+                                        <li key={i} className="text-xs text-neutral-400 flex items-start gap-2">
+                                            <span className="text-amber-500/50 mt-0.5">•</span>
+                                            {tip}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+
                 <div className="prose prose-invert max-w-none">
                     {(activeTab === "x" && !assets.xThread?.length) || (activeTab === "substack" && !assets.substackEssay) ? (
                         <div className="h-[300px] flex flex-col items-center justify-center gap-6 border-2 border-white/5 border-dashed rounded-3xl">
@@ -493,6 +702,12 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                                 TRANSMUTE NOW
                             </button>
                         </div>
+                    ) : showTruthShield ? (
+                        <TruthShield 
+                            content={assets.textPost} 
+                            verifications={verifications} 
+                            isVisible={true} 
+                        />
                     ) : (
                         <ReactMarkdown
                             components={{
@@ -512,7 +727,6 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
                  {/* Explain Logic Section */}
                  {activeTab === "text" && (
                     <div className="mt-8 pt-6 border-t border-white/5">
-                        <TruthShield content={assets.textPost} apiKey={geminiKey} />
                         
                         <button 
                             onClick={handleExplain}
@@ -552,6 +766,18 @@ export default function AssetDisplay({ assets, linkedinClientId, onRate, onUpdat
         onClose={() => setAdversarialOpen(false)}
         content={assets.textPost}
         apiKey={geminiKey || ""}
+      />
+      
+      <TemplateVaultModal 
+        isOpen={templateVaultOpen}
+        onClose={() => setTemplateVaultOpen(false)}
+        currentContent={activeTab === "text" ? assets.textPost : undefined}
+        onSelect={(template) => {
+            // Future: Load template content into generator
+            console.log("Selected template", template);
+            showToast("Template loaded (mock)", "success");
+            setTemplateVaultOpen(false);
+        }}
       />
     </div>
   );

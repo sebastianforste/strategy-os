@@ -1,10 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Sparkles, UserCircle2, TrendingUp, Mic, Book, Linkedin, Twitter } from "lucide-react";
+import { ArrowRight, Sparkles, UserCircle2, TrendingUp, Mic, Book, Linkedin, Twitter, Keyboard, Palette, Target, ShoppingBag } from "lucide-react";
 import { PERSONAS, PersonaId } from "../utils/personas";
 import { useState } from "react";
 import TemplateLibraryModal from "./TemplateLibraryModal";
+import VoiceRecorder from "./VoiceRecorder";
 
 interface InputConsoleProps {
   value: string;
@@ -18,6 +19,9 @@ interface InputConsoleProps {
   setUseNewsjack: (val: boolean) => void;
   platform: "linkedin" | "twitter";
   setPlatform: (val: "linkedin" | "twitter") => void;
+  onOpenVisualAlchemist: () => void;
+  onOpenRecon: () => void;
+  onOpenMastermind: () => void;
 }
 
 export default function InputConsole({
@@ -31,9 +35,13 @@ export default function InputConsole({
   useNewsjack,
   setUseNewsjack,
   platform,
-  setPlatform
+  setPlatform,
+  onOpenVisualAlchemist,
+  onOpenRecon,
+  onOpenMastermind
 }: InputConsoleProps) {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
   
   const getScoreColor = (score?: number) => {
     if (!score || score === 0) return "text-neutral-600";
@@ -54,12 +62,23 @@ export default function InputConsole({
       >
         <div className="absolute -inset-0.5 bg-gradient-to-r from-neutral-700 to-neutral-800 rounded-lg blur opacity-30 group-hover:opacity-75 transition duration-1000"></div>
         <div className="relative bg-[#050505] rounded-lg border border-neutral-800 p-1">
-          <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Paste high-complexity input here (e.g., Legal Judgment, Technical Report, Market Analysis)..."
-            className="w-full h-48 bg-transparent text-white p-6 outline-none resize-none font-mono text-sm leading-relaxed placeholder:text-neutral-600"
-          />
+          {isVoiceMode ? (
+            <div className="w-full h-48 bg-transparent flex items-center justify-center">
+              <VoiceRecorder 
+                onTranscription={(text) => {
+                  onChange(value + (value ? "\n" : "") + text);
+                  setIsVoiceMode(false);
+                }} 
+              />
+            </div>
+          ) : (
+            <textarea
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="Paste high-complexity input here (e.g., Legal Judgment, Technical Report, Market Analysis)..."
+              className="w-full h-48 bg-transparent text-white p-6 outline-none resize-none font-mono text-sm leading-relaxed placeholder:text-neutral-600"
+            />
+          )}
         </div>
       </motion.div>
 
@@ -98,18 +117,38 @@ export default function InputConsole({
                     NEWSJACK
                 </label>
             </div>
-           {/* Voice Input Button */}
-           <button
-             onClick={() => {
-               if ('webkitSpeechRecognition' in window) {
-                   // ... existing speech logic
-               }
-             }}
-             className="p-2 text-neutral-500 hover:text-white transition-colors rounded-full hover:bg-neutral-800"
-             title="Voice Input"
-           >
-             <Mic className="w-4 h-4" />
-           </button>
+            {/* Voice Toggle Button */}
+            <button
+              onClick={() => setIsVoiceMode(!isVoiceMode)}
+              className={`p-2 transition-colors rounded-full hover:bg-neutral-800 ${isVoiceMode ? 'text-indigo-400' : 'text-neutral-500 hover:text-white'}`}
+              title={isVoiceMode ? "Switch to Typing" : "Switch to Voice"}
+            >
+              {isVoiceMode ? <Keyboard className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+
+            <button
+              onClick={onOpenVisualAlchemist}
+              className="p-2 text-neutral-500 hover:text-white transition-colors rounded-full hover:bg-neutral-800"
+              title="Visual Alchemist"
+            >
+              <Palette className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={onOpenRecon}
+              className="p-2 text-neutral-500 hover:text-white transition-colors rounded-full hover:bg-neutral-800"
+              title="Competitive Recon"
+            >
+              <Target className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={onOpenMastermind}
+              className="p-2 text-neutral-500 hover:text-white transition-colors rounded-full hover:bg-neutral-800"
+              title="Mastermind Market"
+            >
+              <ShoppingBag className="w-4 h-4" />
+            </button>
 
            <button
              onClick={() => setIsLibraryOpen(true)}

@@ -5,7 +5,7 @@
  * Supports: LinkedIn, X (Twitter), Substack, Discord, Slack.
  */
 
-export type DistributionPlatform = 'linkedin' | 'x' | 'substack' | 'discord' | 'slack';
+export type DistributionPlatform = 'linkedin' | 'x' | 'substack' | 'discord' | 'slack' | 'moltbook';
 
 export interface DistributionPayload {
     platform: DistributionPlatform;

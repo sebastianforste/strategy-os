@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, Clock, Globe, Zap, Check, Send, Linkedin, Twitter, FileText, MessageSquare, Hash, Loader2 } from "lucide-react";
+import { Calendar, Clock, Globe, Zap, Check, Send, Linkedin, Twitter, FileText, MessageSquare, Hash, Loader2, Ghost } from "lucide-react";
 import { dispatchToPlatform, DistributionPlatform } from "../utils/distribution-agent";
 
 interface PublishingControlProps {
@@ -21,7 +21,8 @@ export default function PublishingControl({ content, imageUrl, personaId, title 
     x: true,
     substack: false,
     discord: false,
-    slack: false
+    slack: false,
+    moltbook: true
   });
 
   const times = [
@@ -69,7 +70,8 @@ export default function PublishingControl({ content, imageUrl, personaId, title 
     x: Twitter,
     substack: FileText,
     discord: Hash,
-    slack: MessageSquare
+    slack: MessageSquare,
+    moltbook: Ghost
   };
 
   return (

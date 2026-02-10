@@ -1,5 +1,5 @@
 ---
-date: 2026-02-09T11:58:27.576Z
+date: 2026-02-09T12:39:58.361Z
 input: "How to scale a business"
 persona: "cso"
 mode: "Newsjacker"

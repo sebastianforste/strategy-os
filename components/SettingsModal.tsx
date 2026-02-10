@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Settings as SettingsIcon } from "lucide-react";
+import { X, Settings as SettingsIcon, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import { modalBackdropVariants, modalContentVariants, buttonVariants } from "../utils/animations";
 
@@ -10,6 +10,7 @@ interface SettingsModalProps {
   onClose: () => void;
   onSave: (keys: ApiKeys) => void;
   initialKeys: ApiKeys;
+  onOpenTeamSettings?: () => void;
 }
 
 export interface ApiKeys {
@@ -24,6 +25,7 @@ export default function SettingsModal({
   onClose,
   onSave,
   initialKeys,
+  onOpenTeamSettings,
 }: SettingsModalProps) {
   const [keys, setKeys] = useState(initialKeys);
 
@@ -174,6 +176,78 @@ export default function SettingsModal({
                     placeholder="Client Secret..."
                   />
                 </div>
+              </div>
+
+              {/* Agency Mode (Team Settings) */}
+              <div className="pt-4 border-t border-neutral-800 space-y-4">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Users className="w-5 h-5 text-indigo-400" /> Agency Team
+                </h3>
+                  <div className="flex items-center justify-between p-4 bg-neutral-900 border border-neutral-800 rounded-lg">
+                    <div>
+                        <p className="text-sm font-bold text-white">Manage Team</p>
+                        <p className="text-xs text-neutral-500">Collaborate with your squad</p>
+                    </div>
+                    <button
+                        onClick={() => {
+                            if (onOpenTeamSettings) {
+                                onClose();
+                                onOpenTeamSettings();
+                            }
+                        }}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-indigo-500 transition-colors"
+                    >
+                        OPEN DASHBOARD
+                    </button>
+                  </div>
+              </div>
+
+              {/* Voice Lab (Phase 24) */}
+              <div className="pt-4 border-t border-neutral-800 space-y-4">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  🎙️ Voice Lab (Beta)
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  Paste 5-10 of your best posts to train the AI on your personal writing style. 
+                  Use `---` to separate examples.
+                </p>
+                
+                <textarea
+                  id="voice-lab-samples"
+                  className="w-full h-32 bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3 text-xs text-white focus:border-indigo-500 outline-none transition-colors resize-none font-mono"
+                  placeholder="Paste your 'Hall of Fame' content here...
+---
+Second example post..."
+                />
+                
+                <button
+                  id="train-voice-btn"
+                  onClick={async () => {
+                    const btn = document.getElementById('train-voice-btn') as HTMLButtonElement;
+                    const area = document.getElementById('voice-lab-samples') as HTMLTextAreaElement;
+                    const samples = area.value;
+                    
+                    if (!samples) return alert("Please provide some samples first.");
+                    
+                    btn.disabled = true;
+                    btn.innerText = "TRAINING...";
+                    
+                    try {
+                      const { trainVoiceAction } = await import("../actions/style");
+                      const result = await trainVoiceAction(samples);
+                      alert(result.message);
+                      if (result.success) area.value = "";
+                    } catch (e: any) {
+                      alert("Training failed: " + e.message);
+                    } finally {
+                      btn.disabled = false;
+                      btn.innerText = "TRAIN MY VOICE";
+                    }
+                  }}
+                  className="w-full bg-neutral-100 text-black px-4 py-2 rounded text-xs font-bold hover:bg-white transition-colors disabled:opacity-50"
+                >
+                  TRAIN MY VOICE
+                </button>
               </div>
 
               {/* Data & Storage Section */}

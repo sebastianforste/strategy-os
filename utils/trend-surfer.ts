@@ -8,6 +8,7 @@
 import { findTrends } from "./search-service";
 import { GoogleGenAI } from "@google/genai";
 import { AI_CONFIG } from "./config";
+import { getRoute } from "./model-mixer";
 
 const PRIMARY_MODEL = AI_CONFIG.primaryModel;
 
@@ -16,9 +17,17 @@ export interface TrendOpportunity {
     topic: string;
     headline: string;
     context: string;
-    viralityScore: number; // 0-100
-    suggestedAngle: 'contrarian' | 'analytical' | 'prediction';
     sourceUrl: string;
+    sentiment: 'bullish' | 'bearish' | 'neutral';
+    velocity: number; // 0-100 (speed of adoption)
+    longevity: number; // 0-100 (how long it will stay relevant)
+    viralityScore: number;
+    suggestedAngle?: string;
+}
+
+export interface TrendForecast extends TrendOpportunity {
+    timeframe: string; // e.g., "Next 7 Days"
+    impactScore: number;
 }
 
 /**
@@ -48,11 +57,14 @@ export async function scanForTrends(sector: string, apiKey: string, serperKey: s
         For 'viralityScore', estimate 0-100 based on controversy potential.
     `;
 
+    const modelName = getRoute({ complexity: 'balanced', intent: 'trend analysis' });
+    console.log(`[TrendSurfer] Analyzing trends with: ${modelName}`);
+
     const genAI = new GoogleGenAI({ apiKey });
     
     try {
         const response = await genAI.models.generateContent({
-            model: PRIMARY_MODEL,
+            model: modelName,
             contents: analysisPrompt
         });
 
@@ -68,6 +80,52 @@ export async function scanForTrends(sector: string, apiKey: string, serperKey: s
 
     } catch (e) {
         console.error("[TrendSurfer] Analysis failed:", e);
+        return [];
+    }
+}
+
+/**
+ * PREDICT FUTURE TRENDS
+ * Uses semantic extrapolation to forecast what might happen next in a sector.
+ */
+export async function predictFutureTrends(sector: string, currentTrends: TrendOpportunity[], apiKey: string): Promise<TrendForecast[]> {
+    console.log(`[TrendSurfer] Forecasting future for: "${sector}"`);
+
+    const forecastPrompt = `
+        You are a Strategic Futurist. Based on these CURRENT trends in "${sector}", forecast 3-5 PREDICTIVE trends for the NEXT 7-14 DAYS.
+        
+        CURRENT TRENDS:
+        ${JSON.stringify(currentTrends)}
+        
+        TASK:
+        - Extrapolate what happens NEXT.
+        - Assign a 'velocity' (how fast it will scale).
+        - Assign a 'longevity' (is it a flash in the pan or a structural shift?).
+        - Provide a 'sentiment' (Is it a threat or opportunity?).
+        
+        Return ONLY a JSON array matching the TrendForecast interface.
+    `;
+
+    const genAI = new GoogleGenAI({ apiKey });
+    
+    try {
+        const response = await genAI.models.generateContent({
+            model: PRIMARY_MODEL,
+            contents: forecastPrompt
+        });
+
+        const text = response.text || "[]";
+        const jsonText = text.replace(/```json|```/g, "").trim();
+        const forecasts = JSON.parse(jsonText);
+        
+        return forecasts.map((f: any, i: number) => ({
+            ...f,
+            id: f.id || `forecast-${Date.now()}-${i}`,
+            viralityScore: f.impactScore || 80 // Default high for forecasts
+        }));
+
+    } catch (e) {
+        console.error("[TrendSurfer] Forecast failed:", e);
         return [];
     }
 }

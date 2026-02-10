@@ -18,5 +18,22 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "categories": ["productivity", "social"],
+  "shortcuts": [
+    {
+      "name": "New Strategy",
+      "url": "/?action=new",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/mobile-desktop.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "prefer_related_applications": false
 }

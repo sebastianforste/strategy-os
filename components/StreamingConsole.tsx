@@ -34,9 +34,11 @@ import InputArea from "./StreamingConsole/InputArea";
 import OutputArea from "./StreamingConsole/OutputArea";
 import PredictionPanel from "./StreamingConsole/PredictionPanel";
 import StrategyCanvas from "./StrategyCanvas";
+import CommandCenterLayout from "./StreamingConsole/CommandCenterLayout";
 
 // Modals
 import TemplateLibraryModal from "./TemplateLibraryModal";
+import RichTooltip from "./ui/RichTooltip";
 import ComplianceExportModal from "./ComplianceExportModal";
 import PostingApprovalModal from "./PostingApprovalModal";
 import VoiceTrainerModal from "./VoiceTrainerModal";
@@ -45,7 +47,7 @@ import ClonePersonaModal from "./ClonePersonaModal";
 import AnalyticsDashboard from "./AnalyticsDashboard";
 import ScheduleQueueDashboard from "./ScheduleQueueDashboard";
 import BatchGeneratorModal from "./BatchGeneratorModal";
-import AccountSettingsModal from "./AccountSettingsModal";
+import SettingsModal from "./SettingsModal";
 import TeamSettingsModal from "./TeamSettingsModal";
 import TerminalConsole from "./TerminalConsole";
 const MemoryDashboard = dynamic(() => import("./MemoryDashboard"), { ssr: false });
@@ -66,6 +68,51 @@ import StrategyAuditor from "./StrategyAuditor";
 import CompetitorBench from "./CompetitorBench";
 import GlobalCommand from "./GlobalCommand";
 import SidebarRail from "./SidebarRail";
+import LeadDashboard from "./LeadDashboard";
+import AppMarketplace from "./AppMarketplace";
+import ResourceLibrary from "./ResourceLibrary";
+import AgentTrainer from "./AgentTrainer";
+import Scheduler from "./Scheduler";
+import PermissionsDashboard from "./PermissionsDashboard";
+import ContentRefresher from "./ContentRefresher";
+import MonetizationDashboard from "./MonetizationDashboard";
+import StrategyGamified from "./StrategyGamified";
+import APIDashboard from "./APIDashboard";
+import CollaborativeWhiteboard from "./CollaborativeWhiteboard";
+import ABTestingEngine from "./ABTestingEngine";
+import DataIngestor from "./DataIngestor";
+import NarrativeEngine from "./NarrativeEngine";
+import ExecutiveReporter from "./ExecutiveReporter";
+import Web3Social from "./Web3Social";
+import MarketIntelligence from "./MarketIntelligence";
+import PredictiveAnalytics from "./PredictiveAnalytics";
+import RelationshipDashboard from "./RelationshipDashboard";
+import VideoStudio from "./VideoStudio";
+import AgencyHub from "./AgencyHub";
+import ReputationProfile from "./ReputationProfile";
+import ComplianceSandbox from "./ComplianceSandbox";
+import HardwareSync from "./HardwareSync";
+import NewsletterFactory from "./NewsletterFactory";
+import SEOOptimizer from "./SEOOptimizer";
+import PeerReviewSystem from "./PeerReviewSystem";
+import ExtensionMarketplace from "./ExtensionMarketplace";
+import LandingGenerator from "./LandingGenerator";
+import SelfCorrectionConsole from "./SelfCorrectionConsole";
+import StyleTransformer from "./StyleTransformer";
+import AgentSwarm from "./AgentSwarm";
+import RevenueIntelligence from "./RevenueIntelligence";
+import VoiceV2Studio from "./VoiceV2Studio";
+import KnowledgeGraph from "./KnowledgeGraph";
+import AudienceSimulator from "./AudienceSimulator";
+import VisualAlchemistV3 from "./VisualAlchemistV3";
+import StreamDirector from "./StreamDirector";
+import ComplianceShield from "./ComplianceShield";
+import PerformanceMatrix from "./PerformanceMatrix";
+import NeuralSEO from "./NeuralSEO";
+import AlphaMarket from "./AlphaMarket";
+import HardwareSyncV2 from "./HardwareSyncV2";
+import NewsletterV2 from "./NewsletterV2";
+import AutonomousExit from "./AutonomousExit";
 import { TrendOpportunity } from "../utils/trend-surfer";
 import { EngagementTarget } from "../utils/engagement-agent";
 import { evaluateAutoPilot, AutonomousDecision } from "../utils/autonomous-agent";
@@ -109,7 +156,8 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
   } = props;
 
   // --- STATE ---
-  const [viewMode, setViewMode] = useState<"feed" | "canvas" | "network" | "mastermind" | "boardroom" | "apps">("mastermind");
+  // --- STATE ---
+  const [viewMode, setViewMode] = useState<"feed" | "canvas" | "network" | "mastermind" | "boardroom" | "apps" | "lead_crm" | "marketplace" | "library" | "trainer" | "scheduler" | "security" | "refresh" | "billing" | "arena" | "analytics" | "api" | "whiteboard" | "labs" | "ingest" | "narrative" | "reports" | "web3" | "market" | "predict" | "crm" | "video" | "agency" | "reputation" | "compliance" | "hardware" | "newsletter" | "seo" | "audit" | "store" | "funnel" | "recursive" | "style_v2" | "swarm_v2" | "revenue_v2" | "voice_v2" | "graph_v2" | "sim_v2" | "visual_v3" | "stream_v2" | "compliance_v2" | "agency_v2" | "seo_v3" | "market_v2" | "hardware_v3" | "news_v3" | "exit_v2">("mastermind");
   const [useAgenticMode, setUseAgenticMode] = useState(false);
   const [useTerminalMode, setUseTerminalMode] = useState(false);
   const [trainingExamples, setTrainingExamples] = useState("");
@@ -136,12 +184,14 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
   // Agentic Mode State
   const [isAgenticRunning, setIsAgenticRunning] = useState(false);
   const [agenticPhase, setAgenticPhase] = useState("");
+  const [assets, setAssets] = useState<GeneratedAssets | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [agenticScore, setAgenticScore] = useState<number | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [agenticIteration, setAgenticIteration] = useState(0);
 
   // Modals Visibility
+  const [showArchive, setShowArchive] = useState(false);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isVoiceTrainerOpen, setIsVoiceTrainerOpen] = useState(false);
   const [isComplianceOpen, setIsComplianceOpen] = useState(false);
@@ -151,7 +201,7 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [isBatchOpen, setIsBatchOpen] = useState(false);
-  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTeamSettingsOpen, setIsTeamSettingsOpen] = useState(false);
   const [isTeamPanelOpen, setIsTeamPanelOpen] = useState(false);
   const [isMemoryOpen, setIsMemoryOpen] = useState(false);
@@ -213,8 +263,14 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
   const handleGenerationComplete = (result: string | GeneratedAssets) => {
     const textContent = typeof result === 'string' ? result : result.textPost;
     
-    if (typeof result !== 'string' && result.ragConcepts) {
-      setRagConcepts(result.ragConcepts);
+    if (typeof result !== 'string') {
+      setAssets(result);
+      if (result.ragConcepts) {
+        setRagConcepts(result.ragConcepts);
+      }
+    } else {
+      // Create a partial assets object if only string is received
+      setAssets({ textPost: result } as GeneratedAssets);
     }
     
     onGenerationComplete(result);
@@ -316,6 +372,7 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
       case "viral": setIsViralLabOpen(true); break;
       case "growth": setIsGrowthSimulatorOpen(true); break;
       case "batch": setIsBatchOpen(true); break;
+      case "settings": setIsSettingsOpen(true); break;
       default: break;
     }
   };
@@ -407,332 +464,391 @@ MODE: High Authority
         onOpenSearch={() => setIsCommandOpen(true)}
         onOpenRedPhone={() => setIsLiveSessionOpen(true)}
         onOpenDeepResearch={() => setIsDeepResearchOpen(true)}
+        onOpenVoiceStudio={props.onOpenVoiceStudio || (() => {})}
       />
 
-      <div className={`flex-1 w-full max-w-6xl mx-auto space-y-4 pb-20 pl-24 transition-all duration-500 pr-4 ${useAgenticMode ? 'grayscale' : ''}`}>
-        
-        {/* Top Bar - Intelligence & Search (Minimized for vertical space) */}
-        <div className="flex items-center justify-between gap-6 py-4">
-            <div className="flex-1 relative group max-w-2xl">
-                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                    <Search className="w-4 h-4 text-neutral-500 group-hover:text-white transition-colors" />
-                </div>
-                <input 
-                    type="text" 
-                    placeholder="Search intelligence, trends, or agent commands... (Cmd+K)"
-                    className="w-full bg-black/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl py-2.5 pl-12 pr-4 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-indigo-500/50 focus:shadow-[0_0_20px_rgba(99,102,241,0.15)] transition-all hover:bg-black/60 shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
-                    onClick={() => setIsCommandOpen(true)}
-                    readOnly
-                />
-            </div>
-            
-            <div className="flex items-center gap-4">
-                {/* Mode Toggle (Ghost Mode) in Top Bar as requested */}
-                <button 
-                    onClick={() => setUseAgenticMode(!useAgenticMode)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${useAgenticMode ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.2)]' : 'bg-white/5 border-white/10 text-neutral-500 hover:text-neutral-300'}`}
-                >
-                    <div className={`w-1.5 h-1.5 rounded-full ${useAgenticMode ? 'bg-cyan-400 animate-pulse' : 'bg-neutral-600'}`} />
-                    <span className="text-[10px] font-black tracking-widest uppercase">
-                        {useAgenticMode ? 'Ghost: On' : 'Ghost: Off'}
-                    </span>
-                    <Ghost className={`w-3.5 h-3.5 ${useAgenticMode ? 'text-cyan-400' : 'text-neutral-500'}`} />
-                </button>
-            </div>
-        </div>
-
-        {/* Vitals Bar - System Health Pulse */}
-        <div className="flex items-center justify-between px-6 py-2 bg-[#0c0c0c]/50 backdrop-blur-sm border border-white/5 rounded-2xl mx-4">
-            <div className="flex items-center gap-6">
-                {/* Network */}
-                <div className="flex items-center gap-2 group relative">
-                    <div className={`w-1.5 h-1.5 rounded-full ${props.vitals?.network === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`} />
-                    <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest flex items-center gap-1.5">
-                        <Wifi className="w-2.5 h-2.5" /> NET: <span className={props.vitals?.network === 'online' ? 'text-green-500/80' : 'text-red-500/80'}>{props.vitals?.network || 'CHECKING'}</span>
-                    </span>
-                </div>
-                
-                {/* Gemini API */}
-                <div className="flex items-center gap-2 group relative">
-                    <div className={`w-1.5 h-1.5 rounded-full ${props.vitals?.api === 'online' ? 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]' : props.vitals?.api === 'limited' ? 'bg-yellow-500' : 'bg-red-500'}`} />
-                    <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest flex items-center gap-1.5">
-                        <Cloud className="w-2.5 h-2.5" /> API: <span className={props.vitals?.api === 'online' ? 'text-indigo-400' : 'text-red-400'}>{props.vitals?.api || 'CHECKING'}</span>
-                    </span>
-                </div>
-
-                {/* Database */}
-                <div className="flex items-center gap-2 group relative">
-                    <div className={`w-1.5 h-1.5 rounded-full ${props.vitals?.database === 'connected' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' : 'bg-red-500'}`} />
-                    <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest flex items-center gap-1.5">
-                        <Server className="w-2.5 h-2.5" /> DB: <span className={props.vitals?.database === 'connected' ? 'text-blue-400' : 'text-red-400'}>{props.vitals?.database || 'CHECKING'}</span>
-                    </span>
-                </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setIsMemoryOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1 bg-white/5 border border-white/5 rounded-md text-[10px] font-bold text-neutral-400 hover:text-white transition-all"
-              >
-                <Brain className="w-3 h-3 text-indigo-400" />
-                MEMORY
-              </button>
-              <div className="w-px h-6 bg-white/5 mx-1" />
-              {/* Latency */}
-              <div className="flex items-center gap-2">
-                  <Activity className="w-3 h-3 text-neutral-600" />
-                  <span className="text-[9px] font-mono text-neutral-600">{props.vitals?.latencyMs || 0}ms</span>
-              </div>
-            </div>
-        </div>
-      
-        {/* View Switches */}
-        {viewMode === 'mastermind' && (
-          <MastermindDashboard 
-            apiKey={apiKeys.gemini} 
-            trends={allTrends}
-            engagementTargets={allEngagementTargets}
-            queueCount={0} 
-            onViewChange={setViewMode}
-            isAutoPilot={isAutoPilot}
-            setIsAutoPilot={setIsAutoPilot}
-            decisions={decisions}
-            autoPilotThreshold={autoPilotThreshold}
-            setAutoPilotThreshold={setAutoPilotThreshold}
-            autoPilotPlatforms={autoPilotPlatforms}
-            setAutoPilotPlatforms={setAutoPilotPlatforms}
-            initialView={clicheCheckText ? 'cliche_killer' : undefined}
-            initialClicheText={clicheCheckText || undefined}
-            onClearClicheText={() => setClicheCheckText(null)}
-          />
-        )}
-
-        {viewMode === 'feed' && (
-          <div className="w-full animate-in fade-in duration-500">
-            <TrendMonitor 
-              apiKey={apiKeys.gemini} 
-              onSelectTrend={handleTrendSelect} 
-              onTrendsFetched={setAllTrends}
-            />
-          </div>
-        )}
-
-        {viewMode === 'canvas' && (
-          <div className="w-full animate-in fade-in duration-500">
-             <StrategyCanvas apiKey={apiKeys.gemini || ""} />
-          </div>
-        )}
-
-        {viewMode === 'network' && (
-           <div className="w-full animate-in fade-in duration-500">
-              <NetworkDashboard 
-                apiKey={apiKeys.gemini} 
-                onTargetsScouted={setAllEngagementTargets}
-              />
-           </div>
-        )}
-
-        {viewMode === 'boardroom' && (
-           <div className="w-full animate-in fade-in duration-500">
-              <OracleDashboard isOpen={true} onClose={() => setViewMode('mastermind')} />
-           </div>
-        )}
-
-        {viewMode === 'apps' && (
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-bottom-4">
-              <AppIconCard label="Lead Magnet Studio" onClick={() => setIsLeadMagnetOpen(true)} icon={<LayoutDashboard className="text-amber-400" />} />
-              <AppIconCard label="Hook Lab" onClick={() => setIsHookLabOpen(true)} icon={<Zap className="text-indigo-400" />} />
-              <AppIconCard label="Viral Lab" onClick={() => setIsViralLabOpen(true)} icon={<Brain className="text-red-400" />} />
-              <AppIconCard label="Growth Simulator" onClick={() => setIsGrowthSimulatorOpen(true)} icon={<Activity className="text-emerald-400" />} />
-              <AppIconCard label="Batch Generator" onClick={() => setIsBatchOpen(true)} icon={<Grid className="text-pink-400" />} />
-              <AppIconCard label="Asset Gallery" onClick={() => setIsGalleryOpen(true)} icon={<Database className="text-blue-400" />} />
-           </div>
-        )}
-
-        {/* --- STRATEGIST INPUT AREA (Unified) --- */}
-        {(viewMode === 'mastermind' || viewMode === 'feed' || viewMode === 'network') && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative group"
-        >
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-3xl blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
-          <div className={`relative liquid-panel rounded-3xl p-1 overflow-hidden transition-all duration-700 ${!isLoading && completion ? 'highlight-flash' : ''}`}>
-            
-            {!isLoading && !completion && !localError ? (
-              <div className="flex flex-col">
-                <InputArea
-                  input={input}
-                  setInput={setInput}
-                  images={images}
-                  removeImage={removeImage}
-                  dynamicChips={dynamicChips}
-                  signals={signals}
-                  isFetchingSignals={isFetchingSignals}
-                  useNewsjack={useNewsjack}
-                  isDragActive={isDragActive}
-                  getRootProps={getRootProps}
-                  getInputProps={getInputProps}
-                  swarmMessages={swarmMessages}
-                  activeSwarmRole={activeSwarmRole}
-                  isSwarmRunning={isSwarmRunning}
-                  isAgenticRunning={isAgenticRunning}
-                  starterChips={DEFAULT_STARTER_CHIPS}
-                  isTeamMode={isTeamMode}
-                  coworkerName={coworkerName}
-                  setCoworkerName={setCoworkerName}
-                  coworkerRole={coworkerRole}
-                  setCoworkerRole={setCoworkerRole}
-                  coworkerRelation={coworkerRelation}
-                  setCoworkerRelation={setCoworkerRelation}
-                />
-                <PredictionPanel
-                  prediction={prediction}
-                  onClear={() => setPrediction(null)}
-                />
-                <ToolBar
-                  {...props}
-                  customPersonas={customPersonas}
-                  useAgenticMode={useAgenticMode}
-                  setUseAgenticMode={setUseAgenticMode}
-                  setIsVoiceTrainerOpen={setIsVoiceTrainerOpen}
-                  setIsComplianceOpen={setIsComplianceOpen}
-                  setUseTerminalMode={setUseTerminalMode}
-                  setIsGalleryOpen={setIsGalleryOpen}
-                  setIsAnalyticsOpen={setIsAnalyticsOpen}
-                  setIsScheduleOpen={setIsScheduleOpen}
-                  setIsBatchOpen={setIsBatchOpen}
-                  setIsAccountSettingsOpen={setIsAccountSettingsOpen}
-                  setIsTeamSettingsOpen={setIsTeamSettingsOpen}
-                  setIsLiveSessionOpen={setIsLiveSessionOpen}
-                  isTeamMode={isTeamMode}
-                  setIsTeamMode={setIsTeamMode}
-                  onOpenHookLab={() => setIsHookLabOpen(true)}
-                onOpenLeadMagnet={() => setIsLeadMagnetOpen(true)}
-                onOpenViralLab={() => setIsViralLabOpen(true)}
-                onOpenGrowthSimulator={() => setIsGrowthSimulatorOpen(true)}
-                onOpenVault={() => setIsVaultOpen(true)}
-                onOpenCompetitor={() => setIsCompetitorOpen(true)}
-                sectorId={sectorId}
-                setSectorId={setSectorId}
-              />
-                
-                <div className="absolute bottom-4 right-4 flex items-center gap-3 z-[60]">
-                  <OutputFormatSelector format={outputFormat} setFormat={setOutputFormat} />
-                  <PlatformIcon platform={platform} />
-                  
-                  <button
-                    onClick={useAgenticMode ? handleAgenticGenerate : () => handleGenerate(input)}
-                    disabled={(!input.trim() && images.length === 0) || isAgenticRunning}
-                    className={`group relative flex items-center gap-2 px-8 py-4 font-bold rounded-xl text-sm hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed ${useAgenticMode ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-[0_0_30px_rgba(34,211,238,0.4)]' : 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)]'}`}
-                  >
-                    {isAgenticRunning ? (
-                      <><span className="animate-spin">⚡</span> {agenticPhase.substring(0, 15)}...</>
-                    ) : useAgenticMode ? (
-                      <><Bot className="w-4 h-4" /> AGENTIC</>
-                    ) : (
-                      <><span>GENERATE</span></>
-                    )}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <OutputArea
-                isLoading={isLoading}
-                completion={completion}
-                localError={localError}
-                platform={platform}
-                onReset={() => { setLocalError(null); setImages([]); setInput(""); }}
-                onPublish={() => {
-                  const job = createPostingJob(completion, platform, images[0]);
-                  setCurrentPostingJob(job);
-                  setIsPostingModalOpen(true);
-                }}
-                  onNewGeneration={() => setCompletion("")}
-                  apiKey={apiKeys.gemini || ""}
-                  personaId={personaId as PersonaId}
-                  onUpdateCompletion={setCompletion}
-                  onOpenRepurposing={() => setIsRepurposingOpen(true)}
-                  onOpenAuditor={() => setIsAuditorOpen(true)}
-                  ragConcepts={ragConcepts}
-                />
+      <div className={`flex-1 h-screen w-full pl-24 transition-all duration-500 pr-4 py-4 ${useAgenticMode ? 'grayscale' : ''}`}>
+         <CommandCenterLayout
+            input={input}
+            setInput={setInput}
+            onGenerate={useAgenticMode ? handleAgenticGenerate : () => handleGenerate(input)}
+            isGenerating={isLoading || isAgenticRunning}
+            completion={completion}
+            vitals={props.vitals}
+            personaId={personaId as PersonaId}
+            setPersonaId={(id) => setPersonaId(id)}
+            sectorId={sectorId}
+            setSectorId={setSectorId}
+            useRAG={useRAG}
+            setUseRAG={setUseRAG}
+            useNewsjack={useNewsjack}
+            setUseNewsjack={setUseNewsjack}
+            useSwarm={useSwarm}
+            setUseSwarm={setUseSwarm}
+            images={images}
+            onRemoveImage={(i) => removeImage(i, { stopPropagation: () => {} } as any)}
+            isDragActive={isDragActive}
+            getRootProps={getRootProps}
+            getInputProps={getInputProps}
+            dynamicChips={dynamicChips}
+            signals={signals}
+            isFetchingSignals={isFetchingSignals}
+            phaseLogs={swarmMessages.map(m => `[${(m as any).agent}] ${(m as any).content}`)}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenHookLab={() => setIsHookLabOpen(true)}
+            showArchive={showArchive}
+            setShowArchive={setShowArchive}
+            onOpenVisualAlchemist={() => props.onOpenVisualAlchemist?.()}
+            onOpenRecon={() => props.onOpenRecon?.()}
+            onOpenMastermind={() => props.onOpenMastermind?.()}
+            onOpenBoardroom={() => props.onOpenBoardroom?.()}
+            onOpenNarrative={() => props.onOpenNarrative?.()}
+            onOpenVoiceStudio={props.onOpenVoiceStudio}
+            onToggleRadar={props.onToggleRadar}
+            onTriggerAutonomousDraft={props.onTriggerAutonomousDraft}
+            assets={assets}
+         >
+            {/* View Switches */}
+            {viewMode === 'mastermind' && (
+               <MastermindDashboard 
+                  apiKey={apiKeys.gemini} 
+                  trends={allTrends}
+                  engagementTargets={allEngagementTargets}
+                  queueCount={0} 
+                  onViewChange={setViewMode}
+                  isAutoPilot={isAutoPilot}
+                  setIsAutoPilot={setIsAutoPilot}
+                  decisions={decisions}
+                  autoPilotThreshold={autoPilotThreshold}
+                  setAutoPilotThreshold={setAutoPilotThreshold}
+                  autoPilotPlatforms={autoPilotPlatforms}
+                  setAutoPilotPlatforms={setAutoPilotPlatforms}
+                  initialView={clicheCheckText ? 'cliche_killer' : undefined}
+                  initialClicheText={clicheCheckText || undefined}
+                  onClearClicheText={() => setClicheCheckText(null)}
+               />
             )}
-          </div>
-        </motion.div>
-      )}
 
-      {/* Footer Meta */}
-      <div className="px-2 text-center opacity-30 hover:opacity-100 transition-opacity">
-        <p className="text-[10px] text-neutral-600 uppercase tracking-widest font-mono">StrategyOS v2.1 • Multi-Modal Kernel</p>
+            {viewMode === 'feed' && (
+               <div className="w-full animate-in fade-in duration-500">
+                  <TrendMonitor 
+                  apiKey={apiKeys.gemini} 
+                  onSelectTrend={handleTrendSelect} 
+                  onTrendsFetched={setAllTrends}
+                  />
+               </div>
+            )}
+
+            {viewMode === 'canvas' && (
+               <div className="w-full animate-in fade-in duration-500">
+                  <StrategyCanvas apiKey={apiKeys.gemini || ""} />
+               </div>
+            )}
+
+            {viewMode === 'network' && (
+               <div className="w-full animate-in fade-in duration-500">
+                  <NetworkDashboard 
+                  apiKey={apiKeys.gemini} 
+                  onTargetsScouted={setAllEngagementTargets}
+                  />
+               </div>
+            )}
+
+            {viewMode === 'boardroom' && (
+               <div className="w-full animate-in fade-in duration-500">
+                  <OracleDashboard isOpen={true} onClose={() => setViewMode('mastermind')} />
+               </div>
+            )}
+
+            {viewMode === 'apps' && (
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-bottom-4">
+                  <AppIconCard label="Lead Magnet Studio" onClick={() => setIsLeadMagnetOpen(true)} icon={<LayoutDashboard className="text-amber-400" />} />
+                  <AppIconCard label="Hook Lab" onClick={() => setIsHookLabOpen(true)} icon={<Zap className="text-indigo-400" />} />
+                  <AppIconCard label="Viral Lab" onClick={() => setIsViralLabOpen(true)} icon={<Brain className="text-red-400" />} />
+                  <AppIconCard label="Growth Simulator" onClick={() => setIsGrowthSimulatorOpen(true)} icon={<Activity className="text-emerald-400" />} />
+                  <AppIconCard label="Batch Generator" onClick={() => setIsBatchOpen(true)} icon={<Grid className="text-pink-400" />} />
+                  <AppIconCard label="Asset Gallery" onClick={() => setIsGalleryOpen(true)} icon={<Database className="text-blue-400" />} />
+               </div>
+            )}
+
+            {viewMode === 'lead_crm' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <LeadDashboard />
+                </div>
+            )}
+
+            {viewMode === 'marketplace' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <AppMarketplace />
+                </div>
+            )}
+
+            {viewMode === 'library' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <ResourceLibrary />
+                </div>
+            )}
+
+            {viewMode === 'trainer' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <AgentTrainer />
+                </div>
+            )}
+
+            {viewMode === 'scheduler' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <Scheduler />
+                </div>
+            )}
+
+            {viewMode === 'security' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <PermissionsDashboard />
+                </div>
+            )}
+
+            {viewMode === 'refresh' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <ContentRefresher />
+                </div>
+            )}
+
+            {viewMode === 'billing' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <MonetizationDashboard />
+                </div>
+            )}
+
+            {viewMode === 'arena' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <StrategyGamified />
+                </div>
+            )}
+
+            {viewMode === 'analytics' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <AnalyticsDashboard />
+                </div>
+            )}
+
+            {viewMode === 'api' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <APIDashboard />
+                </div>
+            )}
+
+            {viewMode === 'whiteboard' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <CollaborativeWhiteboard />
+                </div>
+            )}
+
+            {viewMode === 'labs' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <ABTestingEngine />
+                </div>
+            )}
+
+            {viewMode === 'ingest' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <DataIngestor />
+                </div>
+            )}
+
+            {viewMode === 'narrative' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <NarrativeEngine />
+                </div>
+            )}
+
+            {viewMode === 'reports' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <ExecutiveReporter />
+                </div>
+            )}
+
+            {viewMode === 'web3' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <Web3Social />
+                </div>
+            )}
+
+            {viewMode === 'market' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <MarketIntelligence />
+                </div>
+            )}
+
+            {viewMode === 'predict' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <PredictiveAnalytics />
+                </div>
+            )}
+
+            {viewMode === 'crm' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <RelationshipDashboard />
+                </div>
+            )}
+
+            {viewMode === 'video' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <VideoStudio />
+                </div>
+            )}
+
+            {viewMode === 'agency' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <AgencyHub />
+                </div>
+            )}
+
+            {viewMode === 'reputation' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <ReputationProfile />
+                </div>
+            )}
+
+            {viewMode === 'compliance' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <ComplianceSandbox />
+                </div>
+            )}
+
+            {viewMode === 'hardware' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <HardwareSync />
+                </div>
+            )}
+
+            {viewMode === 'newsletter' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <NewsletterFactory />
+                </div>
+            )}
+
+            {viewMode === 'seo' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <SEOOptimizer />
+                </div>
+            )}
+
+            {viewMode === 'audit' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <PeerReviewSystem />
+                </div>
+            )}
+
+            {viewMode === 'store' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <ExtensionMarketplace />
+                </div>
+            )}
+
+            {viewMode === 'funnel' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <LandingGenerator />
+                </div>
+            )}
+
+            {viewMode === 'recursive' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <SelfCorrectionConsole />
+                </div>
+            )}
+
+            {viewMode === 'style_v2' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <StyleTransformer />
+                </div>
+            )}
+
+            {viewMode === 'swarm_v2' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <AgentSwarm />
+                </div>
+            )}
+
+            {viewMode === 'revenue_v2' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <RevenueIntelligence />
+                </div>
+            )}
+
+            {viewMode === 'voice_v2' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <VoiceV2Studio />
+                </div>
+            )}
+
+            {viewMode === 'graph_v2' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <KnowledgeGraph />
+                </div>
+            )}
+
+            {viewMode === 'sim_v2' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <AudienceSimulator />
+                </div>
+            )}
+
+            {viewMode === 'visual_v3' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <VisualAlchemistV3 />
+                </div>
+            )}
+
+            {viewMode === 'stream_v2' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <StreamDirector />
+                </div>
+            )}
+
+            {viewMode === 'compliance_v2' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <ComplianceShield />
+                </div>
+            )}
+
+            {viewMode === 'agency_v2' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <PerformanceMatrix />
+                </div>
+            )}
+
+            {viewMode === 'seo_v3' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <NeuralSEO />
+                </div>
+            )}
+
+            {viewMode === 'market_v2' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <AlphaMarket />
+                </div>
+            )}
+
+            {viewMode === 'hardware_v3' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <HardwareSyncV2 />
+                </div>
+            )}
+
+            {viewMode === 'news_v3' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <NewsletterV2 />
+                </div>
+            )}
+
+            {viewMode === 'exit_v2' && (
+                <div className="w-full animate-in fade-in duration-500">
+                    <AutonomousExit />
+                </div>
+            )}
+         </CommandCenterLayout>
       </div>
 
-      <TemplateLibraryModal isOpen={isLibraryOpen} onClose={() => setIsLibraryOpen(false)} onSelect={setInput} />
-      <ComplianceExportModal isOpen={isComplianceOpen} onClose={() => setIsComplianceOpen(false)} />
-      <VoiceTrainerModal isOpen={isVoiceTrainerOpen} onClose={() => setIsVoiceTrainerOpen(false)} apiKey={apiKeys.gemini} />
-      <AccountSettingsModal isOpen={isAccountSettingsOpen} onClose={() => setIsAccountSettingsOpen(false)} />
-      <TeamSettingsModal isOpen={isTeamSettingsOpen} onClose={() => setIsTeamSettingsOpen(false)} />
-      <ScheduleQueueDashboard isOpen={isScheduleOpen} onClose={() => setIsScheduleOpen(false)} apiKey={apiKeys.gemini} />
-      <LiveVoiceConsole isOpen={isLiveSessionOpen} onClose={() => setIsLiveSessionOpen(false)} />
-      <DeepResearchModal isOpen={isDeepResearchOpen} onClose={() => setIsDeepResearchOpen(false)} apiKey={apiKeys.gemini} />
-      
-      <BatchGeneratorModal 
-        isOpen={isBatchOpen} 
-        onClose={() => setIsBatchOpen(false)} 
-        apiKey={apiKeys.gemini || ""} 
-        onComplete={() => setIsScheduleOpen(true)}
-      />
-      
-      <AnalyticsDashboard isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} apiKey={apiKeys.gemini || ""} onPersonaMutated={() => {}} />
-      <HookLabModal isOpen={isHookLabOpen} onClose={() => setIsHookLabOpen(false)} apiKey={apiKeys.gemini || ""} onSelect={(hook: string) => setInput((prev: string) => hook + "\n" + prev)} />
-      <LeadPipeline isOpen={isLeadPipelineOpen} onClose={() => setIsLeadPipelineOpen(false)} />
-      <OracleDashboard isOpen={isOracleOpen} onClose={() => setIsOracleOpen(false)} />
-      <RepurposingStudio isOpen={isRepurposingOpen} onClose={() => setIsRepurposingOpen(false)} initialContent={completion} apiKey={apiKeys.gemini} />
-      <LeadMagnetStudio isOpen={isLeadMagnetOpen} onClose={() => setIsLeadMagnetOpen(false)} apiKey={apiKeys.gemini} />
-      <ViralLab isOpen={isViralLabOpen} onClose={() => setIsViralLabOpen(false)} apiKey={apiKeys.gemini} />
-      <GrowthSimulator isOpen={isGrowthSimulatorOpen} onClose={() => setIsGrowthSimulatorOpen(false)} />
-      <ContentVault isOpen={isVaultOpen} onClose={() => setIsVaultOpen(false)} />
-      <StrategyAuditor isOpen={isAuditorOpen} onClose={() => setIsAuditorOpen(false)} content={completion} apiKey={apiKeys.gemini} />
-      <CompetitorBench 
-        isOpen={isCompetitorOpen} 
-        onClose={() => setIsCompetitorOpen(false)} 
-        niche={customPersonas.find(p => p.id === personaId)?.description || PERSONAS[personaId as keyof typeof PERSONAS]?.topics?.[0] || "General"}
-        apiKey={apiKeys.gemini}
-        onStealLogic={(template) => {
-          setInput(template);
-          setIsCompetitorOpen(false);
-        }}
-      />
-      <PostingApprovalModal
-        isOpen={isPostingModalOpen}
-        onClose={() => setIsPostingModalOpen(false)}
-        job={currentPostingJob}
-        onSuccess={(url) => window.open(url, "_blank")}
-      />
-
-      <AnimatePresence>
-        {isGalleryOpen && <AssetGallery onClose={() => setIsGalleryOpen(false)} />}
-        {isCloneModalOpen && <ClonePersonaModal onClose={() => setIsCloneModalOpen(false)} apiKey={apiKeys.gemini} onPersonaCreated={(p) => setCustomPersonas(prev => [...prev, p])} />}
-      </AnimatePresence>
-
-      <GlobalCommand 
-        isOpen={isCommandOpen}
-        onClose={() => setIsCommandOpen(false)}
-        onSelectPersona={handleCommandPersonaSelect}
-        onTriggerTool={handleCommandToolSelect}
-        onTriggerAction={handleCommandActionSelect}
-      />
-
-      {useTerminalMode && (
-        <TerminalConsole
-          onGenerate={async (val) => { setInput(val); handleGenerate(val); }}
-          isLoading={isLoading}
-          completion={completion}
-          onClose={() => setUseTerminalMode(false)}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          phaseLogs={swarmMessages.map(m => `[${(m as any).agent}] ${(m as any).content}`)}
-        />
-      )}
-      </div>
     </div>
   );
 }
@@ -741,9 +857,28 @@ MODE: High Authority
 function OutputFormatSelector({ format, setFormat }: { format: string; setFormat: (f: any) => void }) {
   return (
     <div className="flex items-center bg-black/40 backdrop-blur-md rounded-lg p-0.5 border border-white/10">
-      <button onClick={() => setFormat("text")} className={`p-1.5 rounded-md transition-all ${format === "text" ? "bg-white/10 text-white shadow-sm" : "text-neutral-400 hover:text-white hover:bg-white/5"}`}><FileText className="w-3.5 h-3.5" /></button>
-      <button onClick={() => setFormat("video")} className={`p-1.5 rounded-md transition-all ${format === "video" ? "bg-red-500/20 text-red-300 shadow-sm ring-1 ring-red-500/20" : "text-neutral-400 hover:text-white hover:bg-white/5"}`} title="Video Script"><Brain className="w-3.5 h-3.5" /></button>
-      <button onClick={() => setFormat("audio")} className={`p-1.5 rounded-md transition-all ${format === "audio" ? "bg-purple-500/20 text-purple-300 shadow-sm ring-1 ring-purple-500/20" : "text-neutral-400 hover:text-white hover:bg-white/5"}`} title="Audio Narration"><Database className="w-3.5 h-3.5" /></button>
+      
+      <RichTooltip 
+        content="Text Post"
+        trigger={
+           <button onClick={() => setFormat("text")} className={`p-1.5 rounded-md transition-all ${format === "text" ? "bg-white/10 text-white shadow-sm" : "text-neutral-400 hover:text-white hover:bg-white/5"}`}><FileText className="w-3.5 h-3.5" /></button>
+        }
+      />
+
+      <RichTooltip 
+        content="Video Script"
+        trigger={
+          <button onClick={() => setFormat("video")} className={`p-1.5 rounded-md transition-all ${format === "video" ? "bg-red-500/20 text-red-300 shadow-sm ring-1 ring-red-500/20" : "text-neutral-400 hover:text-white hover:bg-white/5"}`}><Brain className="w-3.5 h-3.5" /></button>
+        }
+      />
+
+      <RichTooltip 
+        content="Audio Narration"
+        trigger={
+          <button onClick={() => setFormat("audio")} className={`p-1.5 rounded-md transition-all ${format === "audio" ? "bg-purple-500/20 text-purple-300 shadow-sm ring-1 ring-purple-500/20" : "text-neutral-400 hover:text-white hover:bg-white/5"}`}><Database className="w-3.5 h-3.5" /></button>
+        }
+      />
+
     </div>
   );
 }

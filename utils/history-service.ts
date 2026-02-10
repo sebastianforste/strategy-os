@@ -151,6 +151,11 @@ export async function migrateHistoryToCloud(): Promise<{ success: boolean; migra
       throw new Error(data.error || "Migration failed");
     }
 
+    // SUCCESS - Clear local history to prevent duplication
+    if (data.success && data.migrated > 0) {
+        localStorage.removeItem(STORAGE_KEY);
+    }
+
     return {
       success: true,
       migrated: data.migrated,

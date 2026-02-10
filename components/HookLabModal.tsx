@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Sparkles, Copy, Check, Anchor, Zap, BarChart3, TrendingUp, Plus } from "lucide-react";
 import { generateHooksAction } from "../actions/generate";
 import AnimatedModal from "./AnimatedModal";
-import { HookVariant } from "../utils/hook-lab";
+import { HookVariant } from "../utils/virality-scorer";
 
 interface HookProps {
   isOpen: boolean;

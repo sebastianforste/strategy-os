@@ -10,15 +10,16 @@ export interface CreateStrategyParams {
     assets: GeneratedAssets;
     personaId: string;
     workspaceId?: string; // For future multi-tenancy
+    createdAt?: Date;      // Optional historical timestamp
+    rating?: string;       // Optional historical rating
 }
 
 export async function saveStrategy(params: CreateStrategyParams) {
     try {
         // For now, we hardcode the user/author association until full auth is wired up
-        // In a real app, we'd use auth() from NextAuth to get the session
         const placeholderAuthorEmail = "user@example.com"; 
 
-        // Ensure a user exists (simple upsert for dev velocity)
+        // Ensure a user exists
         const author = await prisma.user.upsert({
             where: { email: placeholderAuthorEmail },
             update: {},
@@ -36,8 +37,10 @@ export async function saveStrategy(params: CreateStrategyParams) {
                 assets: JSON.stringify(params.assets),
                 persona: params.personaId,
                 authorId: author.id,
-                platform: "LINKEDIN", // Default
+                platform: "LINKEDIN", 
                 isPublished: false,
+                createdAt: params.createdAt || new Date(),
+                rating: params.rating || null,
             }
         });
 

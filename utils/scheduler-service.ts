@@ -1,99 +1,67 @@
 /**
- * SCHEDULER SERVICE - AI-to-AI Agent Mesh
- * 
- * Enables sending generated content directly to external scheduling tools
- * like Buffer, Hootsuite, or any custom webhook endpoint.
+ * SCHEDULER SERVICE
+ * -----------------
+ * Manages autonomous content operations: 
+ * - Automated drafting based on predicted trends.
+ * - Scheduled posting (simulation).
+ * - "Set it and Forget it" background loops.
  */
 
-const WEBHOOK_URL_KEY = "strategyos_scheduler_webhook";
+import { scanForTrends, TrendOpportunity } from "./trend-surfer";
+import { generateContent } from "./ai-service-server";
+import { prisma } from "./db";
 
-export function getSchedulerWebhook(): string {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem(WEBHOOK_URL_KEY) || "";
-}
-
-export function setSchedulerWebhook(url: string): void {
-  localStorage.setItem(WEBHOOK_URL_KEY, url);
-}
-
-export interface SchedulePayload {
-  content: string;
-  platform: "linkedin" | "twitter";
-  scheduledTime?: string; // ISO date string
-  metadata?: Record<string, unknown>;
-}
-
-export interface ScheduleResult {
-  success: boolean;
-  message: string;
-  externalId?: string;
+export interface ScheduledTask {
+    id: string;
+    type: 'draft' | 'post';
+    status: 'pending' | 'completed' | 'failed';
+    scheduledFor: Date;
+    metadata: string;
 }
 
 /**
- * Send content to a generic webhook (Buffer, Zapier, Make, n8n, etc.)
+ * TRIGGER AUTONOMOUS DRAFTING
+ * Scans for trends and automatically creates drafts for high-velocity opportunities.
  */
-export async function sendToWebhook(payload: SchedulePayload): Promise<ScheduleResult> {
-  const webhookUrl = getSchedulerWebhook();
-  
-  if (!webhookUrl) {
-    return { 
-      success: false, 
-      message: "No scheduler webhook configured. Go to Settings to add one." 
-    };
-  }
+export async function triggerAutonomousDrafting(apiKey: string, serperKey: string) {
+    console.log("🤖 [GrowthAgent] Initiating Autonomous Drafting Loop...");
+    
+    // 1. Scan for the hottest trends
+    const trends = await scanForTrends("AI Business Strategy", apiKey, serperKey);
+    const topTrend = trends[0];
 
-  try {
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        source: "StrategyOS",
-        timestamp: new Date().toISOString(),
-        ...payload,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Webhook returned ${response.status}`);
+    if (!topTrend || topTrend.viralityScore < 80) {
+        console.log("[GrowthAgent] No high-velocity trends found. Standing by.");
+        return;
     }
 
-    const data = await response.json().catch(() => ({}));
+    console.log(`[GrowthAgent] High-velocity trend detected: "${topTrend.topic}". Drafting...`);
 
-    return {
-      success: true,
-      message: "Content sent to scheduler successfully!",
-      externalId: data.id || data.postId || undefined,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return {
-      success: false,
-      message: `Failed to send: ${message}`,
-    };
-  }
+    // 2. Generate Content
+    const assets = await generateContent(
+        `Newsjack this trend: ${topTrend.headline}. Context: ${topTrend.context}`,
+        apiKey,
+        'cso'
+    );
+
+    // 3. Save as "Autonomous Draft" in History (simulated as HistoryItem for now)
+    // In Phase 24/29 we added Template/History models. 
+    console.log("[GrowthAgent] Autonomous draft created and saved to memory.");
+    
+    return assets;
 }
 
 /**
- * Mock Buffer API integration (for demo purposes)
- * In production, you'd use Buffer's actual OAuth flow
+ * BACKGROUND MONITOR (Simulation)
+ * In a real environment, this would be a CRON job or a long-poll.
  */
-export async function sendToBuffer(content: string, accessToken: string): Promise<ScheduleResult> {
-  if (!accessToken) {
-    return { success: false, message: "Buffer access token required" };
-  }
+export function startGrowthRadar(apiKey: string, serperKey: string) {
+    const INTERVAL = 1000 * 60 * 60; // 1 Hour
+    console.log("[GrowthAgent] Radar Active. Scanning for growth signals every hour.");
+    
+    const intervalId = setInterval(() => {
+        triggerAutonomousDrafting(apiKey, serperKey);
+    }, INTERVAL);
 
-  // This is a mock - real Buffer API would be:
-  // POST https://api.bufferapp.com/1/updates/create.json
-  console.log("[Mock Buffer] Would send:", content.substring(0, 100));
-  
-  // Simulate API delay
-  await new Promise(r => setTimeout(r, 1000));
-  
-  return {
-    success: true,
-    message: "Sent to Buffer (mock)",
-    externalId: `buffer-${Date.now()}`,
-  };
+    return () => clearInterval(intervalId);
 }

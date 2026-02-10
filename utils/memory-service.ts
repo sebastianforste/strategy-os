@@ -44,7 +44,7 @@ async function getTable() {
 async function getEmbedding(text: string, apiKey: string): Promise<number[]> {
     const genAI = new GoogleGenAI({ apiKey });
     const result = await genAI.models.embedContent({
-        model: "text-embedding-004",
+        model: AI_CONFIG.embeddingModel,
         contents: [{ parts: [{ text }] }]
     });
     const response = (result as any);

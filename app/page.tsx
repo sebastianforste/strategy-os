@@ -8,34 +8,39 @@ import HistorySidebar from "../components/HistorySidebar";
 import AnalyticsDashboard from "../components/AnalyticsDashboard";
 import GlitchLogo from "../components/GlitchLogo";
 import Toast, { ToastType } from "../components/Toast";
-import VoiceTrainingModal from "../components/VoiceTrainingModal";
+import VoiceTrainerModal from "../components/VoiceTrainerModal";
 import WorkspaceSwitcher from "../components/WorkspaceSwitcher";
 import TeamSettingsModal from "../components/TeamSettingsModal";
 import GhostAgentDashboard from "../components/GhostAgentDashboard";
 import CommentGeneratorModal from "../components/CommentGeneratorModal";
 import ScheduleQueueDashboard from "../components/ScheduleQueueDashboard";
-import { Settings as SettingsIcon, Clock, Mic, BarChart3, Users, Calendar, Ghost, Activity, MessageSquare, LayoutGrid, Dna } from "lucide-react";
+import { Settings as SettingsIcon, Clock, Mic, BarChart3, Users, Calendar, Ghost, Activity, MessageSquare, LayoutGrid, Dna, X } from "lucide-react";
 import { GeneratedAssets } from "../utils/ai-service";
 import { saveHistory, getHistory, clearHistory, HistoryItem, updateHistoryPerformance, PerformanceRating } from "../utils/history-service";
 import { PersonaId } from "../utils/personas";
+import { SectorId } from "../utils/sectors";
 import { GhostDraft } from "../utils/ghost-agent";
 import BoardroomModal from "../components/BoardroomModal";
 import CouncilModal from "../components/CouncilModal";
 import SimulatorModal from "../components/SimulatorModal";
-import LiveVoiceConsole from "../components/LiveVoiceConsole";
-import VoiceLabModal from "../components/VoiceLabModal";
+import VisualAlchemistModal from "../components/VisualAlchemistModal";
+import CompetitorMonitor from "../components/CompetitorMonitor";
+import MastermindMarketplace from "../components/MastermindMarketplace";
+// Redundant VoiceLab/Training imports removed
 import NetworkHub from "../components/NetworkHub";
 import InterceptionPanel from "../components/InterceptionPanel";
 import { SystemVitals, checkVitals } from "../utils/vitals-service";
 import { getDNA, buildDNAPrompt } from "../utils/dna-service";
 import { PERSONAS } from "../utils/personas";
+import NarrativeModal from "../components/NarrativeModal";
+import IdeaFactoryModal from "../components/IdeaFactoryModal";
 
 export default function Home() {
   const [input, setInput] = useState("");
   const [assets, setAssets] = useState<GeneratedAssets | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [voiceTrainingOpen, setVoiceTrainingOpen] = useState(false);
+  const [voiceStudioOpen, setVoiceStudioOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [ghostOpen, setGhostOpen] = useState(false);
@@ -43,9 +48,12 @@ export default function Home() {
   const [boardroomOpen, setBoardroomOpen] = useState(false);
   const [councilOpen, setCouncilOpen] = useState(false);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
-  const [voiceModeOpen, setVoiceModeOpen] = useState(false);
-  const [voiceLabOpen, setVoiceLabOpen] = useState(false);
   const [networkHubOpen, setNetworkHubOpen] = useState(false);
+  const [visualAlchemistOpen, setVisualAlchemistOpen] = useState(false);
+  const [competitorReconOpen, setCompetitorReconOpen] = useState(false);
+  const [mastermindOpen, setMastermindOpen] = useState(false);
+  const [narrativeOpen, setNarrativeOpen] = useState(false);
+  const [ideaFactoryOpen, setIdeaFactoryOpen] = useState(false);
   const [appsMenuOpen, setAppsMenuOpen] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKeys>({ gemini: "", serper: "" });
@@ -56,8 +64,10 @@ export default function Home() {
   const [useFewShot, setUseFewShot] = useState(true);
   const [useSwarm, setUseSwarm] = useState(false);
   const [platform, setPlatform] = useState<"linkedin" | "twitter">("linkedin");
+
   const [isTeamMode, setIsTeamMode] = useState(false);
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
+  const [sectorId, setSectorId] = useState<SectorId>("general");
   
   const [preloadedCommentSignals, setPreloadedCommentSignals] = useState<any[]>([]);
   const [vitals, setVitals] = useState<SystemVitals>({
@@ -335,6 +345,18 @@ export default function Home() {
           setIsTeamMode={setIsTeamMode}
           vitals={vitals}
           onError={(msg) => showToast(msg, "error")}
+          sectorId={sectorId}
+          setSectorId={setSectorId}
+          onOpenVoiceStudio={() => setVoiceStudioOpen(true)}
+          onOpenBoardroom={() => setBoardroomOpen(true)}
+          onOpenNarrative={() => setNarrativeOpen(true)}
+          onToggleRadar={(enabled) => {
+              showToast(`Autonomous Radar ${enabled ? 'Engaged' : 'Disengaged'}`, 'success');
+          }}
+          onTriggerAutonomousDraft={async () => {
+              showToast("Growth Agent Scanning trends...", "success");
+          }}
+          onOpenIdeaFactory={() => setIdeaFactoryOpen(true)}
         />
         {assets && (
           <div className="w-full max-w-4xl animate-in fade-in slide-in-from-bottom-10 duration-700">
@@ -355,7 +377,51 @@ export default function Home() {
         onClose={() => setSettingsOpen(false)}
         onSave={handleSaveKeys}
         initialKeys={apiKeys}
+        onOpenTeamSettings={() => {
+            setSettingsOpen(false);
+            setTeamSettingsOpen(true);
+        }}
       />
+
+       <TeamSettingsModal 
+        isOpen={teamSettingsOpen} 
+        onClose={() => setTeamSettingsOpen(false)} 
+      />
+
+      <VisualAlchemistModal
+        isOpen={visualAlchemistOpen}
+        onClose={() => setVisualAlchemistOpen(false)}
+      />
+
+      {competitorReconOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setCompetitorReconOpen(false)} />
+            <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                <CompetitorMonitor />
+                <button 
+                  onClick={() => setCompetitorReconOpen(false)}
+                  className="absolute top-4 right-4 p-2 bg-white/5 rounded-full hover:bg-white/10"
+                >
+                    <X className="w-5 h-5 text-white" />
+                </button>
+            </div>
+        </div>
+      )}
+
+      {mastermindOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setMastermindOpen(false)} />
+            <div className="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+                <MastermindMarketplace />
+                <button 
+                  onClick={() => setMastermindOpen(false)}
+                  className="absolute top-4 right-4 p-2 bg-white/5 rounded-full hover:bg-white/10"
+                >
+                    <X className="w-5 h-5 text-white" />
+                </button>
+            </div>
+        </div>
+      )}
       
       <AnalyticsDashboard
         isOpen={analyticsOpen}
@@ -380,14 +446,10 @@ export default function Home() {
         }}
       />
       
-      <VoiceTrainingModal
-        isOpen={voiceTrainingOpen}
-        onClose={() => setVoiceTrainingOpen(false)}
-        geminiKey={apiKeys.gemini || ""}
-        onTrainingComplete={() => {
-          showToast(`Voice training complete! Model ready.`, "success");
-          setVoiceTrainingOpen(false);
-        }}
+      <VoiceTrainerModal
+        isOpen={voiceStudioOpen}
+        onClose={() => setVoiceStudioOpen(false)}
+        apiKey={apiKeys.gemini || ""}
       />
       
       <GhostAgentDashboard
@@ -419,6 +481,14 @@ export default function Home() {
       <BoardroomModal
         isOpen={boardroomOpen}
         onClose={() => setBoardroomOpen(false)}
+        strategyContent={assets?.textPost || ""}
+        apiKey={apiKeys.gemini}
+      />
+
+      <NarrativeModal
+        isOpen={narrativeOpen}
+        onClose={() => setNarrativeOpen(false)}
+        initialTheme={input || "World Class AI Strategy"}
       />
 
       <Toast 
@@ -443,20 +513,15 @@ export default function Home() {
         onClose={() => setSimulatorOpen(false)}
         apiKey={apiKeys.gemini}
       />
-      <LiveVoiceConsole
-        isOpen={voiceModeOpen}
-        onClose={() => setVoiceModeOpen(false)}
-        apiKey={apiKeys.gemini}
-      />
-      <VoiceLabModal
-        isOpen={voiceLabOpen}
-        onClose={() => setVoiceLabOpen(false)}
-        apiKey={apiKeys.gemini}
-      />
+      {/* Redundant Voice modals removed for Voice Studio V2 */}
       <NetworkHub
         isOpen={networkHubOpen}
         onClose={() => setNetworkHubOpen(false)}
         apiKey={apiKeys.gemini}
+      />
+      <IdeaFactoryModal 
+        isOpen={ideaFactoryOpen}
+        onClose={() => setIdeaFactoryOpen(false)}
       />
     </main>
   );

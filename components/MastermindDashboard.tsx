@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Zap, Target, ListTodo, Activity, ArrowUpRight, Sparkles, Loader2, RefreshCw, Cpu, ShieldCheck, History, MessageSquare, Mic, Type } from "lucide-react";
+import { Zap, Target, Sparkles, ArrowUpRight, TrendingUp, Users, Activity, Lock, Unlock, Play, Pause, RotateCcw, Search, ExternalLink, History as HistoryIcon, LayoutDashboard, ListTodo, MessageSquare, Mic, Type, RefreshCw, Loader2, Cpu, ShieldCheck } from "lucide-react";
+import BrandedLoader from "./ui/BrandedLoader";
 import { generateMastermindBriefing, MastermindBriefing } from "../utils/mastermind-briefing";
 import { AutonomousDecision } from "../utils/autonomous-agent";
 import { findCollaborativeArticles, CollaborativeArticle } from "../utils/collaborative-agent";
@@ -452,7 +453,7 @@ export default function MastermindDashboard({
 
                     <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
                         <div className="flex items-center gap-2 text-white text-sm font-bold mb-4">
-                            <History className="w-4 h-4 text-neutral-500" />
+                            <HistoryIcon className="w-4 h-4 text-neutral-500" />
                             <span>Decision Log</span>
                         </div>
                         <div className="space-y-3">
@@ -551,25 +552,8 @@ function RadialGaugeCard({ label, value, status, color }: { label: string, value
     );
 }
 
-function ThinkingLoader() {
+export function ThinkingLoader() {
     return (
-        <div className="flex items-center gap-0.5 h-3">
-            {[...Array(4)].map((_, i) => (
-                <motion.div
-                    key={i}
-                    className="w-0.5 bg-purple-500/50 rounded-full"
-                    animate={{ 
-                        height: ["20%", "100%", "20%"],
-                        opacity: [0.3, 1, 0.3]
-                    }}
-                    transition={{ 
-                        duration: 0.8, 
-                        repeat: Infinity, 
-                        delay: i * 0.1,
-                        ease: "easeInOut" 
-                    }}
-                />
-            ))}
-        </div>
+        <BrandedLoader text="Processing..." />
     );
 }

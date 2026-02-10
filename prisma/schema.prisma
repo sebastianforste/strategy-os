@@ -61,6 +61,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   strategies    Strategy[]
+  templates     Template[]
   team          Team?      @relation(fields: [teamId], references: [id])
   teamId        String?
   
@@ -78,6 +79,7 @@ model Team {
   members     User[]
   strategies  Strategy[]
   resources   Resource[]
+  invitations Invitation[]
   
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
@@ -115,9 +117,14 @@ model Strategy {
   
   // Metadata
   mode        String?      // "standard", "agentic", "swarm"
+  status      StrategyStatus @default(DRAFT)
   isPublished Boolean      @default(false)
   publishedAt DateTime?
   externalId  String?      // LinkedIn/Twitter post ID
+
+  // Compliance (Phase 49)
+  complianceScore Int?     @default(100)
+  complianceNotes String?
 
   // Team Analytics (Phase 26)
   isTeamPost     Boolean   @default(false)
@@ -145,6 +152,14 @@ model StrategyVersion {
   strategyId  String
   
   createdAt   DateTime @default(now())
+}
+
+enum StrategyStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PUBLISHED
+  REJECTED
 }
 
 enum Platform {
@@ -197,4 +212,42 @@ model Resource {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// --- TEMPLATES (Phase 29) ---
+
+model Template {
+  id          String   @id @default(cuid())
+  name        String
+  content     String   // The raw text or structured content
+  category    String   @default("General") // "Hook", "Story", "Thread"
+  tags        String?  // Comma-separated tags
+  
+  usageCount  Int      @default(0)
+  isPublic    Boolean  @default(false)
+  
+  // Owner
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// --- AGENCY MODE (Phase 31) ---
+
+model Invitation {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  role      Role     @default(MEMBER)
+  
+  // Relations
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, email])
 }

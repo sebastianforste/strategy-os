@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { TrendingUp, AlertCircle, ArrowUpRight, RefreshCw, Radio } from "lucide-react";
+import { TrendingUp, ArrowUpRight, RefreshCw, Radio, Target } from "lucide-react";
 import { TrendOpportunity, scanForTrends } from "../utils/trend-surfer";
+import TrendPredictor from "./TrendPredictor";
 
 interface TrendMonitorProps {
     apiKey?: string;
@@ -115,11 +116,11 @@ export default function TrendMonitor({ apiKey, onSelectTrend, onTrendsFetched }:
 
                                 <div className="flex items-start justify-between mb-2">
                                     <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${
-                                        trend.suggestedAngle === 'contrarian' ? 'border-red-500/30 text-red-400' :
-                                        trend.suggestedAngle === 'prediction' ? 'border-purple-500/30 text-purple-400' :
+                                        trend.sentiment === 'bearish' ? 'border-red-500/30 text-red-400' :
+                                        trend.sentiment === 'bullish' ? 'border-emerald-500/30 text-emerald-400' :
                                         'border-blue-500/30 text-blue-400'
                                     }`}>
-                                        {trend.suggestedAngle}
+                                        {trend.sentiment || 'neutral'}
                                     </span>
                                     <span className="text-[8px] font-mono text-neutral-600">{trend.viralityScore}% VIRALITY</span>
                                 </div>
@@ -141,6 +142,17 @@ export default function TrendMonitor({ apiKey, onSelectTrend, onTrendsFetched }:
                 <span>SECTOR: AI & TECH</span>
                 <span>{lastUpdated ? `UPDATED: ${lastUpdated.toLocaleTimeString()}` : 'IDLE'}</span>
             </div>
+
+            {/* Predictive Intelligence Layer */}
+            {trends.length > 0 && (
+                <div className="mt-8 border-t border-white/5 pt-8">
+                    <TrendPredictor 
+                        sector="Artificial Intelligence Business" 
+                        apiKey={apiKey || ""} 
+                        trends={trends} 
+                    />
+                </div>
+            )}
         </div>
     );
 }

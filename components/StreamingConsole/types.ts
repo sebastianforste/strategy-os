@@ -37,6 +37,15 @@ export interface StreamingConsoleProps {
   onError?: (msg: string) => void;
   sectorId: SectorId;
   setSectorId: (id: SectorId) => void;
+  onOpenVoiceStudio?: () => void;
+  onToggleRadar?: (enabled: boolean) => void;
+  onTriggerAutonomousDraft?: () => void;
+  onOpenIdeaFactory?: () => void;
+  onOpenVisualAlchemist?: () => void;
+  onOpenRecon?: () => void;
+  onOpenMastermind?: () => void;
+  onOpenBoardroom?: () => void;
+  onOpenNarrative?: () => void;
 }
 
 export interface ConsoleState {

@@ -2,6 +2,7 @@ import "server-only";
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import path from "path";
+import { AI_CONFIG } from "./config";
 
 export interface KnowledgeChunk {
     id: string;
@@ -33,7 +34,7 @@ export async function embedText(text: string, apiKey: string): Promise<number[]>
     
     try {
         const response = await genAI.models.embedContent({
-            model: "models/text-embedding-004",
+            model: AI_CONFIG.embeddingModel,
             contents: text
         });
         

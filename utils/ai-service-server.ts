@@ -1,7 +1,6 @@
 import "server-only";
 import { GoogleGenAI } from "@google/genai";
 import { PERSONAS, PersonaId } from "./personas";
-import { getActiveModel } from "./voice-training-service";
 import { verifyConstraints } from "./constraint-service";
 import { optimizeContent } from "./refinement-service";
 import { SYSTEM_PROMPTS, formatPrompt } from "./prompts";
@@ -10,6 +9,7 @@ import { AI_CONFIG } from "./config";
 import { isRateLimitError, getErrorMessage } from "./gemini-errors";
 import { GeneratedAssets } from "./ai-service";
 import { retrieveMemories } from "./memory-service";
+import { getRoute } from "./model-mixer";
 
 /**
  * FETCH STRATEGIC CONTEXT (RAG)
@@ -127,8 +127,14 @@ export async function generateContent(
   const PRIMARY_MODEL = AI_CONFIG.primaryModel;
   const FALLBACK_MODEL = AI_CONFIG.fallbackModel;
   
-  let modelName = PRIMARY_MODEL;
   const persona = customPersona || PERSONAS[personaId];
+  
+  // Model Mixer Selection
+  let modelName = getRoute({ 
+      complexity: 'complex', // Pro for main strategy generation
+      inputLength: input.length 
+  });
+  
   let systemInstruction = (persona?.basePrompt || persona?.systemPrompt || "") + "\n" + (persona?.jsonSchema || "");
   
   // INJECT RAG CONTEXT (Phase 20 + 22)
@@ -152,21 +158,12 @@ export async function generateContent(
 
   // Check if using custom voice with fine-tuned model
   if (personaId === "custom") {
-    try {
-      const activeModel = await getActiveModel();
-      
-      if (activeModel && activeModel.geminiModelId) {
-        console.log(`Using custom voice model: ${activeModel.geminiModelId}`);
-        // For tuned models, the model name is the tuned model resource name
-        modelName = activeModel.geminiModelId;
-        // Tuned models often have the system prompt baked in or we can provide one
-        // Usually good to provide the persona context still
-        systemInstruction = "You are a LinkedIn creator with a unique voice. Maintain this voice strictly.";
-      } else {
-        console.warn("Custom persona selected but no trained model found, falling back to base Gemini");
-      }
-    } catch (e) {
-      console.warn("Failed to load custom voice model, falling back to Gemini:", e);
+    if (persona?.geminiModelId) {
+      console.log(`Using custom voice model: ${persona.geminiModelId}`);
+      modelName = persona.geminiModelId;
+      systemInstruction = "You are a LinkedIn creator with a unique voice. Maintain this voice strictly.";
+    } else {
+      console.warn("Custom persona selected but no trained model found, falling back to base Gemini");
     }
   }
 
@@ -313,9 +310,12 @@ export async function generateSideAssetsFromText(
       textPost
   });
 
+  const modelName = getRoute({ complexity: 'simple' }); // Use Flash for speed in side assets
+  console.log(`[AI Service] Generating side assets with: ${modelName}`);
+
   try {
     const result = await genAI.models.generateContent({
-        model: AI_CONFIG.primaryModel,
+        model: modelName,
         contents: prompt,
         config: { responseMimeType: "application/json" }
     });

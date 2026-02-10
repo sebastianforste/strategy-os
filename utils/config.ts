@@ -51,7 +51,7 @@ export const AI_CONFIG = {
   imageModel: "models/imagen-4.0-generate-001",
   
   // Embedding model for RAG
-  embeddingModel: "models/text-embedding-004",
+  embeddingModel: "text-embedding-004",
   
   // Model pool for manual rotation
   modelPool: MODEL_POOL,

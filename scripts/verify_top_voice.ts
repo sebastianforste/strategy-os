@@ -26,7 +26,7 @@ async function verify() {
 
   // 2. Test Collaborative Agent
   console.log("\nTesting Collaborative Agent...");
-  const articles = await findCollaborativeArticles("AI");
+  const articles = await findCollaborativeArticles("AI", process.env.GEMINI_API_KEY || "");
   console.log("Articles Found:", articles.length);
   articles.forEach(a => console.log(`- ${a.title} (Badge Potential: ${a.badgePotential}%)`));
 
