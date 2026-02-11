@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Command, Mic, Zap, Shield, Target, Layout, Users, BookOpen, Settings, X, Ghost } from "lucide-react";
+import { Command, Ghost } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-interface HUDAction {
+export interface HUDAction {
     id: string;
     title: string;
     description: string;
-    icon: any;
+    icon: LucideIcon;
     shortcut: string;
     handler: () => void;
 }
@@ -16,7 +17,7 @@ interface HUDAction {
 export default function GlobalHUD({ 
     isOpen, 
     onClose,
-    actions: externalActions = [] 
+    actions = [] 
 }: { 
     isOpen: boolean; 
     onClose: () => void;
@@ -25,33 +26,23 @@ export default function GlobalHUD({
     const [search, setSearch] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
 
-    const defaultActions: HUDAction[] = [
-        { id: "gen", title: "Generate Strategy", description: "Create a world-class LinkedIn post", icon: Zap, shortcut: "G", handler: () => console.log("Gen") },
-        { id: "council", title: "Convene Council", description: "Run Multi-Agent Boardroom debate", icon: Users, shortcut: "C", handler: () => console.log("Council") },
-        { id: "narrative", title: "Plan Narrative Arc", description: "Map out a 5-day story series", icon: BookOpen, shortcut: "N", handler: () => console.log("Narrative") },
-        { id: "carousel", title: "Carousel Factory", description: "Transmute post to PDF slides", icon: Layout, shortcut: "P", handler: () => console.log("Carousel") },
-        { id: "trends", title: "Predict Trends", description: "Forecast future viral topics", icon: Target, shortcut: "T", handler: () => console.log("Trends") },
-        { id: "shield", title: "Truth Shield", description: "Verify claims and fact-check", icon: Shield, shortcut: "S", handler: () => console.log("Shield") },
-        { id: "voice", title: "Voice Command", description: "Control StrategyOS with your voice", icon: Mic, shortcut: "V", handler: () => console.log("Voice") },
-        { id: "settings", title: "Open Settings", description: "Configure API keys and personas", icon: Settings, shortcut: "O", handler: () => console.log("Settings") },
-    ];
-
-    const actions = [...defaultActions, ...externalActions].filter(a => 
+    const filteredActions = actions.filter(a => 
         a.title.toLowerCase().includes(search.toLowerCase()) || 
         a.description.toLowerCase().includes(search.toLowerCase())
     );
 
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         if (!isOpen) return;
+        if (filteredActions.length === 0 && e.key !== "Escape") return;
 
         if (e.key === "Escape") onClose();
-        if (e.key === "ArrowDown") setSelectedIndex(prev => (prev + 1) % actions.length);
-        if (e.key === "ArrowUp") setSelectedIndex(prev => (prev - 1 + actions.length) % actions.length);
+        if (e.key === "ArrowDown") setSelectedIndex(prev => (prev + 1) % filteredActions.length);
+        if (e.key === "ArrowUp") setSelectedIndex(prev => (prev - 1 + filteredActions.length) % filteredActions.length);
         if (e.key === "Enter") {
-            actions[selectedIndex]?.handler();
+            filteredActions[selectedIndex]?.handler();
             onClose();
         }
-    }, [isOpen, actions, selectedIndex, onClose]);
+    }, [isOpen, filteredActions, selectedIndex, onClose]);
 
     useEffect(() => {
         window.addEventListener("keydown", handleKeyDown);
@@ -91,13 +82,13 @@ export default function GlobalHUD({
                         </div>
 
                         <div className="max-h-[400px] overflow-y-auto p-3 space-y-1 custom-scrollbar">
-                            {actions.length === 0 ? (
+                            {filteredActions.length === 0 ? (
                                 <div className="py-20 text-center">
                                     <Ghost className="w-12 h-12 text-neutral-800 mx-auto mb-4" />
-                                    <p className="text-sm text-neutral-600 font-mono uppercase tracking-widest">No Command Found</p>
+                                    <p className="text-sm text-neutral-600 font-mono uppercase tracking-widest">No Actions Available</p>
                                 </div>
                             ) : (
-                                actions.map((action, i) => (
+                                filteredActions.map((action, i) => (
                                     <button
                                         key={action.id}
                                         onClick={() => { action.handler(); onClose(); }}

@@ -37,7 +37,7 @@ import { calculateAuthorityScore, AuthorityScore } from "../../utils/authority-s
 import { useState, useMemo, useEffect } from "react";
 import { AlertTriangle, X, Flame, ShieldCheck, Info, Zap, RefreshCw, Layers, ShieldAlert } from "lucide-react";
 import RoastModal from "../RoastModal";
-import { refineAuthorityAction } from "../../actions/generate";
+import { refineAuthorityAction, scoreViralityAction } from "../../actions/generate";
 import { PersonaId } from "../../utils/personas";
 import { sentinelService, SafetyReport } from "../../utils/sentinel-service";
 import { StyleMemoryService, StyleDelta } from "../../utils/style-memory-service";
@@ -134,8 +134,8 @@ export default function OutputArea({
     if (!apiKey || !completion) return;
     setIsPredicting(true);
     try {
-      const result = await predictImpact(completion, apiKey);
-      setPrediction(result);
+      const result = await scoreViralityAction(completion, apiKey, personaId);
+      setPrediction(result as any);
       setShowPrediction(true);
     } catch (e) {
       console.error("Prediction failed:", e);

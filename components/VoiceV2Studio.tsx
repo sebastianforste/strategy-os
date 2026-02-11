@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic2, Play, Pause, SkipForward, Volume2, Save, Download, RefreshCw, Zap, Stars, Brain, Speaker, Gauge, Layers, MoreHorizontal, CheckCircle, Sliders, Music } from "lucide-react";
+import { Mic2, Play, Pause, SkipForward, Volume2, Save, Download, RefreshCw, Zap, Stars, Brain, Speaker, Gauge, Layers, MoreHorizontal, CheckCircle, Sliders, Music, ChevronRight } from "lucide-react";
 
 interface AudioAsset {
     id: string;

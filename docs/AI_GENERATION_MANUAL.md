@@ -8,12 +8,14 @@ This manual provides a comprehensive breakdown of the StrategyOS generation engi
 StrategyOS does not just "ask an LLM to write a post." It uses a **multi-layered enrichment pipeline** to ensure every output is strategically grounded and stylistically unique.
 
 ### The Enrichment Layers:
-1.  **System Persona**: Core identity and rules (System Prompt).
-2.  **Platform Adapter**: LinkedIn vs. Twitter specific constraints (Length, Formatting).
-3.  **RAG Context**: Real-world strategic concepts from our indexed knowledge base.
-4.  **Few-Shot Mirroring**: Learning from YOUR best-rated previous posts.
-5.  **Operation Mode Detection**: Automatically pivoting between "The Translator" (URL/Doc analysis) and "The Newsjacker" (Topic ideation).
-6.  **Anti-Robot Filter**: A post-generation cleaning layer that removes "AI-isms" (e.g., "Delve", "Leverage").
+1. **Graph RAG (Strategic Library)**: Deep contextualization using the Gunnercooke strategic library and logical association graphs.
+2. **Style DNA (Voice Alchemist)**: High-fidelity persona fingerprints extracted from historical performance data.
+3. **Moltbook Social Discourse**: Real-time "AI Social" ingestion for current trending narratives and agentic discourse.
+4. **Stitch Design DNA**: Consistent visual grounding for Image/Video prompts based on the Google Stitch system.
+5. **RAG V2 (Voice Memory)**: Persona-specific stylistic anchors retrieved from LanceDB.
+6. **Darwin Engine**: Engagement-driven tone adaptation based on historical analytics.
+7. **Anti-Robot Filter V3**: Advanced cleaning of "AI-isms" with authoritative "Bro-etry" formatting.
+8. **Generative UI Widgets**: Automated injection of SWOT/Trend JSON blocks for interactive canvas rendering.
 
 ---
 
@@ -103,6 +105,8 @@ If you want to use the Gemini Web interface to "fine-tune" these personas, use t
 For developers looking to modify the engine:
 *   **`utils/personas.ts`**: Edit the actual System Prompts for each persona.
 *   **`actions/generate.ts`**: Edit the prompt enrichment logic (RAG integration).
+*   **`utils/analytics-service.ts`**: The "Intelligence Hub" powering live scores and time-series performance.
+*   **`utils/evolution-service.ts`**: The "Recursive Auditor" that evolves personas based on top-performing wins.
 *   **`utils/text-processor.ts`**: Edit the "Anti-Robot" filter rules and regex.
 *   **`utils/platforms/`**: Edit platform-specific instructions (LinkedIn vs. Twitter).
 *   **`utils/ai-service.ts`**: Edit the core LLM call and validation retries.

@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Command, Zap, User, Database, MessageSquare, Anchor, TrendingUp, X, Sparkles, Ghost, LayoutGrid, FileText } from "lucide-react";
+import { Search, Command, Zap, User, Database, MessageSquare, Anchor, TrendingUp, X, Sparkles, Ghost, LayoutGrid, FileText, Grid } from "lucide-react";
 import { PersonaId, PERSONAS, Persona } from "../utils/personas";
 import { listGeneratedPostsAction } from "../actions/generate";
 
@@ -26,13 +26,16 @@ interface GlobalCommandProps {
 }
 
 const STATIC_COMMANDS: CommandItem[] = [
+  { id: "/post", type: "command", title: "Switch to Post Mode", icon: <Sparkles className="w-4 h-4 text-amber-400" />, category: "Modes", shortcut: "/" },
+  { id: "/reply", type: "command", title: "Switch to Reply Mode", icon: <Zap className="w-4 h-4 text-blue-400" />, category: "Modes", shortcut: "/" },
+  { id: "/research", type: "command", title: "Run Deep Research", icon: <Ghost className="w-4 h-4 text-cyan-400" />, category: "Intelligence", shortcut: "/" },
   { id: "gen", type: "command", title: "Generate Post", icon: <Zap className="w-4 h-4" />, category: "Actions", shortcut: "G" },
   { id: "clear", type: "command", title: "Clear Editor", icon: <X className="w-4 h-4" />, category: "Actions", shortcut: "C" },
   { id: "vault", type: "command", title: "Open Content Vault", icon: <LayoutGrid className="w-4 h-4" />, category: "Tools", shortcut: "V" },
   { id: "hook", type: "command", title: "Open Hook Lab", icon: <Anchor className="w-4 h-4" />, category: "Tools", shortcut: "H" },
   { id: "viral", type: "command", title: "Open Viral Lab", icon: <Zap className="w-4 h-4" />, category: "Tools", shortcut: "L" },
   { id: "growth", type: "command", title: "Open Growth Simulator", icon: <TrendingUp className="w-4 h-4" />, category: "Tools", shortcut: "S" },
-  { id: "batch", type: "command", title: "Batch Generator", icon: <Ghost className="w-4 h-4" />, category: "Tools", shortcut: "B" },
+  { id: "batch", type: "command", title: "Batch Generator", icon: <Grid className="w-4 h-4" />, category: "Tools", shortcut: "B" },
 ];
 
 export default function GlobalCommand({ isOpen, onClose, onSelectPersona, onTriggerTool, onTriggerAction }: GlobalCommandProps) {
@@ -74,7 +77,8 @@ export default function GlobalCommand({ isOpen, onClose, onSelectPersona, onTrig
     ...recentPosts
   ].filter(item => 
     item.title.toLowerCase().includes(query.toLowerCase()) || 
-    item.category.toLowerCase().includes(query.toLowerCase())
+    item.category.toLowerCase().includes(query.toLowerCase()) ||
+    (query.startsWith('/') && item.id.startsWith(query))
   );
 
   useEffect(() => {
@@ -99,10 +103,13 @@ export default function GlobalCommand({ isOpen, onClose, onSelectPersona, onTrig
       if (item.type === "persona") {
         onSelectPersona(item.id as PersonaId);
       } else if (item.type === "post") {
-        // For now, post selection doesn't do anything but close
         console.log("Post selected:", item.data.filename);
       } else if (item.category === "Tools") {
         onTriggerTool(item.id);
+      } else if (item.category === "Modes") {
+        onTriggerAction(item.id);
+      } else if (item.id === "/research") {
+        onTriggerAction("research");
       } else {
         onTriggerAction(item.id);
       }

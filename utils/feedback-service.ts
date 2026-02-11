@@ -12,25 +12,25 @@ const BLACKLIST_KEY = "strategyos_blacklist";
 /**
  * Get highly-rated posts as positive examples for few-shot learning
  */
-export function getPositiveExamples(limit: number = 3): string[] {
-  const history = getHistory();
+export async function getPositiveExamples(limit: number = 3): Promise<string[]> {
+  const history = await getHistory();
   
   const highlyRated = history
-    .filter(item => item.performance?.rating === "viral" || item.performance?.rating === "good")
-    .sort((a, b) => (b.performance?.markedAt || 0) - (a.performance?.markedAt || 0))
+    .filter((item: HistoryItem) => item.performance?.rating === "viral" || item.performance?.rating === "good")
+    .sort((a: HistoryItem, b: HistoryItem) => (b.performance?.markedAt || 0) - (a.performance?.markedAt || 0))
     .slice(0, limit);
 
-  return highlyRated.map(item => item.assets.textPost);
+  return highlyRated.map((item: HistoryItem) => item.assets.textPost);
 }
 
 /**
  * Extract patterns from poorly-rated posts to avoid
  */
-export function getNegativePatterns(): string[] {
-  const history = getHistory();
+export async function getNegativePatterns(): Promise<string[]> {
+  const history = await getHistory();
   
   const poorlyRated = history.filter(
-    item => item.performance?.rating === "flopped"
+    (item: HistoryItem) => item.performance?.rating === "flopped"
   );
 
   // Extract common phrases/patterns from flopped posts
@@ -38,7 +38,7 @@ export function getNegativePatterns(): string[] {
   if (poorlyRated.length === 0) return [];
 
   // Simple pattern extraction: first sentence of each flopped post
-  const patterns = poorlyRated.slice(0, 5).map(item => {
+  const patterns = poorlyRated.slice(0, 5).map((item: HistoryItem) => {
     const firstSentence = item.assets.textPost.split(/[.!?]/)[0];
     return firstSentence.trim();
   });
@@ -96,9 +96,9 @@ export function applyBlacklistFilter(text: string): string {
 /**
  * Build RLHF context for AI prompts
  */
-export function buildRLHFContext(): string {
-  const positives = getPositiveExamples(2);
-  const negatives = getNegativePatterns();
+export async function buildRLHFContext(): Promise<string> {
+  const positives = await getPositiveExamples(2);
+  const negatives = await getNegativePatterns();
   const blacklist = getBlacklist();
 
   let context = "";

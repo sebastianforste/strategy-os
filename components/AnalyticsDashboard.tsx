@@ -1,14 +1,50 @@
 "use client";
 
-import React, { useState } from "react";
-import { motion } from "framer-motion";
-import { BarChart3, LineChart, PieChart, TrendingUp, TrendingDown, Users, Share2, Eye, MousePointer2, Download, Filter, Calendar } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { BarChart3, LineChart, PieChart, TrendingUp, TrendingDown, Users, Share2, Eye, MousePointer2, Download, Filter, Calendar, X, Rocket, Zap } from "lucide-react";
+import { TeamPerformanceMetrics } from "../utils/analytics-service";
 
-export default function AnalyticsDashboard() {
+interface AnalyticsDashboardProps {
+    isOpen: boolean;
+    onClose: () => void;
+    apiKey: string;
+}
+
+export default function AnalyticsDashboard({ isOpen, onClose, apiKey }: AnalyticsDashboardProps) {
     const [timeRange, setTimeRange] = useState('7D');
+    const [loading, setLoading] = useState(true);
+    const [metrics, setMetrics] = useState<TeamPerformanceMetrics | null>(null);
+
+    useEffect(() => {
+        if (isOpen) {
+            setLoading(true);
+            fetch("/api/analytics/team")
+                .then(res => res.json())
+                .then(data => {
+                    setMetrics(data.metrics);
+                })
+                .catch(console.error)
+                .finally(() => setLoading(false));
+        }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
 
     return (
-        <div className="bg-[#0a0a0a] border border-white/5 rounded-3xl p-8 min-h-[700px]">
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+             <div className="absolute inset-0" onClick={onClose} />
+             <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative bg-[#0a0a0a] border border-white/5 rounded-3xl p-8 min-h-[700px] w-full max-w-6xl overflow-y-auto max-h-[90vh] shadow-2xl"
+            >
+                <button 
+                    onClick={onClose}
+                    className="absolute top-6 right-6 p-2 bg-white/5 rounded-full hover:bg-white/10 text-white/50 hover:text-white transition-colors z-10"
+                >
+                    <X className="w-5 h-5" />
+                </button>
             {/* Header */}
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-12">
                 <div className="flex items-center gap-4">
@@ -16,7 +52,7 @@ export default function AnalyticsDashboard() {
                         <BarChart3 className="w-6 h-6" />
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-white uppercase tracking-tight">Intelligence Analytics</h2>
+                        <h2 className="text-xl font-bold text-white uppercase tracking-tight">StrategyOS Analytics</h2>
                         <p className="text-[10px] text-white/40 uppercase tracking-[0.2em] font-mono mt-1">Deep Performance Attribution</p>
                     </div>
                 </div>
@@ -43,10 +79,33 @@ export default function AnalyticsDashboard() {
 
             {/* High-Level Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-                <StatCard icon={<Eye className="w-4 h-4 text-sky-400" />} label="Impressions" value="1.2M" change="+12.4%" positive />
-                <StatCard icon={<Users className="w-4 h-4 text-indigo-400" />} label="Network Growth" value="14.2K" change="+8.1%" positive />
-                <StatCard icon={<MousePointer2 className="w-4 h-4 text-emerald-400" />} label="Engagement" value="5.8%" change="-0.4%" />
-                <StatCard icon={<Share2 className="w-4 h-4 text-rose-400" />} label="Viral Coeff." value="1.42" change="+14%" positive />
+                <StatCard 
+                    icon={<Eye className="w-4 h-4 text-sky-400" />} 
+                    label="Impressions" 
+                    value={loading ? "..." : (metrics?.totalImpressions || 0).toLocaleString()} 
+                    change="+12.4%" 
+                    positive 
+                />
+                <StatCard 
+                    icon={<Users className="w-4 h-4 text-indigo-400" />} 
+                    label="Strategies" 
+                    value={loading ? "..." : (metrics?.totalPosts || 0).toString()} 
+                    change="+8.1%" 
+                    positive 
+                />
+                <StatCard 
+                    icon={<MousePointer2 className="w-4 h-4 text-emerald-400" />} 
+                    label="Engagement Rate" 
+                    value={loading ? "..." : `${(metrics?.avgEngagement || 0).toFixed(1)}%`} 
+                    change="-0.4%" 
+                />
+                <StatCard 
+                    icon={<Share2 className="w-4 h-4 text-rose-400" />} 
+                    label="Top Persona" 
+                    value={loading ? "..." : (metrics?.topPersona || "N/A").toUpperCase()} 
+                    change="+14%" 
+                    positive 
+                />
             </div>
 
             {/* Main Charts Area */}
@@ -60,41 +119,58 @@ export default function AnalyticsDashboard() {
                         </div>
                     </div>
                     
-                    {/* Simulated Chart Visualization */}
+                    {/* Live Chart Visualization */}
                     <div className="h-64 flex items-end gap-2 px-2">
-                        {Array.from({ length: 12 }).map((_, i) => (
-                            <motion.div
-                                key={i}
-                                initial={{ height: 0 }}
-                                animate={{ height: `${20 + Math.random() * 80}%` }}
-                                transition={{ duration: 1, delay: i * 0.05 }}
-                                className="flex-1 bg-gradient-to-t from-brand-600/40 to-brand-500/10 rounded-t-lg group-hover:from-brand-500/60 group-hover:to-brand-400/20 transition-all cursor-pointer relative"
-                            >
-                                <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                    <span className="text-[8px] font-mono text-white/40">{(Math.random() * 10).toFixed(1)}k</span>
-                                </div>
-                            </motion.div>
-                        ))}
+                        {loading || !metrics?.timeSeriesData || metrics.timeSeriesData.length === 0 ? (
+                            Array.from({ length: 12 }).map((_, i) => (
+                                <div key={i} className="flex-1 bg-white/5 rounded-t-lg animate-pulse h-[20%]" />
+                            ))
+                        ) : (
+                            metrics.timeSeriesData.map((d, i) => (
+                                <motion.div
+                                    key={d.date}
+                                    initial={{ height: 0 }}
+                                    animate={{ height: `${Math.min(100, (d.impressions / (Math.max(...metrics.timeSeriesData.map(ts => ts.impressions)) || 1)) * 100)}%` }}
+                                    transition={{ duration: 1, delay: i * 0.05 }}
+                                    className="flex-1 bg-gradient-to-t from-brand-600/40 to-brand-500/10 rounded-t-lg group-hover:from-brand-500/60 group-hover:to-brand-400/20 transition-all cursor-pointer relative"
+                                >
+                                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                        <span className="text-[8px] font-mono text-white/40">{d.impressions.toLocaleString()}</span>
+                                    </div>
+                                </motion.div>
+                            ))
+                        )}
                     </div>
                     <div className="flex justify-between mt-4 px-2">
-                        {['MAR 01', 'MAR 02', 'MAR 03', 'MAR 04', 'MAR 05', 'MAR 06'].map(d => (
-                            <span key={d} className="text-[8px] font-black text-white/10 uppercase tracking-widest">{d}</span>
+                        {(metrics?.timeSeriesData || []).filter((_, i, arr) => i % Math.max(1, Math.floor(arr.length / 5)) === 0).map(d => (
+                            <span key={d.date} className="text-[8px] font-black text-white/10 uppercase tracking-widest">
+                                {new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit' }).toUpperCase()}
+                            </span>
                         ))}
                     </div>
                 </div>
 
                 <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-                    <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em] mb-8">Platform Split</h3>
-                    <div className="space-y-8">
-                        <PlatformProgress label="LinkedIn" value={74} color="bg-blue-500" />
-                        <PlatformProgress label="Twitter / X" value={22} color="bg-sky-400" />
-                        <PlatformProgress label="Farcaster" value={4} color="bg-purple-500" />
+                    <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em] mb-8">Persona Strategy</h3>
+                    <div className="space-y-6">
+                        {loading ? (
+                             <div className="animate-pulse space-y-4">
+                                <div className="h-8 bg-white/5 rounded-lg" />
+                                <div className="h-8 bg-white/5 rounded-lg" />
+                             </div>
+                        ) : (
+                            Object.entries(metrics?.personaBreakdown || {}).sort((a,b) => b[1] - a[1]).slice(0, 3).map(([p, count]) => (
+                                <PlatformProgress key={p} label={p} value={Math.round((count / (metrics?.totalPosts || 1)) * 100)} color="bg-brand-500" />
+                            ))
+                        )}
                     </div>
                     
                     <div className="mt-12 p-6 bg-white/[0.02] border border-white/5 rounded-2xl">
-                        <p className="text-[9px] text-white/20 uppercase tracking-[0.2em] mb-4">AI Prediction</p>
+                        <p className="text-[9px] text-white/20 uppercase tracking-[0.2em] mb-4">Coach Recommendation</p>
                         <p className="text-xs text-white/60 leading-relaxed italic">
-                            "Engagement is peaking between 10 AM - 12 PM EST. Consider shifting the Friday sequence 2 hours earlier."
+                            {metrics?.avgEngagement && metrics.avgEngagement < 2.0 
+                                ? "Engagement is below target. Focus on 'Contrarian' persona posts to spark debate and increase dwell time."
+                                : "Your 'Bro-etry' syntax is hitting high marks. Double down on single-line hooks to maintain this momentum."}
                         </p>
                     </div>
                 </div>
@@ -102,10 +178,11 @@ export default function AnalyticsDashboard() {
 
             {/* Bottom Insights */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <InsightCard title="Top Sector" value="Venture Capital" icon={<TrendingUp className="w-4 h-4 text-emerald-400" />} />
-                <InsightCard title="Best Persona" value="The Ghost Agent" icon={<Users className="w-4 h-4 text-indigo-400" />} />
-                <InsightCard title="Conversion" value="3.4%" icon={<MousePointer2 className="w-4 h-4 text-rose-400" />} />
+                <InsightCard title="Readability Grade" value={loading ? "..." : `Level ${metrics?.avgReadabilityScore || 0}`} icon={<TrendingUp className="w-4 h-4 text-emerald-400" />} />
+                <InsightCard title="Brand Phrases" value={loading ? "..." : `${metrics?.signaturePhraseFreq || 0} per post`} icon={<Zap className="w-4 h-4 text-indigo-400" />} />
+                <InsightCard title="Top Colleague" value={loading ? "..." : (metrics?.topColleague || "NONE")} icon={<Rocket className="w-4 h-4 text-rose-400" />} />
             </div>
+            </motion.div>
         </div>
     );
 }

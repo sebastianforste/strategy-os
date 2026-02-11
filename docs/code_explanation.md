@@ -129,16 +129,21 @@ return result.toTextStreamResponse();
 This is our Retrieval-Augmented Generation (RAG) engine. It makes the AI smarter by giving it "access" to our curated library of marketing books.
 
 ### Vector Search
-1.  **Embedding**: When you type a topic, the app converts it into a list of numbers (a "vector") using `text-embedding-004`.
+1.  **Embedding**: When you type a topic, the app converts it into a list of numbers (a "vector") using `models/gemini-embedding-001`.
 2.  **Similarity**: It compares your topic's vector against thousands of pre-saved vectors in `data/knowledge_index.json`.
 3.  **Retrieval**: It finds the top 3 most relevant book sections (e.g., a chapter on "Purple Cows" by Seth Godin) and tells the AI: *"Use this specific strategy context for this post."*
 
 
 ---
 
-## 4. The Artist: `utils/image-service.ts`
+## 4. The Artist & Scorer: `utils/image-service.ts` & `utils/virality-scorer.ts`
 
+### Image Service
 This new file connects to Google's **Imagen 4** (via the Gemini API) to generate real images. "A picture is worth a 1000 words," so we use this to create the viral "Visualize Value" style graphics automatically. It uses the same API key as your text generation.
+
+### Virality Scorer (V1)
+Our legacy tool for scoring content before the hybrid Engine V2 took over. It is still used for generating alternative hooks.
+
 
 ---
 
@@ -151,12 +156,39 @@ This file is the eyes of the operation.
 
 ---
 
-## 6. The Memory: `utils/history-service.ts`
+## 6. The Cleanup: `start_strategyos.command`
 
-This file is the "Memory Upgrade".
-- **Goal**: Remember your great ideas.
-- **How**: It uses your browser's internal storage (`localStorage`) to save every successful post.
-- **Privacy**: Data stays on your computer. We don't see it.
+This is the system's "Self-Healing" mechanism.
+- **Purpose**: Solves "ChunkLoadErrors" and UI glitches by purging stale files.
+- **Deep Cleanup**: Automatically deletes `.next`, `node_modules/.cache`, and `public/sw.js` before every launch.
+- **Why it matters**: Ensures the code you see in your editor is exactly what runs in the browser, with no "ghost" versions of old designs.
+
+---
+
+## 7. The Memory (V2): Prisma & SQLite
+
+We have migrated from basic LocalStorage to a **Cloud-backed Persistence Layer** using Prisma.
+
+### The Schema: `prisma/schema.prisma`
+- **Goal**: Persistent, cross-platform history.
+- **How**: It stores every generated `Strategy` with fields for impressions, engagement, and metadata (Platform, Persona, Input).
+- **Relational Power**: Allows us to query "Which posts from Marcus Vane in the last 7 days performed best?"
+
+### The Database: `utils/db.ts`
+- **Logic**: Initializes a singleton Prisma client using a SQLite adapter (`dev.db`). This ensures the app is lightweight but enterprise-ready.
+
+---
+
+## 8. The Intelligence Hub: `utils/analytics-service.ts`
+
+This is the "Coach's Brain". It transforms raw database records into strategic insights.
+
+### Virality Engine V2
+- **Hybrid Scoring**: It combines **Heuristics** (word count, readability) with **Qualitative AI Critique** (Gemini analysis). 
+- **Historical Benchmarking**: It queries Prisma for "Viral" rated posts in the same persona to set the bar for current drafts.
+
+### Time-Series Aggregation
+- **Logic**: It groups published posts by date to generate the **Growth Curve** chart you see in the dashboard.
 
 
 ---
@@ -172,7 +204,15 @@ The `ai-service.ts` now uses this file to swap out the "Brain" of the AI on the 
 
 ---
 
-## 9. The Polish: UI Components
+## 9. The Style Engine: `tailwind.config.js` & `globals.css`
+
+StrategyOS uses **Tailwind CSS v4** for its "Cinematic" look.
+- **Content Scanning**: The config file tells Tailwind exactly which folders to look in (`app`, `components`, `utils`) to find stylistic instructions.
+- **The Theme**: `globals.css` defines the "Aurora" background and "Liquid Glass" panels that give the app its premium, world-class feel.
+
+---
+
+## 10. The Polish: UI Components
 
 We added several components to make the app feel premium:
 - **`components/ShareButton.tsx`**: Uses "Smart Intent" to open LinkedIn with your post pre-filled.

@@ -12,7 +12,7 @@ import { PersonaId, Persona } from "../../../utils/personas";
 import { GeneratedAssets } from "../../../utils/ai-service";
 import { Signal } from "../../../utils/signal-service";
 import { SectorId } from "../../../utils/sectors";
-import { generateSideAssetsAction } from "../../../actions/generate";
+import { generateSideAssetsAction } from "@/actions/visuals";
 import { runSwarmDebate, SwarmMessage } from "../../../utils/swarm-service";
 import { generateVideoScript, formatVideoScriptForDisplay } from "../../../utils/video-service";
 import { generateAudioScript, formatAudioScriptForDisplay } from "../../../utils/audio-service";
@@ -39,6 +39,7 @@ export interface GenerationOptions {
   coworkerRelation?: string;
   customPersonas: Persona[];
   outputFormat: "text" | "video" | "audio";
+  isReplyMode?: boolean;
   sectorId: SectorId;
   onGenerationComplete: (result: string | GeneratedAssets) => void;
   onError?: (msg: string) => void;
@@ -70,6 +71,7 @@ export function useGeneration(options: GenerationOptions) {
     coworkerRelation,
     customPersonas,
     outputFormat,
+    isReplyMode,
     sectorId,
     onGenerationComplete,
     onError,
@@ -102,6 +104,7 @@ export function useGeneration(options: GenerationOptions) {
       customPersona: customPersonas.find((p) => p.id === personaId),
       subStyle: customPersonas.find((p) => p.id === personaId)?.subStyle,
       sectorId,
+      isReplyMode: outputFormat === "text" && isReplyMode
     },
     onFinish: (_prompt: string, result: string) => {
       if (result && result.length > 5) {

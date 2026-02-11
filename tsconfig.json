@@ -19,8 +19,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "server-only": ["./tests/__mocks__/server-only.ts"]
+      "@/*": ["./*"]
     }
   },
   "include": [

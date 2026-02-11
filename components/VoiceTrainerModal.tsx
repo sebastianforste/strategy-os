@@ -141,7 +141,7 @@ export default function VoiceTrainerModal({ isOpen, onClose, apiKey }: VoiceTrai
     <StrategyModal
       isOpen={isOpen}
       onClose={onClose}
-      title="Voice Studio"
+      title="Brand Voice Training"
       maxWidth="max-w-6xl"
     >
       <div className="flex flex-col h-[75vh]">

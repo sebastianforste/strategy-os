@@ -10,8 +10,51 @@ export interface CompetitorContent {
   source: string;
 }
 
+
+export interface Trend {
+    title: string;
+    snippet: string;
+    source: string;
+    sentiment: string;
+    momentum: number;
+}
+
+export async function findTrends(topic: string, apiKey: string): Promise<Trend[]> {
+    if (!apiKey) return [];
+    try {
+        const response = await fetch("https://google.serper.dev/news", {
+            method: "POST",
+            headers: {
+                "X-API-KEY": apiKey,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                q: topic,
+                num: 5,
+                tbs: "qdr:d" // past 24 hours
+            }),
+        });
+        
+        const data = await response.json();
+        if (!data.news) return [];
+        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return data.news.map((item: any) => ({
+            title: item.title,
+            snippet: item.snippet || item.title,
+            source: item.source,
+            sentiment: "Neutral", // Placeholder, would need AI analysis for real sentiment
+            momentum: 50 + Math.floor(Math.random() * 50) // Mock momentum 50-100
+        }));
+    } catch (e) {
+        console.error("Trend search failed:", e);
+        return [];
+    }
+}
+
 /**
  * TREND REPORT SCHEMA
+
  * -------------------
  * Output format for deep-dive topic analysis.
  */

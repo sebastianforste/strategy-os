@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Share2, Hubot, Network, Database, Layers, Search, Minimize2, Maximize2, RefreshCw, Zap, Cpu, Brain, GitBranch, GitMerge, ChevronRight, Activity, Filter, Eye } from "lucide-react";
+import { Share2, Network, Database, Layers, Search, Minimize2, Maximize2, RefreshCw, Zap, Cpu, Brain, GitBranch, GitMerge, ChevronRight, Activity, Filter, Eye } from "lucide-react";
 
 interface Node {
     id: string;

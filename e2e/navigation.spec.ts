@@ -1,27 +1,24 @@
 import { test, expect } from '@playwright/test';
+import { gotoHome } from './helpers';
 
-test.describe('Navigation & Workspace', () => {
+test.describe('UnifiedCanvas Navigation', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-        localStorage.setItem('strategyos_gemini_key', 'mock_gemini_key');
-        localStorage.setItem('strategyos_serper_key', 'mock_serper_key');
-    });
-    await page.goto('/');
+    await gotoHome(page, { seedDemoKeys: true });
   });
 
-  test('should verify default workspace', async ({ page }) => {
+  test('renders default UnifiedCanvas shell', async ({ page }) => {
     await expect(page.locator('header')).toBeVisible();
-    await expect(page.getByRole('link', { name: /StrategyOS/i }).or(page.getByText('StrategyOS'))).toBeVisible();
+    await expect(page.getByRole('link', { name: /StrategyOS/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Editor view' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Preview view' })).toBeVisible();
   });
 
-  test('should allow switching workspaces', async ({ page }) => {
-    // Use the accessible name we added
-    const switcher = page.getByRole('button', { name: 'Switch Workspace' });
-    
-    if (await switcher.isVisible()) {
-        await switcher.click();
-        // Check if menu opens - check for the header text "Switch Workspace"
-        await expect(page.getByText('Switch Workspace')).toBeVisible();
-    }
+  test('can switch between editor and preview modes', async ({ page }) => {
+    await page.getByRole('button', { name: 'Preview view' }).click();
+    await expect(page.getByRole('button', { name: 'LinkedIn' })).toBeVisible();
+    await expect(page.getByText('LinkedIn').first()).toBeVisible();
+
+    await page.getByRole('button', { name: 'Editor view' }).click();
+    await expect(page.getByRole('button', { name: 'LinkedIn' })).not.toBeVisible();
   });
 });

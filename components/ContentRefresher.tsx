@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCcw, Sparkles, AlertCircle, TrendingUp, History, CheckCircle, ArrowRight, Zap, Target, Gauge } from "lucide-react";
+import { RefreshCcw, Sparkles, AlertCircle, TrendingUp, History, CheckCircle, ArrowRight, Zap, Target, Gauge, ChevronRight, CheckCircle2 } from "lucide-react";
 
 interface StaleContent {
     id: string;

@@ -51,12 +51,22 @@ import SettingsModal from "./SettingsModal";
 import TeamSettingsModal from "./TeamSettingsModal";
 import TerminalConsole from "./TerminalConsole";
 const MemoryDashboard = dynamic(() => import("./MemoryDashboard"), { ssr: false });
+const MastermindDashboard = dynamic(() => import("./MastermindDashboard"), { 
+    ssr: false,
+    loading: () => (
+        <div className="flex items-center justify-center p-20 bg-[#030303]/40 backdrop-blur-3xl rounded-3xl border border-white/5">
+            <div className="flex flex-col items-center gap-4">
+                <div className="w-12 h-12 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                <p className="text-[10px] text-indigo-400 font-mono uppercase tracking-[0.2em] animate-pulse font-black">Syncing Mastermind...</p>
+            </div>
+        </div>
+    )
+});
 import LiveVoiceConsole from "./LiveVoiceConsole";
 import DeepResearchModal from "./DeepResearchModal";
 import HookLabModal from "./HookLabModal";
 import TrendMonitor from "./TrendMonitor";
 import NetworkDashboard from "./NetworkDashboard";
-import MastermindDashboard from "./MastermindDashboard";
 import LeadPipeline from "./LeadPipeline";
 import OracleDashboard from "./OracleDashboard";
 import RepurposingStudio from "./RepurposingStudio";
@@ -150,9 +160,8 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     setUseSwarm,
     platform,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    setPlatform,
     onError,
+    isFloating,
   } = props;
 
   // --- STATE ---
@@ -164,6 +173,7 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [customPersonas, setCustomPersonas] = useState<any[]>([]);
   const [outputFormat, setOutputFormat] = useState<"text" | "video" | "audio">("text");
+  const [consoleMode, setConsoleMode] = useState<'post' | 'reply'>('post'); 
   
   // Lifted State for Mastermind
   const [allTrends, setAllTrends] = useState<TrendOpportunity[]>([]);
@@ -321,6 +331,7 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
     coworkerRelation,
     customPersonas,
     outputFormat,
+    isReplyMode: (outputFormat as any) === "reply", // Temporary hack if outputFormat isn't synced
     sectorId,
     onGenerationComplete: handleGenerationComplete,
     onError: (msg) => setLocalError(msg),
@@ -387,6 +398,19 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
         setInput("");
         setImages([]);
         setCompletion("");
+        break;
+      case "/post":
+        setConsoleMode('post');
+        setOutputFormat('text');
+        break;
+      case "/reply":
+        setConsoleMode('reply');
+        setOutputFormat('text');
+        break;
+      case "research":
+      case "/research":
+        setUseAgenticMode(true);
+        handleAgenticGenerate();
         break;
       default: break;
     }
@@ -467,8 +491,30 @@ MODE: High Authority
         onOpenVoiceStudio={props.onOpenVoiceStudio || (() => {})}
       />
 
-      <div className={`flex-1 h-screen w-full pl-24 transition-all duration-500 pr-4 py-4 ${useAgenticMode ? 'grayscale' : ''}`}>
-         <CommandCenterLayout
+         <div className={`flex-1 h-screen w-full pl-24 transition-all duration-700 pr-4 py-4 relative ${useAgenticMode ? 'grayscale' : ''}`}>
+           {/* Ghost Mode Trail Effect */}
+           <AnimatePresence>
+             {useAgenticMode && (
+               <motion.div 
+                 initial={{ opacity: 0 }}
+                 animate={{ opacity: 1 }}
+                 exit={{ opacity: 0 }}
+                 className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
+               >
+                 <motion.div 
+                   animate={{ 
+                     opacity: [0.03, 0.08, 0.03],
+                     scale: [1, 1.02, 1],
+                   }}
+                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                   className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-purple-500/10"
+                 />
+                 <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 contrast-150 brightness-150" />
+               </motion.div>
+             )}
+           </AnimatePresence>
+
+           <CommandCenterLayout
             input={input}
             setInput={setInput}
             onGenerate={useAgenticMode ? handleAgenticGenerate : () => handleGenerate(input)}
@@ -506,7 +552,9 @@ MODE: High Authority
             onOpenVoiceStudio={props.onOpenVoiceStudio}
             onToggleRadar={props.onToggleRadar}
             onTriggerAutonomousDraft={props.onTriggerAutonomousDraft}
-            assets={assets}
+            mode={consoleMode}
+            setMode={setConsoleMode}
+            isFloating={isFloating}
          >
             {/* View Switches */}
             {viewMode === 'mastermind' && (
@@ -627,7 +675,7 @@ MODE: High Authority
 
             {viewMode === 'analytics' && (
                 <div className="w-full animate-in fade-in duration-500">
-                    <AnalyticsDashboard />
+                    <AnalyticsDashboard isOpen={true} onClose={() => setViewMode('mastermind')} apiKey={apiKeys.gemini} />
                 </div>
             )}
 

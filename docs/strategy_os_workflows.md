@@ -13,7 +13,7 @@ StrategyOS is not a simple wrapper around an LLM. It is a **multi-agentic cognit
 - **Visual Engine:** Google Imagen 4.0.
 - **Search Logic:** Serper Dev (Google/Twitter Indexing).
 - **Orchestration:** Vercel AI SDK + Next.js Server Actions.
-- **Memory/RAG:** Local Vector Index (`text-embedding-004`).
+- **Memory/RAG:** Local Vector Index (`models/gemini-embedding-001`).
 
 ---
 
@@ -32,7 +32,7 @@ The system analyzes the raw input to determine the cognitive mode:
 Before the LLM writes a single word, the prompt is enriched with massive context:
 1.  **Trend Injection:** The system searches live Google News & Twitter for the topic.
     - *Action:* Extracts top headlines to anchor the post in *today's* reality.
-2.  **RAG Retrieval:** Queries the local `knowledge_index.json` using Cosine Similarity (`text-embedding-004`).
+2.  **RAG Retrieval:** Queries the local `knowledge_index.json` using Cosine Similarity (`models/gemini-embedding-001`).
     - *Action:* Pulls relevant "Strategic Concepts" (e.g., "The Barbell Strategy", "Mimetic Desire") to force the AI to think in frameworks.
 3.  **Few-Shot Mirroring:** Fetches the user's top-performing historical posts.
     - *Action:* Injects these as style references ("Write like this") to ensure voice consistency.

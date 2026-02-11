@@ -52,12 +52,34 @@ export const stitchService = {
   },
 
   getFallbackDNA(): DesignDNA {
-    return {
-      colors: ["#000000", "#7c3aed", "#6d28d9", "#ffffff"],
-      typography: { fontFamily: "Geist Sans", weights: ["400", "700"] },
-      spacing: ["0.25rem", "0.5rem", "1rem", "2rem"],
-      visualStyle: "minimalist"
-    };
+    try {
+      // Ground fallback in the synchronized theme.json if available
+      const themePath = require('path').join(process.cwd(), 'theme.json');
+      const theme = JSON.parse(require('fs').readFileSync(themePath, 'utf8'));
+      
+      return {
+        colors: [
+          theme.theme.colors.background,
+          theme.theme.colors.accent,
+          theme.theme.colors.surface,
+          "#ffffff"
+        ],
+        typography: { 
+          fontFamily: theme.theme.typography.sans.split(',')[0], 
+          weights: ["400", "700"] 
+        },
+        spacing: ["0.25rem", "0.5rem", "1rem", "2rem"],
+        visualStyle: "minimalist"
+      };
+    } catch (e) {
+      // Hard fallback if theme.json is missing or corrupt
+      return {
+        colors: ["#000000", "#7c3aed", "#6d28d9", "#ffffff"],
+        typography: { fontFamily: "Geist Sans", weights: ["400", "700"] },
+        spacing: ["0.25rem", "0.5rem", "1rem", "2rem"],
+        visualStyle: "minimalist"
+      };
+    }
   },
 
   /**

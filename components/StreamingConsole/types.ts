@@ -35,6 +35,7 @@ export interface StreamingConsoleProps {
   setIsTeamMode: (val: boolean) => void;
   vitals?: SystemVitals;
   onError?: (msg: string) => void;
+  isFloating?: boolean; // Mission Control V3
   sectorId: SectorId;
   setSectorId: (id: SectorId) => void;
   onOpenVoiceStudio?: () => void;

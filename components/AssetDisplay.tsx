@@ -236,7 +236,24 @@ export default function AssetDisplay(props: AssetDisplayProps) {
     setIsScoring(true);
     try {
         const score = await scoreViralityAction(assets.textPost, geminiKey);
-        setViralityScore(score);
+        const hookScore = score.breakdown.hookStrength > 40
+          ? Math.round((score.breakdown.hookStrength / 100) * 40)
+          : Math.round(score.breakdown.hookStrength);
+        const readabilityScore = score.breakdown.retainability > 30
+          ? Math.round((score.breakdown.retainability / 100) * 30)
+          : Math.round(score.breakdown.retainability);
+        const strategyScore = score.breakdown.viralityPotential > 30
+          ? Math.round((score.breakdown.viralityPotential / 100) * 30)
+          : Math.round(score.breakdown.viralityPotential);
+
+        setViralityScore({
+          totalScore: Math.round(score.score),
+          hookScore: Math.max(0, Math.min(40, hookScore)),
+          readabilityScore: Math.max(0, Math.min(30, readabilityScore)),
+          strategyScore: Math.max(0, Math.min(30, strategyScore)),
+          feedback: [score.critique, ...(score.improvementTips || [])].filter(Boolean),
+          improvedHook: score.improvementTips?.[0],
+        });
     } catch (e) {
         console.error("Scoring failed", e);
     } finally {
@@ -321,18 +338,18 @@ export default function AssetDisplay(props: AssetDisplayProps) {
   return (
     <div className="w-full max-w-4xl mx-auto space-y-8 animate-in fade-in duration-700">
       {/* HEADER CONTROLS */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-xl">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-[#0A0A0A] border border-white/5 p-6 rounded-2xl backdrop-blur-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-indigo-500/20 rounded-2xl">
-            <ShieldCheck className="w-6 h-6 text-indigo-400" />
+          <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+            <ShieldCheck className="w-6 h-6 text-emerald-400" />
           </div>
           <div>
-            <h2 className="text-xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Strategy Assets</h2>
+            <h2 className="text-xl font-bold text-white tracking-tight">Strategy Portfolio</h2>
             <div className="flex items-center gap-2 mt-1">
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-widest ${getStatusColor(status)}`}>
+              <span className={`px-2 py-0.5 rounded-md text-[9px] font-black border uppercase tracking-[0.2em] ${getStatusColor(status)}`}>
                 {status}
               </span>
-              <span className="text-[10px] text-white/40 uppercase tracking-widest flex items-center gap-1">
+              <span className="text-[9px] text-neutral-500 uppercase tracking-[0.2em] font-bold flex items-center gap-1">
                 <ShieldCheck className={`w-3 h-3 ${complianceScore >= 90 ? 'text-emerald-400' : 'text-amber-400'}`} />
                 Compliance: {complianceScore}%
               </span>
@@ -396,7 +413,7 @@ export default function AssetDisplay(props: AssetDisplayProps) {
             </div>
         )}
 
-      <div className="flex p-1 bg-black/40 backdrop-blur-sm border border-white/10 rounded-full mb-8 overflow-x-auto w-fit mx-auto custom-scrollbar">
+      <div className="flex p-1 bg-[#050505] border border-white/5 rounded-xl mb-8 overflow-x-auto w-fit mx-auto custom-scrollbar shadow-inner">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -404,10 +421,10 @@ export default function AssetDisplay(props: AssetDisplayProps) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-full transition-all whitespace-nowrap ${
+              className={`flex items-center gap-2 px-4 py-2 text-[10px] font-black uppercase tracking-[0.15em] rounded-lg transition-all whitespace-nowrap ${
                 isActive
-                  ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.3)]"
-                  : "text-neutral-500 hover:text-white hover:bg-white/5"
+                  ? "bg-white/[0.08] text-white shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-white/10"
+                  : "text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.03]"
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -419,10 +436,10 @@ export default function AssetDisplay(props: AssetDisplayProps) {
 
       <motion.div
         key={activeTab}
-        initial={{ opacity: 0, scale: 0.98 }}
+        initial={{ opacity: 0, scale: 0.99 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        className="glass-panel rounded-2xl p-8 relative min-h-[400px] border border-white/5 bg-black/40 shadow-2xl overflow-hidden"
+        transition={{ duration: 0.3, ease: [0.19, 1, 0.22, 1] }}
+        className="glass-panel rounded-2xl p-8 relative min-h-[400px] border border-white/5 bg-[#0A0A0A] shadow-2xl overflow-hidden"
       >
         {/* Specular Highlight */}
         <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-80" />

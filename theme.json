@@ -1,0 +1,30 @@
+{
+  "theme": {
+    "colors": {
+      "background": "#080a0f",
+      "surface": "#16181D",
+      "accent": "#7c3bed",
+      "muted": "#8A8D91",
+      "border": "#24282D",
+      "borderLow": "#121419",
+      "separator": "#1A1C21",
+      "text": {
+        "primary": "#E1E1E1",
+        "secondary": "#8A8D91",
+        "contrast": "#000000"
+      }
+    },
+    "typography": {
+      "sans": "Space Grotesk, sans-serif",
+      "serif": "Georgia, 'Times New Roman', serif",
+      "mono": "Fira Code, monospace"
+    },
+    "spacing": {
+      "railWidth": "280px",
+      "gap": "1px"
+    },
+    "shadows": {
+      "subtle": "0 1px 3px rgba(0,0,0,0.5)"
+    }
+  }
+}

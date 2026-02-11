@@ -28,6 +28,11 @@ export default function SettingsModal({
   onOpenTeamSettings,
 }: SettingsModalProps) {
   const [keys, setKeys] = useState(initialKeys);
+  const [isTestingGemini, setIsTestingGemini] = useState(false);
+  const [geminiValidation, setGeminiValidation] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   const [installPrompt, setInstallPrompt] = useState<unknown>(null);
 
@@ -47,6 +52,10 @@ export default function SettingsModal({
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
+  useEffect(() => {
+    setGeminiValidation(null);
+  }, [keys.gemini]);
+
   const handleInstallClick = () => {
     if (!installPrompt) return;
     const prompt = installPrompt as { prompt: () => void, userChoice: Promise<{ outcome: string }> };
@@ -56,6 +65,48 @@ export default function SettingsModal({
         setInstallPrompt(null);
       }
     });
+  };
+
+  const validateLocalGeminiKey = (key: string) => {
+    const normalized = key.trim();
+    if (!normalized) return "Gemini key is required.";
+    if (normalized.toLowerCase() === "demo") return null;
+    if (normalized.length < 20) return "Key looks too short. Expected a full Gemini API key.";
+    return null;
+  };
+
+  const handleTestGeminiKey = async () => {
+    const localError = validateLocalGeminiKey(keys.gemini);
+    if (localError) {
+      setGeminiValidation({ type: "error", message: localError });
+      return;
+    }
+
+    setGeminiValidation(null);
+    setIsTestingGemini(true);
+    try {
+      const response = await fetch("/api/validate-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: keys.gemini.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        setGeminiValidation({
+          type: "error",
+          message: data.error || "Gemini key validation failed.",
+        });
+        return;
+      }
+      setGeminiValidation({ type: "success", message: "Gemini key is valid." });
+    } catch {
+      setGeminiValidation({
+        type: "error",
+        message: "Unable to validate key right now. Check your connection.",
+      });
+    } finally {
+      setIsTestingGemini(false);
+    }
   };
 
   return (
@@ -75,7 +126,7 @@ export default function SettingsModal({
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-[#0A0A0A] border border-neutral-800 p-8 rounded-2xl z-[60] shadow-2xl"
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto bg-[#0A0A0A] border border-neutral-800 p-8 rounded-2xl z-[60] shadow-2xl"
           >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -120,6 +171,26 @@ export default function SettingsModal({
                   className="w-full bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3 text-sm text-white focus:border-white outline-none transition-colors"
                   placeholder="AIza..."
                 />
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={handleTestGeminiKey}
+                    disabled={isTestingGemini}
+                    className="px-3 py-1.5 rounded border border-neutral-700 text-[11px] font-bold text-neutral-200 hover:bg-white/5 transition-colors disabled:opacity-50"
+                  >
+                    {isTestingGemini ? "TESTING..." : "TEST KEY"}
+                  </button>
+                  {geminiValidation && (
+                    <span
+                      className={`text-[11px] ${
+                        geminiValidation.type === "success"
+                          ? "text-emerald-400"
+                          : "text-rose-400"
+                      }`}
+                    >
+                      {geminiValidation.message}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -237,8 +308,8 @@ Second example post..."
                       const result = await trainVoiceAction(samples);
                       alert(result.message);
                       if (result.success) area.value = "";
-                    } catch (e: any) {
-                      alert("Training failed: " + e.message);
+                    } catch (e: unknown) {
+                      alert("Training failed: " + (e instanceof Error ? e.message : "Unknown error"));
                     } finally {
                       btn.disabled = false;
                       btn.innerText = "TRAIN MY VOICE";

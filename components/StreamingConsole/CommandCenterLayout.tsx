@@ -2,6 +2,7 @@
 
 
 import React, { useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import StrategyArchive from "./StrategyArchive";
 import {
   Zap,
@@ -87,6 +88,9 @@ export interface CommandCenterHelperProps {
   onTriggerAutonomousDraft?: () => void;
   onOpenIdeaFactory?: () => void;
   children?: React.ReactNode;
+  mode: 'post' | 'reply';
+  setMode: (mode: 'post' | 'reply') => void;
+  isFloating?: boolean;
 }
 
 export default function CommandCenterLayout({
@@ -106,7 +110,7 @@ export default function CommandCenterLayout({
   setUseNewsjack,
   useSwarm,
   setUseSwarm,
-  // Input Features
+  // assets, // Already in props below
   images,
   onRemoveImage,
   isDragActive,
@@ -130,7 +134,10 @@ export default function CommandCenterLayout({
   onTriggerAutonomousDraft,
   assets,
   onOpenIdeaFactory,
-  children
+  children,
+  mode,
+  setMode,
+  isFloating,
 }: CommandCenterHelperProps) {
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -139,9 +146,31 @@ export default function CommandCenterLayout({
   // Auto-scroll output
   useEffect(() => {
     if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+        outputRef.current.scrollTop = outputRef.current.scrollHeight;
     }
   }, [completion, phaseLogs]);
+
+  // Command Palette Shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault();
+          // This should ideally trigger the global command palette
+          // For now, let's just focus the input if it's empty
+          if (!input && textareaRef.current) {
+             textareaRef.current.focus();
+          }
+       }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [input]);
+
+  const starterChips = [
+    { label: "Thought Leadership", icon: Zap, prompt: "Draft a high-status thought leadership post about..." },
+    { label: "Market Dismantle", icon: Target, prompt: "Analysis: Dismantle the current market trend of..." },
+    { label: "Personal Brand", icon: Sparkles, prompt: "Story: Create a personal brand narrative about..." }
+  ];
 
   // Adjust textarea height
   useEffect(() => {
@@ -152,14 +181,19 @@ export default function CommandCenterLayout({
   }, [input]);
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#080a0f] text-white font-sans selection:bg-brand-600/30 rounded-3xl border border-white/5 shadow-2xl">
+    <div className={`relative flex w-full flex-col overflow-hidden transition-all duration-500 ${isFloating ? 'h-auto bg-transparent border-none shadow-none' : 'h-full liquid-panel text-white font-sans selection:bg-brand-600/30'}`}>
       
       {/* BACKGROUND EFFECTS */}
-      <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-96 h-96 bg-brand-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-96 h-96 bg-blue-600/5 rounded-full blur-[120px] pointer-events-none"></div>
+      {!isFloating && (
+        <>
+          <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-96 h-96 bg-brand-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+          <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-96 h-96 bg-blue-600/5 rounded-full blur-[120px] pointer-events-none"></div>
+        </>
+      )}
 
       {/* HEADER / VITALS */}
-      <header className="flex items-center justify-between px-8 py-6 z-10 border-b border-white/[0.03]">
+      {!isFloating && (
+        <header className="flex items-center justify-between px-8 py-6 z-10 border-b border-white/[0.03]">
         <div className="flex flex-col gap-1">
           <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
             <Terminal className="w-5 h-5 text-brand-500" />
@@ -215,9 +249,10 @@ export default function CommandCenterLayout({
            </button>
         </div>
       </header>
+      )}
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 overflow-y-auto custom-scrollbar p-6 pb-32 z-10 flex flex-col gap-6">
+      <main className={`flex-1 overflow-y-auto custom-scrollbar z-10 flex flex-col gap-6 ${isFloating ? 'p-4 pb-4' : 'p-6 pb-32'}`}>
         
         {/* DYNAMIC VIEW CONTENT */}
         {children}
@@ -237,14 +272,14 @@ export default function CommandCenterLayout({
                 <AvatarFactory 
                     videoScript={assets.videoScript || ""}
                     textPost={assets.textPost || ""}
-                />
+                  />
             </div>
         )}
 
         {/* INPUT BUFFER SECTION */}
         <div className="group relative">
-           <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-brand-600/30 to-blue-500/30 opacity-0 group-focus-within:opacity-100 transition duration-500 blur-sm"></div>
-           <div className="relative flex flex-col bg-[#0f111a]/80 backdrop-blur-xl rounded-2xl border border-white/10 transition-all duration-300 group-focus-within:border-brand-500/50 shadow-xl">
+           <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-brand-600/30 to-purple-600/30 opacity-0 group-focus-within:opacity-100 transition duration-500 blur-sm"></div>
+           <div className="relative flex flex-col bg-[#0f111a]/80 backdrop-blur-3xl rounded-2xl border border-white/10 transition-all duration-300 group-focus-within:border-brand-500/50 shadow-2xl">
               
               {/* Toolbar Label */}
               <div className="flex items-center justify-between px-5 pt-4 pb-2">
@@ -302,6 +337,39 @@ export default function CommandCenterLayout({
                     ))}
                  </div>
 
+                 {/* ZEN START OVERLAY (Phase 24) */}
+                 {!input && images.length === 0 && (
+                   <div className="absolute inset-0 p-6 pb-20 pointer-events-none flex flex-col gap-4 z-10">
+                     <motion.h2 
+                       initial={{ opacity: 0, y: 10 }}
+                       animate={{ opacity: 1, y: 0 }}
+                       className="text-white/80 text-3xl font-black uppercase tracking-tighter"
+                     >
+                       Zen Start
+                     </motion.h2>
+                     <motion.p 
+                       initial={{ opacity: 0, y: 10 }}
+                       animate={{ opacity: 1, y: 0 }}
+                       transition={{ delay: 0.1 }}
+                       className="text-neutral-500 text-sm uppercase tracking-widest font-mono"
+                     >
+                       Select a strategic objective to begin
+                     </motion.p>
+                     <div className="flex flex-wrap gap-2 mt-4 pointer-events-auto">
+                       {starterChips.map((chip, i) => (
+                          <button 
+                            key={i}
+                            onClick={() => setInput(chip.prompt)}
+                            className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] text-neutral-400 hover:text-white hover:bg-white/10 hover:border-brand-500/50 transition-all uppercase tracking-widest font-black group"
+                          >
+                            <chip.icon className="w-3 h-3 text-brand-400 group-hover:scale-110 transition-transform" />
+                            {chip.label}
+                          </button>
+                       ))}
+                     </div>
+                   </div>
+                 )}
+
                  <textarea
                    ref={textareaRef}
                    value={input}
@@ -313,8 +381,8 @@ export default function CommandCenterLayout({
                      }
                    }}
                    disabled={isGenerating}
-                   className="w-full bg-transparent border-none text-white focus:ring-0 placeholder:text-white/20 px-5 py-3 min-h-[120px] md:min-h-[160px] text-lg leading-relaxed font-light resize-none outline-none"
-                   placeholder="Enter command or high-level strategic objective..."
+                   className={`w-full bg-transparent border-none text-white focus:ring-0 placeholder:text-white/20 text-lg leading-relaxed font-light resize-none outline-none relative z-0 transition-all ${isFloating ? 'min-h-[60px] md:min-h-[80px] px-2 py-2' : 'px-5 py-3 min-h-[120px] md:min-h-[160px]'}`}
+                   placeholder={mode === 'reply' ? "Enter technical rebuttal or contrarian angle..." : "Enter command or high-level strategic objective..."}
                  />
 
                  {/* Image Previews */}
@@ -400,10 +468,9 @@ export default function CommandCenterLayout({
                 <Terminal className="w-3.5 h-3.5 text-white/30" />
                 <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">System Output</span>
              </div>
-             
-             <div className="rounded-xl bg-black/60 border border-white/10 p-5 font-mono text-sm shadow-inner relative overflow-hidden">
+                          <div className="rounded-xl bg-black/60 border border-white/10 p-5 font-mono text-sm shadow-inner relative overflow-hidden group/terminal">
                 {/* Scanline effect */}
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-[1] pointer-events-none bg-[length:100%_4px,6px_100%]"></div>
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(124,58,237,0.06),rgba(0,255,0,0.02),rgba(124,58,237,0.06))] z-[1] pointer-events-none bg-[length:100%_4px,6px_100%] opacity-50"></div>
                 
                 <div ref={outputRef} className="max-h-[400px] overflow-y-auto pr-2 custom-scrollbar relative z-10 space-y-3">
                    
@@ -435,7 +502,7 @@ export default function CommandCenterLayout({
 
       {/* FLOATING ACTION BAR (Bottom Control Deck) */}
       <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#080a0f] via-[#080a0f] to-transparent z-20">
-         <div className="bg-[#13151f]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl flex flex-col md:flex-row gap-4 items-center justify-between">
+         <div className="liquid-glass rounded-2xl p-4 shadow-2xl flex flex-col md:flex-row gap-4 items-center justify-between">
             
             {/* LEFT: Persona & Settings */}
             <div className="flex items-center gap-4 w-full md:w-auto">
@@ -547,6 +614,24 @@ export default function CommandCenterLayout({
                  </>
                )}
             </button>
+         </div>
+      </div>
+
+      {/* KEYBOARD HUD: Quick Reference */}
+      <div className="absolute bottom-32 left-1/2 -translate-x-1/2 flex items-center gap-6 px-6 py-2 bg-black/60 backdrop-blur-3xl border border-white/5 rounded-full z-[15] shadow-2xl pointer-events-none">
+         <div className="flex items-center gap-2">
+            <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] text-white/40 font-mono">⌘ K</kbd>
+            <span className="text-[9px] text-neutral-500 uppercase tracking-widest font-black">Commands</span>
+         </div>
+         <div className="w-px h-3 bg-white/10" />
+         <div className="flex items-center gap-2">
+            <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] text-white/40 font-mono">⌘ ↵</kbd>
+            <span className="text-[9px] text-neutral-500 uppercase tracking-widest font-black">Synthesize</span>
+         </div>
+         <div className="w-px h-3 bg-white/10" />
+         <div className="flex items-center gap-2">
+            <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] text-white/40 font-mono">/ (Slash)</kbd>
+            <span className="text-[9px] text-neutral-500 uppercase tracking-widest font-black">Quick Action</span>
          </div>
       </div>
 

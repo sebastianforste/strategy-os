@@ -1,5 +1,5 @@
 
-import { constructEnrichedPrompt } from '../actions/generate';
+import { constructEnrichedPrompt } from '../utils/prompt-builder';
 import { ingestStyleSamplesAction } from '../actions/style';
 import { searchStyleMemory } from '../utils/vector-store';
 

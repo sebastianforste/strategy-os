@@ -15,6 +15,7 @@ We separate concerns between visual aesthetics and logical architecture.
 - **Tool:** Antigravity (Agentic AI).
 - **Responsibility:** "The Guts" (Prisma, Server Actions, Auth, API Routes).
 - **Workflow:** Ingest Stitch components -> Wire up dynamic props from `schema.prisma` -> Implement error handling and state management.
+- **Evidence-Based Loop**: Connect `analytics-service.ts` to the generation pipeline to inject historical "Winning Patterns" from previous viral posts.
 
 ## 2. Best Practices (Mission Protocols)
 

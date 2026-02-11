@@ -1,43 +1,62 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/utils/db";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/utils/auth";
+import { HistoryItem } from "@/utils/history-service";
 
-import { NextResponse } from "next/server";
-import { saveStrategy } from "@/actions/history"; // Server Action reuse
-import { GeneratedAssets } from "@/utils/ai-service";
-
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { historyItems } = body;
-
-    if (!Array.isArray(historyItems)) {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let successCount = 0;
-    let failCount = 0;
+    const { historyItems } = await req.json() as { historyItems: HistoryItem[] };
 
-    // Process in parallel (or batches)
-    const results = await Promise.all(
-        historyItems.map(async (item: any) => {
-            // Map LocalStorage item structure to our Server Action params
-            if (!item.input || !item.assets) return false;
+    if (!historyItems || !Array.isArray(historyItems)) {
+      return NextResponse.json({ error: "Invalid history items" }, { status: 400 });
+    }
 
-            const result = await saveStrategy({
-                input: item.input,
-                assets: item.assets as GeneratedAssets,
-                personaId: item.personaId || "cso",
-                createdAt: item.createdAt ? new Date(item.createdAt) : undefined,
-                rating: item.performance?.rating || undefined,
-            });
-            return result.success;
-        })
-    );
+    let migrated = 0;
+    let failed = 0;
 
-    successCount = results.filter(Boolean).length;
-    failCount = results.length - successCount;
+    for (const item of historyItems) {
+      try {
+        await prisma.strategy.create({
+          data: {
+            id: item.id,
+            content: item.assets.textPost || "Untitled Strategy",
+            title: item.input.substring(0, 50) + (item.input.length > 50 ? "..." : ""),
+            platform: "LINKEDIN",
+            persona: item.personaId || "cso",
+            input: item.input,
+            assets: JSON.stringify(item.assets),
+            rating: item.performance?.rating || null,
+            impressions: item.performance?.engagement?.impressions || 0,
+            engagement: (item.performance?.engagement?.likes || 0) + (item.performance?.engagement?.comments || 0),
+            saves: 0,
+            shares: item.performance?.engagement?.shares || 0,
+            status: "DRAFT",
+            isPublished: false,
+            authorId: session.user.id,
+            createdAt: new Date(item.createdAt),
+          },
+        });
+        migrated++;
+      } catch (e) {
+        console.error("Failed to migrate item:", item.id, e);
+        failed++;
+      }
+    }
 
-    return NextResponse.json({ success: true, migrated: successCount, failed: failCount });
+    return NextResponse.json({
+      success: true,
+      migrated,
+      failed,
+      message: `Migrated ${migrated} items, ${failed} failed.`
+    });
   } catch (error) {
-    console.error("Migration failed:", error);
+    console.error("Migration API Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

@@ -9,7 +9,7 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, Zap, ImageIcon, X, Type } from "lucide-react";
+import { Sparkles, Zap, ImageIcon, X, Type, Target } from "lucide-react";
 import { Signal } from "../../utils/signal-service";
 import SwarmConsole from "../SwarmConsole";
 import { SwarmMessage } from "../../utils/swarm-service";
@@ -41,6 +41,8 @@ export interface InputAreaProps {
   starterChips: Array<{ label: string; icon: any; prompt: string }>;
   apiKey?: string;
   onCheckCliches?: (text: string) => void;
+  mode: 'post' | 'reply'; // Added
+  setMode: (mode: 'post' | 'reply') => void; // Added
 }
 
 export default function InputArea({
@@ -69,6 +71,8 @@ export default function InputArea({
   starterChips,
   apiKey,
   onCheckCliches,
+  mode,
+  setMode,
 }: InputAreaProps) {
   const [viralScore, setViralScore] = useState<ViralScore | null>(null);
   const [isScoring, setIsScoring] = useState(false);
@@ -82,43 +86,59 @@ export default function InputArea({
     setIsScoring(false);
   };
 
+  // local mode state removed (lifted)
   const [isFocused, setIsFocused] = useState(false);
 
   return (
-    <div className={`relative flex flex-col transition-all duration-300 ease-in-out ${isFocused || input.length > 200 ? 'min-h-[24rem]' : 'min-h-[8rem]'}`}>
-      <div {...getRootProps()} className="relative flex-1 flex flex-col">
-        <input {...getInputProps()} />
+    <div className={`relative flex flex-col transition-all duration-500 ease-in-out bg-white/[0.02] border border-white/[0.05] rounded-t-2xl ${isFocused || input.length > 200 ? 'min-h-[28rem]' : 'min-h-[12rem]'}`}>
+      
+      {/* MODE TOGGLE: Google Stitch Precision */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.03]">
+        <div className="flex bg-white/[0.05] p-1 rounded-lg border border-white/[0.03]">
+          <button 
+            onClick={() => setMode('post')}
+            className={`px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 ${mode === 'post' ? 'bg-white text-black shadow-xl scale-[1.02]' : 'text-neutral-500 hover:text-neutral-300'}`}
+          >
+            <Sparkles className="w-3 h-3" />
+            New Post
+          </button>
+          <button 
+            onClick={() => setMode('reply')}
+            className={`px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 ${mode === 'reply' ? 'bg-white text-black shadow-xl scale-[1.02]' : 'text-neutral-500 hover:text-neutral-300'}`}
+          >
+            <Zap className="w-3 h-3" />
+            High-Status Reply
+          </button>
+        </div>
 
-        {/* VIRAL SCORER */}
-        <div className="absolute top-4 right-6 z-30 flex items-center gap-2">
+        <div className="flex items-center gap-3">
             {viralScore && (
                 <motion.div 
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className={`px-3 py-1 rounded-full text-xs font-bold border ${viralScore.score > 80 ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-yellow-500/20 border-yellow-500 text-yellow-400'}`}
+                    className={`px-3 py-1 rounded-full text-[9px] font-black tracking-widest border ${viralScore.score > 80 ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'}`}
                 >
-                    Viral Score: {viralScore.score}/100
+                    SCORE: {viralScore.score}
                 </motion.div>
             )}
-            <button 
-                onClick={checkViralScore}
-                disabled={!input || isScoring}
-                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
-                title="Check Viral Score"
-            >
-                {isScoring ? <span className="animate-spin block">↻</span> : <Zap className="w-4 h-4" />}
-            </button>
-            
-            {/* CLICHE CHECKER TRIGGER */}
-             <button 
-                onClick={() => onCheckCliches && onCheckCliches(input)}
-                disabled={!input}
-                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
-                title="Cliche Killer"
-            >
-                <Type className="w-4 h-4" />
-            </button>
+            <div className="flex gap-1">
+                <button 
+                    onClick={checkViralScore}
+                    disabled={!input || isScoring}
+                    className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-500 hover:text-white transition-colors"
+                >
+                    {isScoring ? <span className="animate-spin block">↻</span> : <Target className="w-4 h-4" />}
+                </button>
+                <button 
+                    onClick={() => onCheckCliches && onCheckCliches(input)}
+                    disabled={!input}
+                    className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-500 hover:text-white transition-colors"
+                >
+                    <Type className="w-4 h-4" />
+                </button>
+            </div>
         </div>
+      </div>
 
         {/* TEAM MODE INPUTS */}
         {isTeamMode && (
@@ -172,14 +192,17 @@ export default function InputArea({
           </div>
         )}
 
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          placeholder=" "
-          className="w-full flex-1 bg-transparent text-white p-6 outline-none resize-none font-mono text-base leading-relaxed z-10 peer"
-        />
+        <div {...getRootProps()} className="relative flex-1 flex flex-col">
+            <input {...getInputProps()} />
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              placeholder={mode === 'post' ? "What's the strategic insight today?" : "Paste the thread or post you want to dismantle..."}
+              className="w-full flex-1 bg-transparent text-white p-6 outline-none resize-none font-inter text-lg leading-relaxed z-10 peer placeholder:text-neutral-700"
+            />
+        </div>
 
         {/* Signals Area */}
         {useNewsjack && (signals.length > 0 || isFetchingSignals) && (
@@ -219,29 +242,50 @@ export default function InputArea({
           isVisible={isSwarmRunning || (isAgenticRunning && swarmMessages.length > 0)}
         />
 
-        {/* Custom Empty State / Placeholder */}
+        {/* Zen Start Experience (Empty State) */}
         {!input && images.length === 0 && (
-          <div className="absolute inset-0 p-6 pb-20 pointer-events-none flex flex-col gap-4 z-10">
-            <p className="text-neutral-400 text-lg">What strategy are we building today?</p>
-            <div className="flex flex-wrap gap-2 mt-2 pointer-events-auto">
-              {starterChips.map((chip) => (
-                <button
+          <div className="absolute inset-0 p-8 pb-20 pointer-events-none flex flex-col items-center justify-center text-center z-10 transition-all duration-700">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mb-8"
+            >
+              <div className="w-16 h-16 bg-gradient-to-br from-white/10 to-transparent border border-white/10 rounded-2xl flex items-center justify-center shadow-2xl backdrop-blur-3xl overflow-hidden relative">
+                 <div className="absolute inset-0 bg-white/5 animate-pulse" />
+                 <Sparkles className="w-8 h-8 text-neutral-400" />
+              </div>
+            </motion.div>
+
+            <h3 className="text-2xl font-bold text-white tracking-tight mb-2 selection:bg-white/30">
+              The Command is Yours.
+            </h3>
+            <p className="text-neutral-500 text-sm max-w-sm leading-relaxed mb-12">
+              Select a strategic objective or type a high-level command to begin the synthesis.
+            </p>
+
+            <div className="flex flex-wrap items-center justify-center gap-4 max-w-2xl pointer-events-auto">
+              {starterChips.map((chip, idx) => (
+                <motion.button
                   key={chip.label}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.1 }}
                   onClick={(e) => {
                     e.stopPropagation();
                     setInput(chip.prompt);
                   }}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full text-xs text-neutral-300 hover:text-white transition-colors"
+                  className="group relative flex items-center gap-3 px-6 py-3 bg-[#0A0A0A] border border-white/5 hover:border-white/20 rounded-xl text-[11px] font-black uppercase tracking-[0.15em] text-neutral-400 hover:text-white transition-all shadow-xl active:scale-95"
                 >
-                  <chip.icon className="w-3 h-3" />
+                  <chip.icon className="w-4 h-4 text-neutral-500 group-hover:text-white transition-colors" />
                   {chip.label}
-                </button>
+                  <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
+                </motion.button>
               ))}
             </div>
 
-            <div className="mt-auto mb-4 flex items-center gap-2 text-neutral-400 text-xs">
-              <ImageIcon className="w-4 h-4" />
-              <span>Drop images here to analyze</span>
+            <div className="mt-16 flex items-center gap-3 text-neutral-600 text-[10px] uppercase font-bold tracking-[0.2em] opacity-40 hover:opacity-100 transition-opacity cursor-pointer">
+              <ImageIcon className="w-5 h-5" />
+              <span>Drop vision assets to analysis layer</span>
             </div>
           </div>
         )}
@@ -276,7 +320,6 @@ export default function InputArea({
             ))}
           </div>
         )}
-      </div>
     </div>
   );
 }

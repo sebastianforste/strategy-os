@@ -15,7 +15,7 @@ cleanup() {
     echo "--- PRE-FLIGHT CLEANUP ---"
     
     # 1. Remove build artifacts (silent fail if locked)
-    rm -rf "node_modules/.bin/.vitest" "tsconfig.tsbuildinfo" 2>/dev/null && echo "Build artifacts cleared."
+    rm -rf ".next" "node_modules/.bin/.vitest" "tsconfig.tsbuildinfo" "node_modules/.cache" 2>/dev/null && echo "Build artifacts and cache cleared."
     
     # 2. Clear SingletonLock (user mode only)
     LOCKFILE="/Users/sebastian/.beck_export_edge_profile/SingletonLock"
@@ -24,6 +24,9 @@ cleanup() {
     # 3. Clear file flags - best effort (user mode)
     echo "Unlocking build folders..."
     chflags -R nouchg .next node_modules 2>/dev/null || true
+
+    # 4. Clear stale service worker
+    rm -f public/sw.js 2>/dev/null && echo "Service worker cleared."
 }
 
 # Execute cleanup

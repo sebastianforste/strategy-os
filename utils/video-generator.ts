@@ -14,6 +14,11 @@ export interface StoryboardLine {
     visual: string; // Description for image/video generation
     text: string;   // The caption/overlay text
     duration: number; // in seconds
+    directorCues: {
+        lighting: string;
+        cameraAngle: string;
+        motion: string;
+    };
 }
 
 /**
@@ -32,13 +37,15 @@ export async function generateStoryboard(content: string, apiKey: string): Promi
         2. Visual: Describe a minimalist, high-impact background (Cyberpunk, Noir, or Tech-Futuristic).
         3. Text: Short, punchy hooks (max 10 words per scene).
         4. Duration: 3-5 seconds per scene.
+        5. Director Cues: Specify lighting (e.g. "Low-key neon"), camera angle (e.g. "Dutch angle"), and motion (e.g. "Slow zoom").
         
         STRATEGY:
         """
         ${content.substring(0, 1000)}
         """
         
-        Return ONLY a JSON array of objects with keys: "scene", "visual", "text", "duration".
+        Return ONLY a JSON array of objects with keys: "scene", "visual", "text", "duration", "directorCues".
+        The "directorCues" must be an object with keys: "lighting", "cameraAngle", "motion".
     `;
 
     try {
@@ -53,7 +60,13 @@ export async function generateStoryboard(content: string, apiKey: string): Promi
     } catch (e) {
         console.error("[VideoGenerator] Storyboard failed", e);
         return [
-            { scene: 1, visual: "Static background with glitch effect", text: "STORYBOARD GENERATION FAILED", duration: 5 }
+            { 
+                scene: 1, 
+                visual: "Static background with glitch effect", 
+                text: "STORYBOARD GENERATION FAILED", 
+                duration: 5,
+                directorCues: { lighting: "Static", cameraAngle: "None", motion: "None" }
+            }
         ];
     }
 }

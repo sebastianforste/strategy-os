@@ -26,10 +26,10 @@
 - **Action**: Fetches real-time news to ground the AI's contrarian takes in valid context.
 - **Settings**: Uses the main `Gemini API Key`.
 
-### Content History (NEW)
-- **Engine**: LocalStorage (Browser).
+### Content History (PRISMA MIGRATION)
+- **Engine**: Prisma + SQLite (Migrated from LocalStorage).
 - **UI**: Clock icon in header $\rightarrow$ Slide-out Sidebar.
-- **Feature**: Auto-saves every successful generation. Click to restore immediately.
+- **Feature**: Auto-saves every successful generation to the database. Supports automatic migration of legacy LocalStorage data upon launch.
 
 ### The "V2" Upgrade (Phases 5-7)
 - **Personas**: Switch between "Strategist", "Founder", and "Provocateur" to change the writing voice.
@@ -75,10 +75,11 @@
 - **PDF Carousel Engine**: One-click conversion of text posts into 4:5 portrait PDF carousels.
 - **Visualize Value Aesthetic**: Auto-formatted slides (Black bg, White text) ready for LinkedIn document uploads.
 
-### Analytics Dashboard (NEW)
-- **Virality Predictor**: Real-time score (0-100) as you type, analyzing hooks, length, and structure.
-- **Performance Rating**: Rate your past generations (Viral, Good, Meh, Flopped) in the History Sidebar.
-- **Insights Dashboard**: Visualizes your success patterns, top hooks, and overall performance stats.
+### Analytics Dashboard (LIVE)
+- **Virality Predictor**: Real-time hybrid score (0-100) combining Prisma benchmarks and Gemini 2.0 critique.
+- **Growth Curve**: Visualizes daily impressions and engagement trends over the last 7 days.
+- **Performance Rating**: Rate your past generations (Viral, Good, Meh, Flopped) to help the "Evolution Service" improve your personas.
+- **The Coach**: AI-driven strategy recommendations based on your actual team performance metrics.
 
 ## 2. Quick Start
 

@@ -8,7 +8,7 @@ const originalRequire = (module as any).prototype.require;
 };
 
 import { PERSONAS, PersonaId } from "../utils/personas";
-import { constructEnrichedPrompt } from "../actions/generate";
+import { constructEnrichedPrompt } from "../utils/prompt-builder";
 import { LinkedInAdapter } from "../utils/platforms/linkedin";
 import * as dotenv from "dotenv";
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Play, Pause, Scissors, Film, Music, Mic, Monitor, Download, Zap, Loader2, Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { StoryboardLine, generateStoryboard } from "../utils/video-generator";
-import { generateVideoVisualsAction } from "../actions/generate";
+import { generateVideoVisualsAction } from "@/actions/visuals";
 
 interface VideoDirectorProps {
   script: string;
@@ -134,6 +134,15 @@ export default function VideoDirector({ script, apiKey }: VideoDirectorProps) {
                                     {currentScene.text}
                                 </h2>
                                 <div className="h-1 w-24 bg-indigo-500 mx-auto rounded-full mb-4" />
+                                
+                                {/* Phase 90: Director Metadata Overlay */}
+                                <div className="flex justify-center gap-4 text-[8px] font-mono text-white/40 uppercase tracking-[0.2em]">
+                                    <span>{currentScene.directorCues?.lighting}</span>
+                                    <span className="w-1 h-1 bg-white/20 rounded-full my-auto" />
+                                    <span>{currentScene.directorCues?.cameraAngle}</span>
+                                    <span className="w-1 h-1 bg-white/20 rounded-full my-auto" />
+                                    <span>{currentScene.directorCues?.motion}</span>
+                                </div>
                             </motion.div>
                         </div>
                     </div>

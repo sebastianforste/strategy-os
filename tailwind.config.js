@@ -1,7 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./src/**/*.{js,ts,jsx,tsx}",
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./utils/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
@@ -33,6 +35,10 @@ module.exports = {
       boxShadow: {
         'glow': '0 0 20px -5px var(--tw-shadow-color)',
         'input-focus': '0 0 0 2px rgba(139, 92, 246, 0.3)',
+      },
+      fontFamily: {
+        mono: ['JetBrains Mono', 'monospace'],
+        serif: ['Courier Prime', 'serif'],
       },
     },
   },

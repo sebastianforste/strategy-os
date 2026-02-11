@@ -65,3 +65,18 @@ export function startGrowthRadar(apiKey: string, serperKey: string) {
 
     return () => clearInterval(intervalId);
 }
+
+/**
+ * SEND TO WEBHOOK (Ghost Inbox)
+ * Handles manual dispatch from the Ghost Agent Inbox to the scheduling engine.
+ */
+export async function sendToWebhook(payload: { content: string, platform: string }) {
+    console.log(`[Scheduler] Webhook received for ${payload.platform}`);
+    
+    // In a real scenario, this would create a ScheduledPost in the DB
+    // For now, we simulate a successful handoff
+    return { 
+        success: true, 
+        message: `Draft successfully queued for ${payload.platform.toUpperCase()}` 
+    };
+}

@@ -56,16 +56,16 @@ export default function HistorySidebar({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120]"
           />
 
           {/* Sidebar */}
           <motion.div
-            initial={{ x: "100%" }}
+            initial={{ x: 0 }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 h-full w-full max-w-md bg-[#0A0A0A] border-l border-neutral-800 p-6 z-50 shadow-2xl overflow-y-auto"
+            className="fixed right-0 top-0 h-full w-full max-w-md bg-[#0A0A0A] border-l border-neutral-800 p-6 z-[121] shadow-2xl overflow-y-auto"
           >
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">

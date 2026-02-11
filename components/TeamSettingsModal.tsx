@@ -44,7 +44,7 @@ export default function TeamSettingsModal({ isOpen, onClose }: TeamSettingsModal
         setIsInviting(false);
 
         if (res.success) {
-            setInviteLink(res.inviteLink);
+            setInviteLink(res.inviteLink || "");
             setInviteEmail("");
             loadTeam(); // Reload to see pending invite if we were showing them
         } else {

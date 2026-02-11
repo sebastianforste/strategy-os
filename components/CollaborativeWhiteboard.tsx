@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
-import { MousePointer2, Type, Square, Circle, Eraser, Share2, Users, Download, Save, Layers, Settings, Maximize2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { PenTool, MousePointer2, Type, Square, Circle, Eraser, Share2, Users, Download, Save, Layers, Settings, Maximize2, Database, RefreshCw, Zap } from "lucide-react";
 
 export default function CollaborativeWhiteboard() {
     const [activeTool, setActiveTool] = useState<'select' | 'text' | 'shape' | 'erase'>('select');

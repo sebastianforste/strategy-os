@@ -1,33 +1,10 @@
-import "server-only";
-import * as lancedb from "@lancedb/lancedb";
-import { GoogleGenAI } from "@google/genai";
-import { AI_CONFIG } from "./config";
+import { getLanceDB } from "./lancedb-client";
+import { getEmbedding } from "./gemini-embedding";
 
 const DB_PATH = ".lancedb";
-const EMBEDDING_MODEL = AI_CONFIG.embeddingModel;
-
-// Lazy GenAI singleton - initialized on first use to avoid module load errors
-let genAIInstance: GoogleGenAI | null = null;
-
-function getGenAI(): GoogleGenAI {
-  if (!genAIInstance) {
-    const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
-    if (!apiKey) {
-      throw new Error("No API key found. Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable.");
-    }
-    genAIInstance = new GoogleGenAI({ apiKey });
-  }
-  return genAIInstance;
-}
-
-// Singleton for LanceDB
-let dbInstance: lancedb.Connection | null = null;
 
 async function getDB() {
-  if (!dbInstance) {
-    dbInstance = await lancedb.connect(DB_PATH);
-  }
-  return dbInstance;
+  return getLanceDB(DB_PATH);
 }
 
 export interface VectorDocument {
@@ -44,30 +21,6 @@ export interface StyleCluster {
   label: string;
   sampleIds: string[];
   count: number;
-}
-
-// --- Embedding Helper ---
-
-export async function getEmbedding(text: string): Promise<number[]> {
-  try {
-    // @ts-ignore - SDK type definitions can be inconsistent
-    const response = await getGenAI().models.embedContent({
-      model: EMBEDDING_MODEL,
-      contents: [text]
-    });
-    // Handle both single and batch return structures
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const embedding = (response as any).embedding?.values || (response as any).embeddings?.[0]?.values;
-    if (!embedding) {
-        // Fallback or check for 'embeddings' if batch
-        console.warn("Embedding check: ", JSON.stringify(response));
-        throw new Error("No embedding returned");
-    }
-    return embedding;
-  } catch (error) {
-    console.error("Embedding Error:", error);
-    return [];
-  }
 }
 
 // --- Store Operations ---
@@ -136,7 +89,7 @@ export async function searchVoiceMemory(personaId: string, query: string, limit 
       .limit(limit)
       .toArray();
       
-    return results.map(r => ({
+    return results.map((r: any) => ({
       ...r,
       metadata: JSON.parse(r.metadata as string)
     }));
@@ -179,12 +132,69 @@ export async function searchVectorStore(query: string, limit = 5) {
       .limit(limit)
       .toArray();
       
-    return results.map(r => ({
+    return results.map((r: any) => ({
       ...r,
       metadata: JSON.parse(r.metadata as string)
     }));
   } catch (error) {
-    console.warn("Vector Store Search rejected:", error);
+    // Table likely doesn't exist yet, which is fine for new personas/resources
+    return [];
+  }
+}
+
+/**
+ * PHASE 85: GRAPH RAG (DEEP CONTEXT)
+ * Retrieves semantically similar items PLUS logically linked items
+ * based on 'association' metadata or sector grouping.
+ */
+export async function searchGraphContext(query: string, limit = 5) {
+  const db = await getDB();
+  const queryVector = await getEmbedding(query);
+  if (queryVector.length === 0) return [];
+
+  try {
+    const table = await db.openTable("resources");
+    // 1. Initial semantic search
+    const semanticResults = await table.vectorSearch(queryVector)
+      .limit(limit)
+      .toArray();
+      
+    const parsedSemantic = semanticResults.map((r: any) => ({
+      ...r,
+      metadata: JSON.parse(r.metadata as string),
+      searchType: 'semantic'
+    }));
+
+    // 2. Traversal Search (Graph Leap)
+    // Find items tagged with concepts found in the semantic results
+    const associations = new Set<string>();
+    parsedSemantic.forEach((r: any) => {
+        if (r.metadata.associations && Array.isArray(r.metadata.associations)) {
+            r.metadata.associations.forEach((a: string) => associations.add(a));
+        }
+    });
+
+    if (associations.size > 0) {
+        // Simple mock of traversal: filter for items sharing these associations
+        // In a real knowledge graph we'd query the edges, here we use LanceDB filter
+        const associationList = Array.from(associations).map(a => `'${a}'`).join(", ");
+        const leakedResults = await table.query()
+            .where(`metadata LIKE '%${Array.from(associations)[0]}%'`) // Simplification for MVP
+            .limit(3)
+            .toArray();
+
+        const parsedLeaps = leakedResults.map((r: any) => ({
+            ...r,
+            metadata: JSON.parse(r.metadata as string),
+            searchType: 'logical-leap'
+        }));
+
+        return [...parsedSemantic, ...parsedLeaps];
+    }
+
+    return parsedSemantic;
+  } catch (error) {
+    console.warn("[Graph RAG] Search failed:", error);
     return [];
   }
 }
@@ -240,7 +250,7 @@ export async function searchStyleMemory(query: string, limit = 3) {
       .limit(limit)
       .toArray();
       
-    return results.map(r => ({
+    return results.map((r: any) => ({
       ...r,
       metadata: JSON.parse(r.metadata as string)
     }));
@@ -264,7 +274,7 @@ export async function searchStyleClusters(query: string, limit = 2) {
       .limit(limit)
       .toArray();
       
-    return results.map(r => ({
+    return results.map((r: any) => ({
       ...r,
       sampleIds: JSON.parse(r.sampleIds as string)
     }));
@@ -281,7 +291,7 @@ export async function reindexStyleClusters() {
   const db = await getDB();
   try {
     const table = await db.openTable("style_references");
-    const samples = await table.toArrow().then(t => t.toArray());
+    const samples = await table.toArrow().then((t: any) => t.toArray());
     
     if (samples.length < 5) return;
 

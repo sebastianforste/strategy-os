@@ -35,6 +35,8 @@ const DB_VERSION = 1;
 const STORE_NAME = "logs";
 const MAX_ENTRIES = 10000; // Retention limit
 
+import { AI_CONFIG } from "./config";
+
 // --- DATABASE UTILITIES ---
 
 function openDB(): Promise<IDBDatabase> {
@@ -55,6 +57,23 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
+// --- DATABASE WRAPPERS ---
+
+async function withStore<T>(
+  mode: "readonly" | "readwrite", 
+  callback: (store: IDBObjectStore) => IDBRequest<T>
+): Promise<T> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, mode);
+    const store = tx.objectStore(STORE_NAME);
+    const request = callback(store);
+    
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
 // --- PUBLIC API ---
 
 /**
@@ -72,32 +91,23 @@ export async function logAudit(options: {
   metadata?: AuditEntry["metadata"];
 }): Promise<AuditEntry> {
   const { action, input, output, personaId, platform, durationMs, metadata } = options;
-  const db = await openDB();
   
   const entry: AuditEntry = {
-    id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
     timestamp: Date.now(),
     action,
     input: input.substring(0, 1000), // Limit input size
     output: output.substring(0, 2000), // Limit output size
     personaId,
     platform,
-    apiUsed: process.env.NEXT_PUBLIC_GEMINI_PRIMARY_MODEL || "gemini-flash",
+    apiUsed: AI_CONFIG.primaryModel, 
     durationMs,
     metadata
   };
   
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.add(entry);
-    
-    request.onsuccess = () => {
-      console.log(`[Audit] Logged: ${entry.action} (${entry.id})`);
-      resolve(entry);
-    };
-    request.onerror = () => reject(request.error);
-  });
+  await withStore("readwrite", (store) => store.add(entry));
+  console.log(`[Audit] Logged: ${entry.action} (${entry.id})`);
+  return entry;
 }
 
 /**
@@ -111,38 +121,23 @@ export async function getAuditLogs(options: {
   to?: number;
   limit?: number;
 } = {}): Promise<AuditEntry[]> {
-  const db = await openDB();
   const { action, from, to, limit = 100 } = options;
   
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const store = tx.objectStore(STORE_NAME);
-    
-    let request: IDBRequest;
-    
+  let entries = await withStore<AuditEntry[]>("readonly", (store) => {
     if (action) {
-      const index = store.index("action");
-      request = index.getAll(action);
-    } else {
-      request = store.getAll();
+      return store.index("action").getAll(action);
     }
-    
-    request.onsuccess = () => {
-      let entries = request.result as AuditEntry[];
-      
-      // Apply date filters
-      if (from) entries = entries.filter(e => e.timestamp >= from);
-      if (to) entries = entries.filter(e => e.timestamp <= to);
-      
-      // Sort by timestamp descending and limit
-      entries = entries
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, limit);
-      
-      resolve(entries);
-    };
-    request.onerror = () => reject(request.error);
+    return store.getAll();
   });
+
+  // Apply date filters
+  if (from) entries = entries.filter(e => e.timestamp >= from);
+  if (to) entries = entries.filter(e => e.timestamp <= to);
+  
+  // Sort by timestamp descending and limit
+  return entries
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, limit);
 }
 
 /**

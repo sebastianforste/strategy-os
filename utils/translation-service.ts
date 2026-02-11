@@ -26,8 +26,6 @@ export async function translateStrategy(
     apiKey: string
 ) {
     const genAI = new GoogleGenAI({ apiKey });
-    const model = genAI.models.get(AI_CONFIG.primaryModel);
-
     const prompt = `
         You are a world-class translation and cultural adaptation expert.
         
@@ -44,8 +42,11 @@ export async function translateStrategy(
     `;
 
     try {
-        const result = await model.generateContent(prompt);
-        return result.response.text();
+        const result = await genAI.models.generateContent({
+            model: AI_CONFIG.primaryModel,
+            contents: prompt
+        });
+        return result.text || text;
     } catch (e) {
         console.error("[TranslationService] Translation failed:", e);
         return text; // Return original as fallback

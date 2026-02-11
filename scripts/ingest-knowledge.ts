@@ -1,5 +1,5 @@
-
-import { embedText, KnowledgeChunk } from "../utils/rag-service";
+import { getEmbedding } from "../utils/gemini-embedding";
+import type { KnowledgeChunk } from "../utils/rag-service";
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
@@ -56,7 +56,7 @@ async function ingest() {
             await new Promise(r => setTimeout(r, 3000));
             
             try {
-                const vector = await embedText(textToEmbed, GEMINI_KEY);
+                const vector = await getEmbedding(textToEmbed, GEMINI_KEY);
                 if (vector.length > 0) {
                      chunks.push({
                         id: `${file}-${i}`,

@@ -54,13 +54,15 @@ export async function evolvePersona(
         
         TASK:
         1. Identify stylistic patterns in the winning content (Hook structure, Sentence length, Tone, CTA style).
-        2. "Mutate" the Base Persona Instructions to incorporate these traits. 
-        3. Maintain the core identity but optimize for the algorithm that rewarded this content.
+        2. Identify "Anti-patterns" to avoid (e.g., specific words or structures that didn't appear in the winning content but usually plague AI).
+        3. "Mutate" the Base Persona Instructions to incorporate these traits and guardrails.
+        4. Maintain the core identity but optimize for the algorithm that rewarded this content.
         
         OUTPUT FORMAT (JSON ONLY):
         {
-            "analysis": "Detailed breakdown of what made the content win",
-            "improvements": ["trait 1", "trait 2", "..."],
+            "analysis": "Detailed breakdown of Success Drivers vs Anti-patterns found",
+            "successDrivers": ["trait 1", "trait 2", "..."],
+            "antiPatterns": ["word/structure 1", "..."],
             "mutatedPrompt": "The full, ready-to-use NEW Base Persona Instructions"
         }
     `;
@@ -79,7 +81,7 @@ export async function evolvePersona(
             personaId: (persona as any).id || persona.name.toLowerCase().replace(/\s+/g, '-'),
             originalPrompt: persona.basePrompt || "",
             mutatedPrompt: result.mutatedPrompt || persona.basePrompt || "",
-            improvements: result.improvements || [],
+            improvements: [...(result.successDrivers || []), ...(result.antiPatterns || []).map((p: string) => `AVOID: ${p}`)],
             analysis: result.analysis || "Evolution completed based on performance data.",
             timestamp: new Date().toISOString()
         };

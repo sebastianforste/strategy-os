@@ -1,13 +1,5 @@
-/**
- * MEMORY SERVICE - Cognitive Architecture
- * ----------------------------------------
- * Manages long-term tactical memory using LanceDB (Vector Store).
- * Enables StrategyOS to "remember" past high-performing content.
- */
-
-import * as lancedb from "@lancedb/lancedb";
-import { GoogleGenAI } from "@google/genai";
-import { AI_CONFIG } from "./config";
+import { getLanceDB, openOrCreateTable } from "./lancedb-client";
+import { getEmbedding } from "./gemini-embedding";
 
 const DB_PATH = "data/strategy_memory";
 const TABLE_NAME = "strategems";
@@ -22,36 +14,8 @@ export interface Strategem {
     vector?: number[];
 }
 
-/**
- * INITIALIZE MEMORY STORE
- */
-async function getTable() {
-    const db = await lancedb.connect(DB_PATH);
-    const tableNames = await db.tableNames();
-    
-    if (tableNames.includes(TABLE_NAME)) {
-        return await db.openTable(TABLE_NAME);
-    } else {
-        // Create table with empty data initially to define schema
-        // LanceDB can infer schema from the first record
-        return null; 
-    }
-}
-
-/**
- * GENERATE EMBEDDINGS
- */
-async function getEmbedding(text: string, apiKey: string): Promise<number[]> {
-    const genAI = new GoogleGenAI({ apiKey });
-    const result = await genAI.models.embedContent({
-        model: AI_CONFIG.embeddingModel,
-        contents: [{ parts: [{ text }] }]
-    });
-    const response = (result as any);
-    if (!response.embeddings || !response.embeddings[0] || !response.embeddings[0].values) {
-        throw new Error("[MemoryService] Failed to retrieve valid embedding from Gemini API");
-    }
-    return response.embeddings[0].values;
+async function getDB() {
+  return getLanceDB(DB_PATH);
 }
 
 /**
@@ -63,14 +27,15 @@ export async function storeStrategem(strategem: Omit<Strategem, 'vector'>, apiKe
     
     try {
         const vector = await getEmbedding(strategem.content, apiKey);
-        const db = await lancedb.connect(DB_PATH);
+        const db = await getDB();
         const record = { ...strategem, vector };
 
-        if ((await db.tableNames()).includes(TABLE_NAME)) {
-            const table = await db.openTable(TABLE_NAME);
+        const tableNames = await db.tableNames();
+        const tableExists = tableNames.includes(TABLE_NAME);
+        const table = await openOrCreateTable(db, TABLE_NAME, [record]);
+        
+        if (tableExists) {
             await table.add([record]);
-        } else {
-            await db.createTable(TABLE_NAME, [record]);
         }
         
         return true;
@@ -89,7 +54,7 @@ export async function retrieveMemories(query: string, apiKey: string, limit: num
     
     try {
         const vector = await getEmbedding(query, apiKey);
-        const db = await lancedb.connect(DB_PATH);
+        const db = await getDB();
         
         if (!(await db.tableNames()).includes(TABLE_NAME)) {
             return [];

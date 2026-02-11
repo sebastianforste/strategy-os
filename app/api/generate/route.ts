@@ -1,6 +1,6 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText, generateText } from "ai";
-import { constructEnrichedPrompt } from "../../../actions/generate";
+import { constructEnrichedPrompt } from "../../../utils/prompt-builder";
 import { PERSONAS, PersonaId } from "../../../utils/personas";
 import { verifyConstraints } from "../../../utils/constraint-service";
 import { LinkedInAdapter } from "../../../utils/platforms/linkedin";
@@ -28,7 +28,8 @@ export async function POST(req: Request) {
         coworkerName, 
         coworkerRole, 
         coworkerRelation,
-        subStyle
+        subStyle,
+        isReplyMode
     } = await req.json();
     const input = prompt || manualInput;
     
@@ -126,7 +127,8 @@ Data tells better lies than people do.
         coworkerName,
         coworkerRole,
         coworkerRelation,
-        subStyle
+        subStyle,
+        isReplyMode
     );
 
     // 2. Select Persona System Prompt

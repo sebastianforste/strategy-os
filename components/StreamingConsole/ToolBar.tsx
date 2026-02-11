@@ -97,48 +97,52 @@ export default function ToolBar({
   const activeSector = SECTORS[sectorId] || SECTORS.general;
 
   return (
-    <div className="border-t border-white/5 bg-white/5 p-3 flex flex-wrap items-center justify-between gap-4 rounded-b-xl backdrop-blur-md">
-      <div className="flex items-center gap-4">
-        {/* Persona Selector */}
-        <div className="flex items-center gap-2">
-          <UserCircle2 className="w-4 h-4 text-neutral-400" />
-          <select
-            value={personaId}
-            onChange={(e) => setPersonaId(e.target.value as PersonaId)}
-            className="bg-transparent text-sm text-neutral-300 font-medium outline-none cursor-pointer hover:text-white transition-colors"
-          >
-            {allPersonas.map((p) => (
-              <option key={p.id} value={p.id} className="bg-neutral-900">
-                {p.name}
-              </option>
-            ))}
-          </select>
+    <div className="border-t border-white/[0.03] bg-white/[0.01] p-4 flex flex-wrap items-center justify-between gap-4 rounded-b-2xl backdrop-blur-xl">
+      <div className="flex items-center gap-6">
+        {/* Persona Selector - Simplified */}
+        <div className="flex items-center gap-3 group relative">
+          <UserCircle2 className="w-4 h-4 text-neutral-500 group-hover:text-white transition-colors" />
+          <div className="flex flex-col">
+            <span className="text-[8px] font-bold text-neutral-600 uppercase tracking-widest">Persona</span>
+            <select
+                value={personaId}
+                onChange={(e) => setPersonaId(e.target.value as PersonaId)}
+                className="bg-transparent text-xs text-neutral-300 font-bold outline-none cursor-pointer hover:text-white transition-colors"
+            >
+                {allPersonas.map((p) => (
+                <option key={p.id} value={p.id} className="bg-[#0c1117] text-white">
+                    {p.name}
+                </option>
+                ))}
+            </select>
+          </div>
         </div>
 
-        {/* Sector Selector */}
-        <div className="flex items-center gap-2 group relative">
-          <button 
-             className="flex items-center gap-2 text-sm text-neutral-400 font-medium hover:text-white transition-colors"
-          >
-             <LayoutGrid className="w-4 h-4" />
-             <span className="max-w-[100px] truncate">{activeSector.name}</span>
-             <ChevronDown className="w-3 h-3 opacity-50" />
-          </button>
-          
-          <select
-            value={sectorId}
-            onChange={(e) => setSectorId(e.target.value as SectorId)}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          >
-            {Object.values(SECTORS).map((s) => (
-              <option key={s.id} value={s.id} className="bg-neutral-900">
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <div className="w-px h-6 bg-white/[0.05]" />
 
-        <div className="w-px h-4 bg-white/10" />
+        {/* Sector Selector - Simplified */}
+        <div className="flex items-center gap-3 group relative">
+            <LayoutGrid className="w-4 h-4 text-neutral-500 group-hover:text-white transition-colors" />
+            <div className="flex flex-col">
+                <span className="text-[8px] font-bold text-neutral-600 uppercase tracking-widest">Sector</span>
+                <div className="relative">
+                    <button className="text-xs text-neutral-300 font-bold hover:text-white transition-colors pr-4">
+                        {activeSector.name}
+                    </button>
+                    <select
+                        value={sectorId}
+                        onChange={(e) => setSectorId(e.target.value as SectorId)}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    >
+                        {Object.values(SECTORS).map((s) => (
+                        <option key={s.id} value={s.id} className="bg-neutral-900 border-none">
+                            {s.name}
+                        </option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+        </div>
 
         {/* Primary Controls */}
         <div className="flex items-center gap-2">
@@ -154,14 +158,15 @@ export default function ToolBar({
                LIVE
             </button>
 
-            {/* Config Popover (Progressive Disclosure) */}
+        {/* Unified Controls Popover */}
+        <div className="flex items-center gap-2">
             <div className="relative">
                 <button
                     onClick={() => setShowTools(showTools === 'config' ? null : 'config')}
-                    className={`p-2 rounded-lg transition-colors border ${showTools === 'config' ? 'bg-white/10 text-white border-white/20' : 'text-neutral-400 hover:text-white border-transparent hover:bg-white/5'}`}
-                    title="Configuration"
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all border ${showTools === 'config' ? 'bg-white text-black border-white' : 'bg-white/[0.03] text-neutral-400 border-white/[0.05] hover:border-white/20'}`}
                 >
                     <Settings className="w-4 h-4" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Studio</span>
                 </button>
 
                 <AnimatePresence>
@@ -170,99 +175,32 @@ export default function ToolBar({
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                            className="absolute left-0 bottom-full mb-2 w-64 bg-[#0c0c0c] border border-white/10 rounded-2xl p-3 shadow-2xl z-50 flex flex-col gap-2"
+                            className="absolute right-0 bottom-full mb-3 w-72 bg-[#0A0A0A] border border-white/[0.08] rounded-2xl p-4 shadow-[0_30px_60px_rgba(0,0,0,0.8)] z-50 flex flex-col gap-4"
                         >
-                            <p className="text-[10px] uppercase font-bold text-neutral-500 px-1">Active Modules</p>
-                            <div className="flex flex-wrap gap-2">
-                                <ToggleButton
-                                  active={useNewsjack}
-                                  onClick={() => setUseNewsjack(!useNewsjack)}
-                                  activeClass="bg-red-500/20 text-red-400 shadow-[0_0_10px_rgba(248,113,113,0.3)]"
-                                  title="Newsjack: Inject trending news"
-                                  icon={<Zap className="w-4 h-4" />}
-                                />
-                                <ToggleButton
-                                  active={useRAG}
-                                  onClick={() => setUseRAG(!useRAG)}
-                                  activeClass="bg-purple-500/20 text-purple-400 shadow-[0_0_10px_rgba(192,132,252,0.3)]"
-                                  title="Strategy Brain"
-                                  icon={<Brain className="w-4 h-4" />}
-                                />
-                                <ToggleButton
-                                  active={useFewShot}
-                                  onClick={() => setUseFewShot(!useFewShot)}
-                                  activeClass="bg-amber-500/20 text-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.3)]"
-                                  title="Mirroring"
-                                  icon={<Sparkles className="w-4 h-4" />}
-                                />
-                                <ToggleButton
-                                  active={useSwarm}
-                                  onClick={() => setUseSwarm(!useSwarm)}
-                                  activeClass="bg-indigo-500/20 text-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.3)]"
-                                  title="Council of Agents"
-                                  icon={<Users className="w-4 h-4" />}
-                                />
-                                <ToggleButton
-                                    active={useAgenticMode}
-                                    onClick={() => setUseAgenticMode(!useAgenticMode)}
-                                    activeClass="bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.3)] ring-1 ring-cyan-400/50"
-                                    title="Agentic Mode"
-                                    icon={<Bot className="w-4 h-4" />}
-                                />
+                            <div>
+                                <p className="text-[9px] font-bold text-neutral-600 uppercase tracking-widest mb-3">Power Switches</p>
+                                <div className="grid grid-cols-5 gap-2">
+                                    <ToggleButton active={useNewsjack} onClick={() => setUseNewsjack(!useNewsjack)} activeClass="bg-red-500/20 text-red-400 ring-1 ring-red-500/30" title="Research" icon={<Zap className="w-4 h-4" />} />
+                                    <ToggleButton active={useRAG} onClick={() => setUseRAG(!useRAG)} activeClass="bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30" title="Knowledge" icon={<Brain className="w-4 h-4" />} />
+                                    <ToggleButton active={useFewShot} onClick={() => setUseFewShot(!useFewShot)} activeClass="bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30" title="Mirroring" icon={<Sparkles className="w-4 h-4" />} />
+                                    <ToggleButton active={useSwarm} onClick={() => setUseSwarm(!useSwarm)} activeClass="bg-indigo-500/20 text-indigo-400 ring-1 ring-indigo-500/30" title="Council" icon={<Users className="w-4 h-4" />} />
+                                    <ToggleButton active={useAgenticMode} onClick={() => setUseAgenticMode(!useAgenticMode)} activeClass="bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30" title="Agentic" icon={<Bot className="w-4 h-4" />} />
+                                </div>
                             </div>
                             
-                            <div className="h-px bg-white/5 my-1" />
+                            <div className="h-px bg-white/[0.05]" />
                             
-                            <button 
-                                onClick={() => setIsVoiceTrainerOpen(true)}
-                                className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/5 transition-colors text-xs text-neutral-300 hover:text-white"
-                            >
-                                <Mic className="w-4 h-4 text-amber-400" />
-                                <span>Voice Trainer</span>
-                            </button>
+                            <div className="grid grid-cols-2 gap-2">
+                                <ToolItem compact onClick={() => { setIsAnalyticsOpen(true); setShowTools(null); }} label="Analytics" icon={<BarChart3 className="w-4 h-4" />} color="text-neutral-400" />
+                                <ToolItem compact onClick={() => { setIsScheduleOpen(true); setShowTools(null); }} label="Schedule" icon={<Calendar className="w-4 h-4" />} color="text-neutral-400" />
+                                <ToolItem compact onClick={() => { setIsVoiceTrainerOpen(true); setShowTools(null); }} label="Voice DNA" icon={<Mic className="w-4 h-4" />} color="text-neutral-400" />
+                                <ToolItem compact onClick={() => { onOpenGrowthSimulator(); setShowTools(null); }} label="Growth" icon={<TrendingUp className="w-4 h-4" />} color="text-neutral-400" />
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
             </div>
-
-          {/* Tools Dropdown */}
-          <div className="relative">
-              <button 
-                onClick={() => setShowTools(showTools === 'dashboards' ? null : 'dashboards')}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${showTools === 'dashboards' ? 'bg-white text-black border-white' : 'bg-white/5 text-neutral-400 border-white/10 hover:border-white/20'}`}
-              >
-                <LayoutGrid className="w-4 h-4" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Dashboards</span>
-                <ChevronDown className={`w-3 h-3 transition-transform ${showTools ? 'rotate-180' : ''}`} />
-              </button>
-
-              <AnimatePresence>
-                {showTools === 'dashboards' && (
-                    <motion.div 
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute right-0 bottom-full mb-2 w-64 bg-[#0c0c0c] border border-white/10 rounded-2xl p-2 shadow-2xl z-50 grid grid-cols-3 gap-1"
-                    >
-                        <ToolItem onClick={() => { setIsAnalyticsOpen(true); setShowTools(null); }} label="Stats" icon={<BarChart3 className="w-4 h-4" />} color="text-emerald-400" />
-                        <ToolItem onClick={() => { setIsScheduleOpen(true); setShowTools(null); }} label="Queue" icon={<Calendar className="w-4 h-4" />} color="text-orange-400" />
-                        <ToolItem onClick={() => { setIsBatchOpen(true); setShowTools(null); }} label="Batch" icon={<Ghost className="w-4 h-4" />} color="text-pink-400" />
-                        <ToolItem onClick={() => { onOpenHookLab(); setShowTools(null); }} label="Hooks" icon={<Sparkles className="w-4 h-4" />} color="text-indigo-400" />
-                        <ToolItem onClick={() => { onOpenLeadMagnet(); setShowTools(null); }} label="Leads" icon={<Anchor className="w-4 h-4" />} color="text-amber-400" />
-                        <ToolItem onClick={() => { onOpenViralLab(); setShowTools(null); }} label="Viral" icon={<Zap className="w-4 h-4" />} color="text-red-400" />
-                        <ToolItem onClick={() => { onOpenGrowthSimulator(); setShowTools(null); }} label="Growth" icon={<TrendingUp className="w-4 h-4" />} color="text-amber-400" />
-                        <ToolItem onClick={() => { onOpenVault(); setShowTools(null); }} label="Vault" icon={<Database className="w-4 h-4" />} color="text-blue-400" />
-                        <ToolItem onClick={() => { onOpenCompetitor(); setShowTools(null); }} label="Rivals" icon={<Target className="w-4 h-4" />} color="text-neutral-400" />
-                        
-                        <div className="col-span-3 h-px bg-white/5 my-1" />
-                        
-                        <ToolItem onClick={() => { setIsComplianceOpen(true); setShowTools(null); }} label="Audit" icon={<FileText className="w-4 h-4" />} color="text-green-400" />
-                        <ToolItem onClick={() => { setIsVoiceTrainerOpen(true); setShowTools(null); }} label="Voice" icon={<Mic className="w-4 h-4" />} color="text-amber-400" />
-                        <ToolItem onClick={() => { setIsTeamSettingsOpen(true); setShowTools(null); }} label="Team" icon={<Users className="w-4 h-4" />} color="text-indigo-400" />
-                    </motion.div>
-                )}
-              </AnimatePresence>
-          </div>
+        </div>
         </div>
       </div>
 
@@ -328,16 +266,16 @@ function IconButton({ onClick, hoverClass, title, icon }: IconButtonProps) {
   );
 }
 
-function ToolItem({ onClick, label, icon, color }: { onClick: () => void, label: string, icon: React.ReactNode, color: string }) {
+function ToolItem({ onClick, label, icon, color, compact }: { onClick: () => void, label: string, icon: React.ReactNode, color: string, compact?: boolean }) {
     return (
         <button 
             onClick={onClick}
-            className="flex flex-col items-center justify-center p-3 rounded-xl hover:bg-white/5 transition-all gap-1.5 group"
+            className={`flex items-center justify-start px-4 py-3 rounded-xl hover:bg-white/5 transition-all gap-4 group border border-transparent hover:border-white/[0.05] ${compact ? 'col-span-1' : 'col-span-1'}`}
         >
             <div className={`${color} group-hover:scale-110 transition-transform`}>
                 {icon}
             </div>
-            <span className="text-[8px] font-bold text-neutral-500 uppercase tracking-tighter">{label}</span>
+            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{label}</span>
         </button>
     );
 }

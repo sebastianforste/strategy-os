@@ -14,13 +14,38 @@ const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["@lancedb/lancedb", "better-sqlite3", "bindings", "@prisma/adapter-better-sqlite3", "@prisma/client"],
   experimental: {
-    optimizePackageImports: ["lucide-react"],
+    optimizePackageImports: ["lucide-react", "@radix-ui/react-popover", "@radix-ui/react-tooltip"],
   },
-  turbopack: {},
-  transpilePackages: ["@react-pdf/renderer"],
+  transpilePackages: ["@react-pdf/renderer", "lucide-react"],
+  turbopack: {
+    resolveAlias: {
+      canvas: ""
+    }
+  },
   webpack: (config) => {
     config.resolve.alias.canvas = false;
     return config;
+  },
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
+          },
+          {
+            key: "Pragma",
+            value: "no-cache",
+          },
+          {
+            key: "Expires",
+            value: "0",
+          },
+        ],
+      },
+    ];
   },
 };
 
