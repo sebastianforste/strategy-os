@@ -15,9 +15,7 @@ export async function generateAnalyticsReport(userId?: string): Promise<Analytic
     try {
         // 1. Fetch all strategies (optionally filtered by user)
         const strategies = await prisma.strategy.findMany({
-            where: {
-                // authorId: userId // Enable when auth is ready
-            },
+            where: userId ? { authorId: userId } : {},
             orderBy: { createdAt: "desc" },
             take: 100 // Analyze last 100 posts
         });
@@ -41,8 +39,8 @@ export async function generateAnalyticsReport(userId?: string): Promise<Analytic
             // Engagement Mock Calculation (until real LinkedIn API)
             // Using the 'rating' field as a proxy for weight
             let score = s.score || 0;
-            if (s.rating === "viral") score += 100;
-            if (s.rating === "good") score += 50;
+            if (s.rating === "VIRAL") score += 100;
+            if (s.rating === "GOOD") score += 50;
             
             totalEngagement += score;
 

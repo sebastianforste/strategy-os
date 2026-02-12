@@ -48,11 +48,12 @@ export function DailyBriefing({ onInitialize, onClose }: DailyBriefingProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0F1115]/95 p-6">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(8,10,15,0.94)] p-6 backdrop-blur-sm">
       <div className="relative w-full max-w-lg">
         <button 
           onClick={onClose}
-          className="absolute -top-16 right-0 p-2 text-[#4A4E54] hover:text-white transition-colors"
+          aria-label="Close daily briefing"
+          className="absolute -top-16 right-0 rounded-lg border border-white/10 bg-[rgba(16,20,28,0.9)] p-2 text-[var(--stitch-text-secondary,#8A8D91)] transition-colors hover:border-white/20 hover:text-white"
         >
           <X size={20} />
         </button>
@@ -64,34 +65,34 @@ export function DailyBriefing({ onInitialize, onClose }: DailyBriefingProps) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={STIFF_SPRING}
-            className="bg-[#16181D] border border-[#24282D] rounded-lg p-12 shadow-[0_0_80px_rgba(0,0,0,0.5)] relative overflow-hidden"
+            className="relative overflow-hidden rounded-[var(--stitch-radius-panel,1.25rem)] border border-[var(--stitch-border,#24282D)] bg-[rgba(16,20,28,0.95)] p-8 shadow-[var(--stitch-elevation-high,0_24px_80px_rgba(0,0,0,0.58))] md:p-12"
           >
             {/* Minimalist Mask instead of Glassmorphism */}
-            <div className="absolute top-0 right-0 w-1 h-32 bg-emerald-500/50" />
+            <div className="absolute right-0 top-0 h-32 w-1 bg-[var(--stitch-accent,#7c3bed)]/70" />
             
             <div className="flex items-center gap-4 mb-10">
-              <div className="w-10 h-10 bg-[#24282D] flex items-center justify-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[var(--stitch-border,#24282D)]/70">
                 {SLIDES[currentSlide].icon}
               </div>
               <div>
-                <h3 className="text-[10px] font-mono text-[#4A4E54] uppercase tracking-[0.4em]">Briefing</h3>
+                <h3 className="text-[10px] font-mono uppercase tracking-[0.4em] text-[var(--stitch-text-secondary,#8A8D91)]">Briefing</h3>
                 <h4 className="text-lg font-serif font-bold text-white tracking-tight">{SLIDES[currentSlide].title}</h4>
               </div>
             </div>
 
-            <p className="text-xl text-[#E1E1E1] font-serif leading-relaxed mb-12">
+            <p className="mb-12 text-xl font-serif leading-relaxed text-[var(--stitch-text-primary,#E1E1E1)]">
               {SLIDES[currentSlide].content}
             </p>
 
             {SLIDES[currentSlide].stats && (
               <div className="mb-12">
-                <span className="text-[9px] font-mono text-emerald-500 uppercase tracking-[0.3em] font-bold">{SLIDES[currentSlide].stats}</span>
+                <span className="text-[9px] font-mono font-bold uppercase tracking-[0.3em] text-[var(--stitch-accent,#7c3bed)]">{SLIDES[currentSlide].stats}</span>
               </div>
             )}
 
             <button 
               onClick={next}
-              className="w-full py-5 bg-white text-black text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-emerald-400 transition-colors"
+              className="w-full rounded-xl bg-white py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-[var(--stitch-accent,#7c3bed)] hover:text-white"
             >
               {SLIDES[currentSlide].action || 'Acknowledge'}
             </button>
@@ -101,7 +102,7 @@ export function DailyBriefing({ onInitialize, onClose }: DailyBriefingProps) {
               {SLIDES.map((_, i) => (
                 <div 
                   key={i} 
-                  className={`h-1 rounded-full transition-all ${i === currentSlide ? 'bg-white w-8' : 'bg-[#24282D] w-2'}`} 
+                  className={`h-1 rounded-full transition-all ${i === currentSlide ? 'w-8 bg-white' : 'w-2 bg-[var(--stitch-border,#24282D)]'}`} 
                 />
               ))}
             </div>

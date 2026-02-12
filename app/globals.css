@@ -32,7 +32,7 @@
 }
 
 :root {
-  --radius: 0.75rem;
+  --radius: var(--stitch-radius-control, 0.75rem);
 
   --background: var(--stitch-background, #080a0f);
   --foreground: var(--stitch-text-primary, #e1e1e1);
@@ -114,6 +114,28 @@
   select,
   button {
     font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-spin,
+  .animate-pulse,
+  .animate-bounce,
+  .animate-shimmer,
+  .animate-spin-slow,
+  .animate-pulse-soft,
+  .animate-pulse-vibrant,
+  .animate-pulse-error {
+    animation: none !important;
   }
 }
 

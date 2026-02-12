@@ -5,15 +5,23 @@ import { motion } from "framer-motion";
 import { Activity, Database, Radio, User, Zap } from "lucide-react";
 import { IntentState } from "@/utils/intent-engine";
 import { PERSONAS } from "@/utils/personas";
+import type { Persona } from "@/utils/personas";
 
 interface LeftRailProps {
   intentState: IntentState;
   isTensioned?: boolean;
   activePersonaId: string;
   onPersonaChange: (id: string) => void;
+  personas?: Record<string, Persona>;
 }
 
-export function LeftRail({ intentState, isTensioned, activePersonaId, onPersonaChange }: LeftRailProps) {
+export function LeftRail({
+  intentState,
+  isTensioned,
+  activePersonaId,
+  onPersonaChange,
+  personas = PERSONAS,
+}: LeftRailProps) {
   const [stats, setStats] = React.useState<{ avgViralityScore?: number } | null>(null);
 
   React.useEffect(() => {
@@ -23,7 +31,7 @@ export function LeftRail({ intentState, isTensioned, activePersonaId, onPersonaC
       .catch((err) => console.error(err));
   }, []);
 
-  const activePersona = PERSONAS[activePersonaId as keyof typeof PERSONAS] || PERSONAS.cso;
+  const activePersona = personas[activePersonaId] || personas.cso || PERSONAS.cso;
   const features = activePersona.features || [];
   const virality = Math.max(0, Math.min(100, stats?.avgViralityScore || 78));
 
@@ -42,12 +50,13 @@ export function LeftRail({ intentState, isTensioned, activePersonaId, onPersonaC
 
         <div className="flex-1 space-y-5 overflow-y-auto p-4 custom-scrollbar">
           <section className="space-y-2">
-            {Object.entries(PERSONAS).map(([id, persona]) => {
+            {Object.entries(personas).map(([id, persona]) => {
               const isActive = activePersonaId === id;
               return (
                 <button
                   key={id}
                   onClick={() => onPersonaChange(id)}
+                  aria-label={`Switch persona to ${persona.name}`}
                   className={`w-full rounded-xl border px-3 py-3 text-left transition ${
                     isActive
                       ? "border-[var(--stitch-accent,#7c3bed)]/50 bg-[var(--stitch-accent,#7c3bed)]/14 text-white"

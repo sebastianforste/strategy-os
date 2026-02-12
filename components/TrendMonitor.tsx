@@ -2,28 +2,44 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { TrendingUp, ArrowUpRight, RefreshCw, Radio, Target } from "lucide-react";
-import { TrendOpportunity, scanForTrends } from "../utils/trend-surfer";
+import { TrendingUp, ArrowUpRight, RefreshCw, Radio } from "lucide-react";
+import { TrendOpportunity } from "../utils/trend-surfer";
 import TrendPredictor from "./TrendPredictor";
 
 interface TrendMonitorProps {
     apiKey?: string;
+    canScan?: boolean;
+    disabledReason?: string;
     onSelectTrend: (trend: TrendOpportunity) => void;
     onTrendsFetched?: (trends: TrendOpportunity[]) => void;
 }
 
-export default function TrendMonitor({ apiKey, onSelectTrend, onTrendsFetched }: TrendMonitorProps) {
+export default function TrendMonitor({
+    apiKey,
+    canScan: canScanProp,
+    disabledReason,
+    onSelectTrend,
+    onTrendsFetched,
+}: TrendMonitorProps) {
     const [trends, setTrends] = useState<TrendOpportunity[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+    const canScan = typeof canScanProp === "boolean" ? canScanProp : Boolean(apiKey);
+
     const handleScan = async () => {
-        if (!apiKey || isLoading) return;
+        if (!canScan || isLoading) return;
         setIsLoading(true);
         // Default to "Tech & AI" sector for now
         // In real app, this could be user-configurable
         try {
-            const results = await scanForTrends("Artificial Intelligence Business", apiKey, process.env.NEXT_PUBLIC_SERPER_API_KEY || "");
+            const res = await fetch("/api/trends", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ sector: "Artificial Intelligence Business" }),
+            });
+            const data = await res.json().catch(() => ({}));
+            const results = Array.isArray((data as any).trends) ? ((data as any).trends as TrendOpportunity[]) : [];
             setTrends(results);
             if (onTrendsFetched) onTrendsFetched(results);
             setLastUpdated(new Date());
@@ -36,10 +52,10 @@ export default function TrendMonitor({ apiKey, onSelectTrend, onTrendsFetched }:
 
     // Auto-scan on mount if empty
     useEffect(() => {
-        if (apiKey && trends.length === 0) {
+        if (canScan && trends.length === 0) {
            // handleScan(); // Optional: Auto-scan on load
         }
-    }, [apiKey]);
+    }, [canScan, trends.length]);
 
     return (
         <div className="bg-black/40 border border-white/5 rounded-2xl overflow-hidden flex flex-col h-full max-h-[600px]">
@@ -54,8 +70,9 @@ export default function TrendMonitor({ apiKey, onSelectTrend, onTrendsFetched }:
                 </div>
                 <button 
                     onClick={handleScan}
-                    disabled={isLoading}
+                    disabled={!canScan || isLoading}
                     className="p-1.5 hover:bg-white/5 rounded-lg text-neutral-500 hover:text-white transition-colors"
+                    title={!canScan && disabledReason ? disabledReason : undefined}
                 >
                     <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
                 </button>
@@ -93,9 +110,11 @@ export default function TrendMonitor({ apiKey, onSelectTrend, onTrendsFetched }:
                             <p className="text-[9px] text-neutral-500 mb-4 opacity-50 uppercase tracking-widest">Ghost Agent is standing by</p>
                             <button 
                                 onClick={handleScan} 
+                                disabled={!canScan || isLoading}
                                 className="px-6 py-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[9px] font-black rounded-full hover:bg-indigo-500/20 transition-all uppercase tracking-widest"
+                                title={!canScan && disabledReason ? disabledReason : undefined}
                             >
-                                Initialize Deep Scan
+                                {canScan ? "Initialize Deep Scan" : (disabledReason || "Deep Scan Unavailable")}
                             </button>
                         </div>
                      </div>

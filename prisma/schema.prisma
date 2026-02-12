@@ -61,6 +61,8 @@ model User {
   accounts      Account[]
   sessions      Session[]
   strategies    Strategy[]
+  resources     Resource[]
+  telemetryEvents TelemetryEvent[]
   templates     Template[]
   team          Team?      @relation(fields: [teamId], references: [id])
   teamId        String?
@@ -79,6 +81,7 @@ model Team {
   members     User[]
   strategies  Strategy[]
   resources   Resource[]
+  telemetryEvents TelemetryEvent[]
   invitations Invitation[]
   
   createdAt   DateTime   @default(now())
@@ -103,8 +106,8 @@ model Strategy {
   
   // Phase 24: Data Intelligence Layer
   input       String       @default("")
-  assets      String       @default("{}") // JSON: GeneratedAssets
-  rating      String?      // "viral", "good", "meh", "flopped"
+  assets      Json?        // GeneratedAssets (JSON)
+  rating      StrategyRating?
   
   // Performance
   score       Int?
@@ -137,9 +140,18 @@ model Strategy {
   team        Team?        @relation(fields: [teamId], references: [id])
   teamId      String?
   versions    StrategyVersion[]
+  publications StrategyPublication[]
+  publishAttempts PublishAttempt[]
   
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+}
+
+enum StrategyRating {
+  VIRAL
+  GOOD
+  MEH
+  FLOPPED
 }
 
 model StrategyVersion {
@@ -166,6 +178,56 @@ enum Platform {
   LINKEDIN
   TWITTER
   BOTH
+}
+
+enum PublishPlatform {
+  LINKEDIN
+  TWITTER
+  SUBSTACK
+  DISCORD
+  SLACK
+  MOLTBOOK
+}
+
+enum PublishAttemptStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+model StrategyPublication {
+  id         String        @id @default(cuid())
+  strategy   Strategy      @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  strategyId String
+  platform   PublishPlatform
+  externalId String
+  url        String
+
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([strategyId, platform])
+}
+
+model PublishAttempt {
+  id             String             @id @default(cuid())
+  idempotencyKey String             @unique
+  strategy       Strategy           @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  strategyId     String
+  platform       PublishPlatform
+  status         PublishAttemptStatus @default(PENDING)
+  attemptCount   Int                @default(0)
+
+  externalId     String?
+  url            String?
+  error          String?
+  requestId      String?
+
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([strategyId, platform])
+  @@index([strategyId, updatedAt])
 }
 
 // --- VOICE DNA ---
@@ -197,6 +259,27 @@ model AuditLog {
   createdAt   DateTime @default(now())
 }
 
+model TelemetryEvent {
+  id        String   @id @default(cuid())
+  kind      String
+  requestId String?
+  route     String?
+  status    Int?
+  latencyMs Int?
+  metadata  Json?
+
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorId  String?
+  team      Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  teamId    String?
+
+  createdAt DateTime @default(now())
+
+  @@index([authorId, createdAt])
+  @@index([teamId, createdAt])
+  @@index([kind, createdAt])
+}
+
 // --- RESOURCES (Phase 19) ---
 
 model Resource {
@@ -205,6 +288,10 @@ model Resource {
   type        String   // "pdf", "image", "web"
   url         String   // Local path or cloud URL
   metadata    Json?    // Stores extracted data (sender, date, summary)
+
+  // Owner (optional; team resources can remain team-scoped)
+  author      User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorId    String?
   
   // Relations
   team        Team?    @relation(fields: [teamId], references: [id])

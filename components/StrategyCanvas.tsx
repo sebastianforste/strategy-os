@@ -34,18 +34,20 @@ export default function StrategyCanvas({ apiKey }: StrategyCanvasProps) {
     
     setIsIngesting(true);
     try {
-        const res = await fetch("/api/scrape", {
+        const res = await fetch("/api/ingest-url", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url: urlInput })
         });
         const data = await res.json();
         
-        if (res.ok && data.text) {
+        if (res.ok && data?.extracted?.text) {
+            const title = data.extracted.title || urlInput;
+            const excerpt = data.extracted.excerpt || data.extracted.text;
             const newNode: CanvasNodeState = {
                 id: `signal-${Date.now()}`,
                 type: 'post',
-                content: `[SIGNAL] ${urlInput}\n\n${data.text.substring(0, 500)}...`,
+                content: `[SIGNAL] ${title}\n${urlInput}\n\n${(excerpt || "").substring(0, 700)}...`,
                 x: -position.x + 100, // Place near current center
                 y: -position.y + 100
             };
@@ -183,12 +185,31 @@ export default function StrategyCanvas({ apiKey }: StrategyCanvasProps) {
     syncService.broadcast('collaborator_join', aiCollaborator);
     setCollaborators(prev => [...prev.filter(c => c.id !== aiCollaborator.id), aiCollaborator]);
 
-    const result = await aiOptimizerAction(nodes, persona.basePrompt || "", apiKey);
-    
-    if (result) {
-        // We could apply positions here, but for now we suggest or draw connectors safely
-        console.log("AI STRATEGIC SUGGESTION:", result);
-        // In a real app, we'd draw the connectors between nodes
+    try {
+        const result = await aiOptimizerAction(nodes, persona.basePrompt || "", apiKey);
+        const suggestions = result?.suggestions || [];
+
+        if (suggestions.length > 0) {
+            const baseX = -position.x + 140;
+            const baseY = -position.y + 140;
+
+            const newNodes: CanvasNodeState[] = suggestions.map((s, i) => ({
+                id: `ai-suggest-${personaId}-${Date.now()}-${i}`,
+                type: "post",
+                content: `[AI] ${s.title}\n\n${s.content}`,
+                x: baseX + i * 320,
+                y: baseY + i * 60,
+            }));
+
+            setNodes(prev => [...prev, ...newNodes]);
+
+            for (const node of newNodes) {
+                await saveCanvasNodePosition(node);
+                syncService.broadcast('node_add', node);
+            }
+        }
+    } catch (e) {
+        console.error("AI optimize failed:", e);
     }
     
     setIsAIOptimizing(false);

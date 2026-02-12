@@ -22,13 +22,13 @@ declare module "next-auth" {
   }
 }
 
-export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
-  
-  providers: [
+const configuredProviders: NextAuthOptions["providers"] = [];
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  configuredProviders.push(
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       authorization: {
         params: {
           scope: "openid profile email https://www.googleapis.com/auth/stitch",
@@ -37,10 +37,15 @@ export const authOptions: NextAuthOptions = {
           response_type: "code"
         }
       }
-    }),
+    })
+  );
+}
+
+if (process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET) {
+  configuredProviders.push(
     LinkedInProvider({
-      clientId: process.env.LINKEDIN_CLIENT_ID || "",
-      clientSecret: process.env.LINKEDIN_CLIENT_SECRET || "",
+      clientId: process.env.LINKEDIN_CLIENT_ID,
+      clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
       authorization: {
         params: {
           scope: "openid profile email w_member_social",
@@ -49,26 +54,53 @@ export const authOptions: NextAuthOptions = {
       userinfo: {
         url: "https://api.linkedin.com/v2/me",
       },
-      profile(profile, tokens) {
+      profile(profile) {
         return {
            id: profile.id,
            name: `${profile.localizedFirstName} ${profile.localizedLastName}`,
            email: null, // LinkedIn v2 doesn't always return email in profile, requires email scope + separate call often, but provider handles it if scope is set
            image: null, 
-        }
+        };
       }
-    }),
+    })
+  );
+}
+
+const enableTwitterAuth = process.env.ENABLE_TWITTER_AUTH === "true";
+if (enableTwitterAuth && process.env.TWITTER_CLIENT_ID && process.env.TWITTER_CLIENT_SECRET) {
+  configuredProviders.push(
     TwitterProvider({
-      clientId: process.env.TWITTER_CLIENT_ID || "",
-      clientSecret: process.env.TWITTER_CLIENT_SECRET || "",
+      clientId: process.env.TWITTER_CLIENT_ID,
+      clientSecret: process.env.TWITTER_CLIENT_SECRET,
       version: "2.0",
       authorization: {
         params: {
           scope: "tweet.read tweet.write users.read offline.access",
         },
       },
-    }),
-  ],
+    })
+  );
+}
+
+if (configuredProviders.length === 0) {
+  console.warn("[Auth] No OAuth providers configured. Falling back to Google provider placeholder.");
+  configuredProviders.push(
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID || "disabled",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "disabled",
+      authorization: {
+        params: {
+          scope: "openid profile email",
+        }
+      }
+    })
+  );
+}
+
+export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma),
+  
+  providers: configuredProviders,
   
   callbacks: {
     async session({ session, user, token }) {
@@ -78,7 +110,8 @@ export const authOptions: NextAuthOptions = {
         session.user.role = user?.role;
         session.user.teamId = user?.teamId;
         // Pass access token if available in JWT (for database strategy, we might need a different approach but for now exposing via token)
-        session.accessToken = (token as any)?.accessToken;
+        const tokenData = token as Record<string, unknown>;
+        session.accessToken = typeof tokenData.accessToken === "string" ? tokenData.accessToken : undefined;
       }
       return session;
     },

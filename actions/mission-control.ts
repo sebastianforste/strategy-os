@@ -3,6 +3,7 @@
 import { prisma } from "../utils/db";
 import { moltbookService } from "../utils/moltbook-service";
 import { getServerSession } from "next-auth/next";
+import { authOptions } from "../utils/auth";
 
 export type MissionActivity = {
   id: string;
@@ -24,26 +25,39 @@ export type DashboardData = {
 };
 
 export async function getMissionControlData(): Promise<DashboardData> {
-  const session = await getServerSession();
-  
-  // 1. Fetch Recent Activity from Strategies & Logs
+  const session = await getServerSession(authOptions);
+
+  const userId = session?.user?.id || null;
+  const email = session?.user?.email || null;
+
+  // Avoid leaking cross-user telemetry when unauthenticated.
+  // We still return Moltbook trends (public), but no local activity.
+  const shouldLoadPrivate = Boolean(userId);
+
+  // 1. Fetch Recent Activity from Strategies & Logs (scoped to user)
   const [strategies, logs] = await Promise.all([
-    prisma.strategy.findMany({
-      take: 10,
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        createdAt: true,
-        isPublished: true,
-        score: true,
-        platform: true,
-      }
-    }),
-    prisma.auditLog.findMany({
-      take: 20,
-      orderBy: { createdAt: "desc" },
-    })
+    shouldLoadPrivate
+      ? prisma.strategy.findMany({
+          take: 10,
+          orderBy: { createdAt: "desc" },
+          where: { authorId: userId as string },
+          select: {
+            id: true,
+            title: true,
+            createdAt: true,
+            isPublished: true,
+            score: true,
+            platform: true,
+          },
+        })
+      : Promise.resolve([]),
+    shouldLoadPrivate && email
+      ? prisma.auditLog.findMany({
+          take: 20,
+          orderBy: { createdAt: "desc" },
+          where: { actor: email },
+        })
+      : Promise.resolve([]),
   ]);
 
   const recentActivity: MissionActivity[] = [
@@ -75,15 +89,20 @@ export async function getMissionControlData(): Promise<DashboardData> {
   }
 
   // 3. Aggregate Performance Metrics
-  const stats = await prisma.strategy.aggregate({
-    _sum: { impressions: true },
-    _avg: { engagement: true },
-    _count: { id: true }
-  });
+  const stats = shouldLoadPrivate
+    ? await prisma.strategy.aggregate({
+        where: { authorId: userId as string },
+        _sum: { impressions: true },
+        _avg: { engagement: true },
+        _count: { id: true },
+      })
+    : { _sum: { impressions: null }, _avg: { engagement: null }, _count: { id: 0 } };
 
-  const viralHits = await prisma.strategy.count({
-    where: { rating: "viral" }
-  });
+  const viralHits = shouldLoadPrivate
+    ? await prisma.strategy.count({
+        where: { authorId: userId as string, rating: "VIRAL" },
+      })
+    : 0;
 
   return {
     recentActivity,

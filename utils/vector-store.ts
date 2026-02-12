@@ -1,4 +1,4 @@
-import { getLanceDB } from "./lancedb-client";
+import { getLanceDB, openOrCreateTable } from "./lancedb-client";
 import { getEmbedding } from "./gemini-embedding";
 
 const DB_PATH = ".lancedb";
@@ -23,27 +23,65 @@ export interface StyleCluster {
   count: number;
 }
 
+function getErrorText(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return String(error);
+}
+
+function isMissingTableError(error: unknown): boolean {
+  const message = getErrorText(error).toLowerCase();
+  return message.includes("was not found") || message.includes("not found:");
+}
+
+type ResourceScope = { authorId: string; teamId?: string | null };
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function safeParseMetadata(raw: unknown): Record<string, any> {
+  if (raw && typeof raw === "object") return raw as any;
+  if (typeof raw !== "string") return {};
+  try {
+    return JSON.parse(raw) as any;
+  } catch {
+    return {};
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function matchesScope(meta: Record<string, any>, scope: ResourceScope): boolean {
+  if (!meta) return false;
+
+  // Global/public docs are always visible.
+  if (meta.visibility === "public" || meta.authorId === "global") return true;
+
+  // Author-scoped docs (default).
+  if (meta.authorId && meta.authorId === scope.authorId) return true;
+
+  // Team-scoped docs (if present).
+  if (scope.teamId && meta.teamId && meta.teamId === scope.teamId) return true;
+
+  return false;
+}
+
 // --- Store Operations ---
 
 export async function addToVectorStore(
   id: string,
   text: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  metadata: Record<string, any>
+  metadata: Record<string, any>,
+  apiKey?: string
 ) {
   const db = await getDB();
-  const vector = await getEmbedding(text);
+  const vector = await getEmbedding(text, apiKey);
   
   if (vector.length === 0) return;
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _table = await db.createTable("resources", [
-    { id, text, metadata: JSON.stringify(metadata), vector, createdAt: Date.now() }
-  ], { mode: "overwrite" }); // For MVP, we might want 'append' but 'overwrite' if table doesn't exist?
-  
-  // Actually, createTable errors if exists usually, or mode overwrite deletes it.
-  // We want to open or create.
-  // LanceDB API: db.openTable(name). 
+  const record = { id, text, metadata: JSON.stringify(metadata), vector, createdAt: Date.now() };
+  const tableExists = (await db.tableNames()).includes("resources");
+  const table = await openOrCreateTable(db, "resources", [record]);
+  if (tableExists) {
+    await table.add([record]);
+  }
 }
 
 // --- Persona-Specific Voice Memory ---
@@ -56,10 +94,11 @@ export async function upsertToVoiceMemory(
   personaId: string,
   id: string,
   text: string,
-  metadata: Record<string, any>
+  metadata: Record<string, any>,
+  apiKey?: string
 ) {
   const db = await getDB();
-  const vector = await getEmbedding(text);
+  const vector = await getEmbedding(text, apiKey);
   if (vector.length === 0) return;
 
   const tableName = `voice_memory_${personaId.toLowerCase()}`;
@@ -77,9 +116,9 @@ export async function upsertToVoiceMemory(
  * SEARCH VOICE MEMORY
  * Retrieves stylistic examples from a persona's own past successes.
  */
-export async function searchVoiceMemory(personaId: string, query: string, limit = 3) {
+export async function searchVoiceMemory(personaId: string, query: string, limit = 3, apiKey?: string) {
   const db = await getDB();
-  const queryVector = await getEmbedding(query);
+  const queryVector = await getEmbedding(query, apiKey);
   if (queryVector.length === 0) return [];
 
   const tableName = `voice_memory_${personaId.toLowerCase()}`;
@@ -94,7 +133,194 @@ export async function searchVoiceMemory(personaId: string, query: string, limit 
       metadata: JSON.parse(r.metadata as string)
     }));
   } catch (error) {
-    console.warn(`Voice Memory search failed for ${personaId}:`, error);
+    if (!isMissingTableError(error)) {
+      const message = getErrorText(error).split("\n")[0];
+      console.warn(`[RAG V2] Voice memory lookup failed for ${personaId}: ${message}`);
+    }
+    return [];
+  }
+}
+
+// --- Unified, Scoped Retrieval (V3) ---
+
+export async function searchResources(
+  query: string,
+  limit = 5,
+  apiKey: string | undefined,
+  scope: ResourceScope,
+  options?: { sourceTypes?: string[] }
+) {
+  const db = await getDB();
+  const queryVector = await getEmbedding(query, apiKey);
+  if (queryVector.length === 0) return [];
+
+  try {
+    const table = await db.openTable("resources");
+    const results = await table.vectorSearch(queryVector).limit(Math.max(limit * 3, limit)).toArray();
+
+    // Filter by scope + optional type.
+    const seen = new Set<string>();
+    const filtered = [];
+    for (const r of results as any[]) {
+      const meta = safeParseMetadata(r.metadata);
+      if (!matchesScope(meta, scope)) continue;
+      if (options?.sourceTypes?.length) {
+        const type = String(meta.sourceType || meta.type || "");
+        if (!options.sourceTypes.includes(type)) continue;
+      }
+      const id = String(r.id || "");
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      filtered.push({ ...r, metadata: meta });
+      if (filtered.length >= limit) break;
+    }
+    return filtered;
+  } catch (error) {
+    if (!isMissingTableError(error)) {
+      const message = getErrorText(error).split("\n")[0];
+      console.warn(`[VectorStore] searchResources failed: ${message}`);
+    }
+    return [];
+  }
+}
+
+export async function upsertToVoiceMemoryV2(
+  args: {
+    id: string;
+    personaId: string;
+    authorId: string;
+    teamId?: string | null;
+    text: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata?: Record<string, any>;
+  },
+  apiKey?: string
+) {
+  const db = await getDB();
+  const vector = await getEmbedding(args.text, apiKey);
+  if (vector.length === 0) return;
+
+  const record = {
+    id: args.id,
+    text: args.text,
+    metadata: JSON.stringify({
+      ...(args.metadata || {}),
+      sourceType: "voice",
+      personaId: args.personaId,
+      authorId: args.authorId,
+      teamId: args.teamId ?? null,
+    }),
+    vector,
+    createdAt: Date.now(),
+  };
+
+  try {
+    const table = await db.openTable("voice_memory");
+    await table.add([record]);
+  } catch {
+    await db.createTable("voice_memory", [record]);
+  }
+}
+
+export async function searchVoiceMemoryV2(
+  personaId: string,
+  query: string,
+  limit = 3,
+  apiKey: string | undefined,
+  scope: ResourceScope
+) {
+  const db = await getDB();
+  const queryVector = await getEmbedding(query, apiKey);
+  if (queryVector.length === 0) return [];
+
+  try {
+    const table = await db.openTable("voice_memory");
+    const results = await table.vectorSearch(queryVector).limit(Math.max(limit * 3, limit)).toArray();
+    const filtered = [];
+    const seen = new Set<string>();
+    for (const r of results as any[]) {
+      const meta = safeParseMetadata(r.metadata);
+      if (!matchesScope(meta, scope)) continue;
+      if (String(meta.personaId || "").toLowerCase() !== personaId.toLowerCase()) continue;
+      const id = String(r.id || "");
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      filtered.push({ ...r, metadata: meta });
+      if (filtered.length >= limit) break;
+    }
+    return filtered;
+  } catch (error) {
+    if (!isMissingTableError(error)) {
+      const message = getErrorText(error).split("\n")[0];
+      console.warn(`[VectorStore] searchVoiceMemoryV2 failed: ${message}`);
+    }
+    return [];
+  }
+}
+
+export async function ingestStyleSamplesV2(texts: string[], apiKey: string | undefined, scope: ResourceScope) {
+  const db = await getDB();
+
+  const now = Date.now();
+  const entries = await Promise.all(
+    texts.map(async (text, i) => {
+      const vector = await getEmbedding(text, apiKey);
+      if (vector.length === 0) return null;
+      return {
+        id: `style:${scope.authorId}:${now}:${i}`,
+        text,
+        metadata: JSON.stringify({
+          sourceType: "style",
+          authorId: scope.authorId,
+          teamId: scope.teamId ?? null,
+        }),
+        vector,
+        createdAt: now,
+      };
+    }),
+  );
+
+  const validEntries = entries.filter(Boolean) as any[];
+  if (validEntries.length === 0) return;
+
+  try {
+    const table = await db.openTable("style_references");
+    await table.add(validEntries);
+  } catch {
+    await db.createTable("style_references", validEntries);
+  }
+}
+
+export async function searchStyleMemoryV2(
+  query: string,
+  limit = 3,
+  apiKey: string | undefined,
+  scope: ResourceScope
+) {
+  const db = await getDB();
+  const queryVector = await getEmbedding(query, apiKey);
+  if (queryVector.length === 0) return [];
+
+  try {
+    const table = await db.openTable("style_references");
+    const results = await table.vectorSearch(queryVector).limit(Math.max(limit * 3, limit)).toArray();
+    const filtered = [];
+    const seen = new Set<string>();
+    for (const r of results as any[]) {
+      const meta = safeParseMetadata(r.metadata);
+      if (!matchesScope(meta, scope)) continue;
+      const id = String(r.id || "");
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      filtered.push({ ...r, metadata: meta });
+      if (filtered.length >= limit) break;
+    }
+    return filtered;
+  } catch (error) {
+    if (!isMissingTableError(error)) {
+      const message = getErrorText(error).split("\n")[0];
+      console.warn(`[VectorStore] searchStyleMemoryV2 failed: ${message}`);
+    }
     return [];
   }
 }
@@ -104,10 +330,11 @@ export async function upsertResource(
   id: string,
   text: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  metadata: Record<string, any>
+  metadata: Record<string, any>,
+  apiKey?: string
 ) {
   const db = await getDB();
-  const vector = await getEmbedding(text);
+  const vector = await getEmbedding(text, apiKey);
   if (vector.length === 0) return;
 
   const data = [{ id, text, metadata: JSON.stringify(metadata), vector, createdAt: Date.now() }];
@@ -121,9 +348,9 @@ export async function upsertResource(
   }
 }
 
-export async function searchVectorStore(query: string, limit = 5) {
+export async function searchVectorStore(query: string, limit = 5, apiKey?: string) {
   const db = await getDB();
-  const queryVector = await getEmbedding(query);
+  const queryVector = await getEmbedding(query, apiKey);
   if (queryVector.length === 0) return [];
 
   try {
@@ -147,9 +374,9 @@ export async function searchVectorStore(query: string, limit = 5) {
  * Retrieves semantically similar items PLUS logically linked items
  * based on 'association' metadata or sector grouping.
  */
-export async function searchGraphContext(query: string, limit = 5) {
+export async function searchGraphContext(query: string, limit = 5, apiKey?: string) {
   const db = await getDB();
-  const queryVector = await getEmbedding(query);
+  const queryVector = await getEmbedding(query, apiKey);
   if (queryVector.length === 0) return [];
 
   try {
@@ -194,7 +421,8 @@ export async function searchGraphContext(query: string, limit = 5) {
 
     return parsedSemantic;
   } catch (error) {
-    console.warn("[Graph RAG] Search failed:", error);
+    const message = getErrorText(error).split("\n")[0];
+    console.warn(`[Graph RAG] Search skipped: ${message}`);
     return [];
   }
 }
@@ -205,12 +433,12 @@ export async function searchGraphContext(query: string, limit = 5) {
  * INGEST STYLE SAMPLES
  * batch processes a user's "hall of fame" posts to create a style reference index.
  */
-export async function ingestStyleSamples(texts: string[]) {
+export async function ingestStyleSamples(texts: string[], apiKey?: string) {
   const db = await getDB();
   
   // Create embeddings in parallel
   const entries = await Promise.all(texts.map(async (text, i) => {
-    const vector = await getEmbedding(text);
+    const vector = await getEmbedding(text, apiKey);
     if (vector.length === 0) return null;
     
     return {
@@ -238,9 +466,9 @@ export async function ingestStyleSamples(texts: string[]) {
  * SEARCH STYLE MEMORY
  * Retrieves the most stylistically relevant past posts for a given topic/emotion.
  */
-export async function searchStyleMemory(query: string, limit = 3) {
+export async function searchStyleMemory(query: string, limit = 3, apiKey?: string) {
   const db = await getDB();
-  const queryVector = await getEmbedding(query);
+  const queryVector = await getEmbedding(query, apiKey);
   if (queryVector.length === 0) return [];
 
   const tableName = "style_references";

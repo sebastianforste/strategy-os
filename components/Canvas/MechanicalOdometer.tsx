@@ -11,7 +11,7 @@ interface MechanicalOdometerProps {
 
 const DigitReel = ({ digit }: { digit: number }) => {
   return (
-    <div className="relative w-[16px] h-[24px] bg-[#0F1115] border border-white/5 rounded-sm overflow-hidden select-none will-change-transform">
+    <div className="relative h-[24px] w-[16px] select-none overflow-hidden rounded-sm border border-white/10 bg-[rgba(10,14,20,0.9)] will-change-transform">
        <motion.div
          animate={{ y: -digit * 24 }}
          transition={{ type: "spring", stiffness: 260, damping: 20 }}
@@ -43,10 +43,10 @@ export function MechanicalOdometer({ value, label, digits = 4 }: MechanicalOdome
   if (!isMounted) {
     return (
       <div className="flex flex-col items-start gap-1">
-        {label && <span className="text-[8px] font-bold text-[#4A4E54] uppercase tracking-[0.2em]">{label}</span>}
+        {label && <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-[var(--stitch-text-secondary,#8A8D91)]">{label}</span>}
         <div className="flex items-center gap-0.5">
           {Array.from({ length: digits }).map((_, i) => (
-            <div key={i} className="w-[16px] h-[24px] bg-[#0F1115] border border-white/5 rounded-sm" />
+            <div key={i} className="h-[24px] w-[16px] rounded-sm border border-white/10 bg-[rgba(10,14,20,0.9)]" />
           ))}
         </div>
       </div>
@@ -55,7 +55,7 @@ export function MechanicalOdometer({ value, label, digits = 4 }: MechanicalOdome
 
   return (
     <div className="flex flex-col items-start gap-1">
-      {label && <span className="text-[8px] font-bold text-[#4A4E54] uppercase tracking-[0.2em]">{label}</span>}
+      {label && <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-[var(--stitch-text-secondary,#8A8D91)]">{label}</span>}
       <div className="flex items-center gap-0.5">
         {digitArray.map((d, i) => (
           <DigitReel key={i} digit={d} />

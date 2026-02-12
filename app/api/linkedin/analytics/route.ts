@@ -4,21 +4,19 @@
  * Phase 17.3: Fetch engagement data for published posts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
+import { NextResponse } from "next/server";
 import { getPostAnalytics, getPostComments } from "../../../../utils/linkedin-api-v2";
 import { prisma } from "../../../../utils/db";
 import { logger } from "../../../../utils/logger";
+import { authOptions } from "@/utils/auth";
+import { HttpError, jsonError, rateLimit, requireSessionForRequest } from "@/utils/request-guard";
 
 const log = logger.scope("API/LinkedIn/Analytics");
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    // Get authenticated session
-    const session = await getServerSession();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await requireSessionForRequest(request, authOptions);
+    await rateLimit({ key: `linkedin_analytics:${session.user.id}`, limit: 60, windowMs: 60_000 });
 
     // Get query params
     const { searchParams } = new URL(request.url);
@@ -34,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     // Get user's LinkedIn token
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+      where: { id: session.user.id },
       include: {
         accounts: {
           where: { provider: "linkedin" },
@@ -57,19 +55,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // If strategyId provided, get postId from database
+    // If strategyId provided, get postId from StrategyPublication (preferred) or legacy Strategy.externalId.
     let targetPostId = postId;
     if (strategyId && !postId) {
-      const strategy = await prisma.strategy.findUnique({
-        where: { id: strategyId },
+      const pub = await prisma.strategyPublication.findUnique({
+        where: { strategyId_platform: { strategyId, platform: "LINKEDIN" } },
+        select: { externalId: true },
       });
-      if (!strategy?.externalId) {
-        return NextResponse.json(
-          { error: "Strategy not published" },
-          { status: 400 }
-        );
+      if (pub?.externalId) {
+        targetPostId = pub.externalId;
+      } else {
+        const strategy = await prisma.strategy.findUnique({
+          where: { id: strategyId },
+          select: { externalId: true },
+        });
+        if (!strategy?.externalId) {
+          return NextResponse.json({ error: "Strategy not published" }, { status: 400 });
+        }
+        targetPostId = strategy.externalId;
       }
-      targetPostId = strategy.externalId;
     }
 
     if (!targetPostId) {
@@ -111,6 +115,9 @@ export async function GET(request: NextRequest) {
       postId: targetPostId,
     });
   } catch (error) {
+    if (error instanceof HttpError) {
+      return jsonError(error.status, error.message, error.code);
+    }
     log.error("Analytics error", error as Error);
     return NextResponse.json(
       { error: "Internal server error" },

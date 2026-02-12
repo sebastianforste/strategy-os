@@ -7,7 +7,8 @@ test.describe('UnifiedCanvas Navigation', () => {
   });
 
   test('renders default UnifiedCanvas shell', async ({ page }) => {
-    await expect(page.locator('header')).toBeVisible();
+    await expect(page.getByRole('link', { name: /StrategyOS/i })).toBeVisible();
+    await expect(page.locator('header').first()).toBeVisible();
     await expect(page.getByRole('link', { name: /StrategyOS/i })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Editor view' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Preview view' })).toBeVisible();

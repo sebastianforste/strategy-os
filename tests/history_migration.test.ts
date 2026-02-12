@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { migrateHistoryToCloud } from '../utils/history-service';
+import { migrateHistoryToCloud, __resetHistoryAuthCacheForTests } from '../utils/history-service';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -22,6 +22,7 @@ describe('History Migration Verification', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorageMock.clear();
+    __resetHistoryAuthCacheForTests();
   });
 
   it('should successfully migrate history with metadata', async () => {
@@ -39,10 +40,17 @@ describe('History Migration Verification', () => {
     localStorageMock.setItem('strategyos_history', JSON.stringify(mockHistory));
 
     // 2. Mock successful API response
-    (global.fetch as any).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ success: true, migrated: 1, failed: 0 })
-    });
+    (global.fetch as any)
+      // hasAuthenticatedSession probe
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ user: { id: "test-user" } }),
+      })
+      // migration request
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, migrated: 1, failed: 0 }),
+      });
 
     // 3. Run migration
     const result = await migrateHistoryToCloud();
@@ -66,11 +74,18 @@ describe('History Migration Verification', () => {
     const mockHistory = [{ id: '1', input: 'x', assets: {}, personaId: 'c' }];
     localStorageMock.setItem('strategyos_history', JSON.stringify(mockHistory));
 
-    (global.fetch as any).mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: () => Promise.resolve({ error: 'Server Error' })
-    });
+    (global.fetch as any)
+      // hasAuthenticatedSession probe
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ user: { id: "test-user" } }),
+      })
+      // migration request
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ error: 'Server Error' }),
+      });
 
     const result = await migrateHistoryToCloud();
 

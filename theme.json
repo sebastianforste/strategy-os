@@ -23,8 +23,35 @@
       "railWidth": "280px",
       "gap": "1px"
     },
+    "radii": {
+      "panel": "1.5rem",
+      "control": "0.75rem",
+      "chip": "999px"
+    },
+    "spacingScale": {
+      "xs": "0.25rem",
+      "sm": "0.5rem",
+      "md": "0.75rem",
+      "lg": "1rem",
+      "xl": "1.5rem"
+    },
+    "motion": {
+      "durationFast": "120ms",
+      "durationBase": "220ms",
+      "durationSlow": "360ms",
+      "easingStandard": "cubic-bezier(0.2, 0, 0, 1)"
+    },
+    "elevation": {
+      "low": "0 8px 24px rgba(0,0,0,0.32)",
+      "medium": "0 16px 44px rgba(0,0,0,0.42)",
+      "high": "0 24px 80px rgba(0,0,0,0.58)"
+    },
     "shadows": {
       "subtle": "0 1px 3px rgba(0,0,0,0.5)"
+    },
+    "meta": {
+      "source": "stitch-sync",
+      "lastSynced": "2026-02-11T00:00:00.000Z"
     }
   }
 }

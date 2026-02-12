@@ -106,7 +106,7 @@ export function TactileNewsroom({
         <TrendStream />
 
         {/* Center: Tactical Editor */}
-        <div className="flex-1 overflow-y-auto bg-[#0F1115] border-x border-[#24282D] p-8">
+        <div className="flex-1 overflow-y-auto border-x border-[var(--stitch-border,#24282D)] bg-[rgba(12,16,22,0.92)] p-8">
           <SortableContext 
             items={blocks.map(b => b.id)} 
             strategy={verticalListSortingStrategy}
@@ -133,7 +133,7 @@ export function TactileNewsroom({
           }),
         }}>
           {activeId ? (
-            <div className="p-4 bg-[#16181D] border border-white/20 rounded shadow-2xl opacity-80 cursor-grabbing">
+            <div className="rounded-xl border border-[var(--stitch-border,#24282D)] bg-[var(--stitch-surface,#16181D)] p-4 shadow-2xl opacity-80 cursor-grabbing">
               {blocks.find(b => b.id === activeId)?.content.substring(0, 50)}...
             </div>
           ) : null}

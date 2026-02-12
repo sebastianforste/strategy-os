@@ -11,11 +11,17 @@
  */
 import { AI_CONFIG } from "./config";
 
+let imagenUnavailableForKey = false;
+
 export async function generateImage(prompt: string, apiKey: string): Promise<string> {
   // Mock mode for image gen
   if (apiKey.toLowerCase().trim() === "demo") {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     return "https://placehold.co/1024x1024/000000/FFFFFF/png?text=MOCK+IMAGE+VISUALIZE+VALUE";
+  }
+
+  if (imagenUnavailableForKey) {
+    return "";
   }
 
   try {
@@ -42,7 +48,17 @@ export async function generateImage(prompt: string, apiKey: string): Promise<str
 
     if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Imagen API Error: ${response.status} ${response.statusText} - ${errorText}`);
+        const normalized = errorText.toLowerCase();
+        if (
+          response.status === 400 &&
+          normalized.includes("only accessible to billed users")
+        ) {
+          imagenUnavailableForKey = true;
+          console.warn("[Image Service] Imagen is unavailable for the current API key (billing not enabled). Skipping image generation.");
+          return "";
+        }
+        console.warn(`Imagen API request failed (${response.status} ${response.statusText}).`);
+        return "";
     }
 
     const data = await response.json();
@@ -54,14 +70,17 @@ export async function generateImage(prompt: string, apiKey: string): Promise<str
     // The previous implementation returned a URL. Data URI works as a URL source.
     
     const b64 = data.predictions?.[0]?.bytesBase64Encoded;
-    if (!b64) throw new Error("No image data returned from Imagen");
+    if (!b64) {
+      console.warn("Imagen API returned no image data.");
+      return "";
+    }
     
     // mime type for imagen output is typically image/png or image/jpeg. 
     // usually jpeg or png. Let's assume png or check headers if needed, but standard is usually png.
     return `data:image/png;base64,${b64}`;
 
-  } catch (error: unknown) {
-    console.error("Image Generation Error:", error);
+  } catch {
+    console.warn("Image generation skipped due to non-fatal error.");
     // Don't crash the whole app, just return empty so the UI handles it gracefully
     return ""; 
   }

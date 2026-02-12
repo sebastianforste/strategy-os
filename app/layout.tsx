@@ -4,6 +4,7 @@ import { Providers } from "../components/Providers";
 import "./globals.css";
 import HUDContainer from "../components/HUDContainer";
 import theme from "../theme.json";
+import type { StrategyTheme } from "@/types/theme";
 
 const stitchSans = Space_Grotesk({
   variable: "--font-stitch-sans",
@@ -33,8 +34,29 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const colors = theme.theme.colors;
-  const typography = theme.theme.typography;
+  const resolvedTheme = theme as StrategyTheme;
+  const colors = resolvedTheme.theme.colors;
+  const typography = resolvedTheme.theme.typography;
+  const radii = resolvedTheme.theme.radii || { panel: "1.5rem", control: "0.75rem", chip: "999px" };
+  const spacingScale = resolvedTheme.theme.spacingScale || {
+    xs: "0.25rem",
+    sm: "0.5rem",
+    md: "0.75rem",
+    lg: "1rem",
+    xl: "1.5rem",
+  };
+  const motion = resolvedTheme.theme.motion || {
+    durationFast: "120ms",
+    durationBase: "220ms",
+    durationSlow: "360ms",
+    easingStandard: "cubic-bezier(0.2, 0, 0, 1)",
+  };
+  const elevation = resolvedTheme.theme.elevation || {
+    low: "0 8px 24px rgba(0,0,0,0.32)",
+    medium: "0 16px 44px rgba(0,0,0,0.42)",
+    high: "0 24px 80px rgba(0,0,0,0.58)",
+  };
+  const shouldRegisterServiceWorker = process.env.NODE_ENV === "production";
 
   const stitchVars = `
     :root {
@@ -51,6 +73,21 @@ export default function RootLayout({
       --stitch-font-sans: ${typography.sans};
       --stitch-font-serif: ${typography.serif};
       --stitch-font-mono: ${typography.mono};
+      --stitch-radius-panel: ${radii.panel};
+      --stitch-radius-control: ${radii.control};
+      --stitch-radius-chip: ${radii.chip};
+      --stitch-space-xs: ${spacingScale.xs};
+      --stitch-space-sm: ${spacingScale.sm};
+      --stitch-space-md: ${spacingScale.md};
+      --stitch-space-lg: ${spacingScale.lg};
+      --stitch-space-xl: ${spacingScale.xl};
+      --stitch-motion-fast: ${motion.durationFast};
+      --stitch-motion-base: ${motion.durationBase};
+      --stitch-motion-slow: ${motion.durationSlow};
+      --stitch-motion-easing: ${motion.easingStandard};
+      --stitch-elevation-low: ${elevation.low};
+      --stitch-elevation-medium: ${elevation.medium};
+      --stitch-elevation-high: ${elevation.high};
     }
   `;
 
@@ -67,21 +104,26 @@ export default function RootLayout({
           {children}
           <HUDContainer />
         </Providers>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                  }, function(err) {
-                    console.log('ServiceWorker registration failed: ', err);
+        {shouldRegisterServiceWorker && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
+                  window.addEventListener('load', async function() {
+                    try {
+                      const response = await fetch('/sw.js', { method: 'HEAD', cache: 'no-store' });
+                      if (response.ok) {
+                        await navigator.serviceWorker.register('/sw.js');
+                      }
+                    } catch (err) {
+                      // Silent skip in dev/missing
+                    }
                   });
-                });
-              }
-            `,
-          }}
-        />
+                }
+              `,
+            }}
+          />
+        )}
       </body>
     </html>
   );

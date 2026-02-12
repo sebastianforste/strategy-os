@@ -3,6 +3,7 @@
 import { prisma } from "@/utils/db";
 import { GeneratedAssets } from "@/utils/ai-service";
 import { revalidatePath } from "next/cache";
+import type { StrategyRating } from "@prisma/client";
 
 // Type definition for what we receive from the client
 export interface CreateStrategyParams {
@@ -12,6 +13,16 @@ export interface CreateStrategyParams {
     workspaceId?: string; // For future multi-tenancy
     createdAt?: Date;      // Optional historical timestamp
     rating?: string;       // Optional historical rating
+}
+
+function toStrategyRating(input?: string | null): StrategyRating | null {
+  const value = (input || "").trim().toLowerCase();
+  if (!value) return null;
+  if (value === "viral") return "VIRAL";
+  if (value === "good") return "GOOD";
+  if (value === "meh") return "MEH";
+  if (value === "flopped") return "FLOPPED";
+  return null;
 }
 
 export async function saveStrategy(params: CreateStrategyParams) {
@@ -34,13 +45,13 @@ export async function saveStrategy(params: CreateStrategyParams) {
             data: {
                 content: params.assets.textPost,
                 input: params.input,
-                assets: JSON.stringify(params.assets),
+                assets: params.assets as any,
                 persona: params.personaId,
                 authorId: author.id,
                 platform: "LINKEDIN", 
                 isPublished: false,
                 createdAt: params.createdAt || new Date(),
-                rating: params.rating || null,
+                rating: toStrategyRating(params.rating),
             }
         });
 
@@ -64,10 +75,9 @@ export async function getStrategies(limit = 20, offset = 0) {
             }
         });
 
-        // Parse assets JSON back to object for the client
-        return strategies.map(s => ({
-            ...s,
-            assets: JSON.parse(s.assets) as GeneratedAssets
+        return strategies.map((s) => ({
+          ...s,
+          assets: (s.assets || null) as GeneratedAssets | null,
         }));
     } catch (error) {
         console.error("Failed to fetch strategies:", error);
@@ -80,7 +90,7 @@ export async function updateStrategyPerformance(id: string, rating: string, metr
         await prisma.strategy.update({
             where: { id },
             data: {
-                rating,
+                rating: toStrategyRating(rating),
                 // Map other metrics if needed, e.g., view count, likes
                 // For now, simple rating string
             }

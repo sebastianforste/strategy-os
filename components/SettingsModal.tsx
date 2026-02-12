@@ -56,6 +56,18 @@ export default function SettingsModal({
     setGeminiValidation(null);
   }, [keys.gemini]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isOpen, onClose]);
+
   const handleInstallClick = () => {
     if (!installPrompt) return;
     const prompt = installPrompt as { prompt: () => void, userChoice: Promise<{ outcome: string }> };
@@ -126,15 +138,22 @@ export default function SettingsModal({
             initial="hidden"
             animate="visible"
             exit="exit"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-dialog-title"
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto bg-[#0A0A0A] border border-neutral-800 p-8 rounded-2xl z-[60] shadow-2xl"
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <h2 id="settings-dialog-title" className="text-xl font-bold text-white flex items-center gap-2">
                 <SettingsIcon className="w-5 h-5" />
                 Configuration
               </h2>
               <button
-                onClick={onClose}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onClose();
+                }}
                 className="text-neutral-500 hover:text-white"
                 aria-label="Close Settings"
               >
@@ -191,6 +210,9 @@ export default function SettingsModal({
                     </span>
                   )}
                 </div>
+                <p className="text-[11px] text-neutral-500">
+                  Keys are saved in an encrypted server-managed store, not browser localStorage.
+                </p>
               </div>
 
               <div className="space-y-2">

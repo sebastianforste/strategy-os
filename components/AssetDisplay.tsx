@@ -33,12 +33,10 @@ const CitationEngine = dynamic(() => import("./CitationEngine"), { ssr: false })
 const VisualStudio = dynamic(() => import("./VisualStudio"), { ssr: false });
 import TruthShield from "./TruthShield";
 import TemplateVaultModal from "./TemplateVaultModal";
-import { performDeepResearch } from "../utils/research-agent";
 import { extractProprietarySparks, ProprietarySpark } from "../utils/insight-extractor";
 import { generateVisualAssets, DesignAsset } from "../utils/visual-engine";
 import { scoreViralityAction } from "../actions/generate";
 import { ViralityScore } from "../utils/virality-scorer";
-import { publishPostAction } from "../actions/publish";
 import { verifyContentAction } from "../actions/research";
 
 export type StrategyStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'PUBLISHED' | 'REJECTED';
@@ -205,9 +203,13 @@ export default function AssetDisplay(props: AssetDisplayProps) {
     if (!geminiKey || isResearching) return;
     setIsResearching(true);
     try {
-        // Serper key is expected from environment or passed via props if available
-        // For now using geminiKey as placeholder to findTrends if search-service supports it
-        const insights = await performDeepResearch(assets.textPost.substring(0, 100), geminiKey, process.env.NEXT_PUBLIC_SERPER_API_KEY || "");
+        const res = await fetch("/api/deep-research", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ topic: assets.textPost.substring(0, 100) }),
+        });
+        const data = await res.json().catch(() => ({}));
+        const insights = Array.isArray((data as any).insights) ? ((data as any).insights as any[]) : [];
         const extractedSparks = await extractProprietarySparks(insights, geminiKey);
         setSparks(extractedSparks);
     } catch (e) {
@@ -272,19 +274,37 @@ export default function AssetDisplay(props: AssetDisplayProps) {
     setIsPublishing(true);
     
     // Determine platform based on active tab
-    const platform = activeTab === "x" ? "twitter" : "linkedin";
+    const platform = activeTab === "x" ? "x" : "linkedin";
     
     try {
-        const result = await publishPostAction("temp-id", platform); // Placeholder ID needs real ID
-        if (result.success && result.url) {
-            setPublishedUrl(result.url);
-            showToast(`Published to ${platform === "twitter" ? "X" : "LinkedIn"} successfully!`, "success");
-        } else {
-            showToast(result.error || "Publishing failed", "error");
+        const publishContent =
+          platform === "x" && Array.isArray(assets.xThread) && assets.xThread.length > 0
+            ? assets.xThread.join("\n\n")
+            : assets.textPost;
+
+        const response = await fetch("/api/distribute", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            platform,
+            content: publishContent,
+            imageUrl: (assets as any).imageUrl || undefined,
+            persona: personaId,
+            title: publishContent.split("\n")[0]?.slice(0, 80) || "Untitled Strategy",
+          }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !(data as any).success) {
+          throw new Error((data as any).error || "Publishing failed");
         }
+
+        const url = (data as any).url as string | undefined;
+        if (url) setPublishedUrl(url);
+        showToast(`Published to ${platform === "x" ? "X" : "LinkedIn"} successfully!`, "success");
     } catch (e) {
         console.error("Publishing error", e);
-        showToast("Publishing failed", "error");
+        showToast(e instanceof Error ? e.message : "Publishing failed", "error");
     } finally {
         setIsPublishing(false);
     }

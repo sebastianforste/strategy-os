@@ -67,8 +67,12 @@ export async function critiquePost(content: string, apiKey: string): Promise<Cri
      return JSON.parse(text) as Critique;
   } catch (e) {
       console.error("Critique failed:", e);
-      // Fallback to allow publishing if AI fails
-      return { score: 90, issues: [], verdict: "PUBLISH" };
+      // Fail-safe: force a refine pass when critic is unavailable.
+      return {
+        score: 40,
+        issues: ["Critic unavailable. Apply deterministic refinement and anti-cliche cleanup."],
+        verdict: "REFINE",
+      };
   }
 }
 

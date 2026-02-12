@@ -66,15 +66,14 @@ export default function ContentVault({ isOpen, onClose }: ContentVaultProps) {
         setNewsletterContent("");
         
         const selectedAssets = assets.filter(a => selectedIds.includes(a.id));
-        const aggregatedPrompt = aggregateAssetsForNewsletter(selectedAssets);
-        
-        try {
-            const apiKeys = JSON.parse(localStorage.getItem('strategy_os_api_keys') || '{}');
-            const response = await fetch('/api/newsletter', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: aggregatedPrompt, apiKeys })
-            });
+	        const aggregatedPrompt = aggregateAssetsForNewsletter(selectedAssets);
+	        
+	        try {
+	            const response = await fetch('/api/newsletter', {
+	                method: 'POST',
+	                headers: { 'Content-Type': 'application/json' },
+	                body: JSON.stringify({ prompt: aggregatedPrompt })
+	            });
 
             if (!response.ok) throw new Error("Newsletter generation failed");
 

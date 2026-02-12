@@ -51,10 +51,16 @@ import {
 } from "../actions/generate";
 
 describe("StrategyOS Functional Validation", () => {
+  const runLiveTests = process.env.RUN_LIVE_AI_TESTS === "true";
   const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
   
+  if (!runLiveTests) {
+    it.skip("SKIPPING: set RUN_LIVE_AI_TESTS=true to execute live model tests", () => {});
+    return;
+  }
+
   if (!geminiKey) {
-    it.skip("SKIPPING: GEMINI_API_KEY missing", () => {});
+    it.skip("SKIPPING: GEMINI_API_KEY / GOOGLE_API_KEY missing", () => {});
     return;
   }
 

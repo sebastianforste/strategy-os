@@ -1,8 +1,6 @@
-import { getLanceDB, openOrCreateTable } from "./lancedb-client";
-import { getEmbedding } from "./gemini-embedding";
-
-const DB_PATH = "data/strategy_memory";
-const TABLE_NAME = "strategems";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "./auth";
+import { searchResources, upsertResource } from "./vector-store";
 
 export interface Strategem {
     id: string;
@@ -14,10 +12,6 @@ export interface Strategem {
     vector?: number[];
 }
 
-async function getDB() {
-  return getLanceDB(DB_PATH);
-}
-
 /**
  * STORE STRATEGEM
  * Indexes a piece of content for future retrieval.
@@ -26,18 +20,25 @@ export async function storeStrategem(strategem: Omit<Strategem, 'vector'>, apiKe
     console.log(`[MemoryService] Storing Strategem: ${strategem.id}`);
     
     try {
-        const vector = await getEmbedding(strategem.content, apiKey);
-        const db = await getDB();
-        const record = { ...strategem, vector };
+        const session = await getServerSession(authOptions);
+        const authorId = session?.user?.id;
+        if (!authorId) return false;
 
-        const tableNames = await db.tableNames();
-        const tableExists = tableNames.includes(TABLE_NAME);
-        const table = await openOrCreateTable(db, TABLE_NAME, [record]);
-        
-        if (tableExists) {
-            await table.add([record]);
-        }
-        
+        const id = `memory:${authorId}:${strategem.id}`;
+        await upsertResource(
+          id,
+          strategem.content,
+          {
+            sourceType: "memory",
+            authorId,
+            teamId: null,
+            topic: strategem.topic,
+            platform: strategem.platform,
+            performanceScore: strategem.performanceScore,
+            timestamp: strategem.timestamp,
+          },
+          apiKey,
+        );
         return true;
     } catch (e) {
         console.error("[MemoryService] Failed to store strategem:", e);
@@ -53,30 +54,57 @@ export async function retrieveMemories(query: string, apiKey: string, limit: num
     console.log(`[MemoryService] Retrieving memories for: "${query}"`);
     
     try {
-        const vector = await getEmbedding(query, apiKey);
-        const db = await getDB();
-        
-        if (!(await db.tableNames()).includes(TABLE_NAME)) {
-            return [];
-        }
+        const session = await getServerSession(authOptions);
+        const authorId = session?.user?.id;
+        if (!authorId) return [];
 
-        const table = await db.openTable(TABLE_NAME);
-        const results = await table
-            .search(vector)
-            .limit(limit)
-            .toArray();
+        const results = await searchResources(
+          query,
+          limit,
+          apiKey,
+          { authorId, teamId: null },
+          { sourceTypes: ["memory"] },
+        );
 
-        // Map LanceDB results back to Strategem interface
-        return results.map((r: any) => ({
-            id: r.id,
-            content: r.content,
-            topic: r.topic,
-            platform: r.platform,
-            performanceScore: r.performanceScore,
-            timestamp: r.timestamp
-        }));
+        return results.map((r: any) => {
+          const meta = r.metadata || {};
+          return {
+            id: String(r.id || ""),
+            content: String(r.text || ""),
+            topic: meta.topic,
+            platform: meta.platform,
+            performanceScore: meta.performanceScore,
+            timestamp: meta.timestamp || new Date(meta.createdAt || Date.now()).toISOString(),
+          } satisfies Strategem;
+        });
     } catch (e) {
         console.error("[MemoryService] Memory retrieval failed:", e);
         return [];
     }
+}
+
+export async function retrieveMemoriesScoped(
+  query: string,
+  apiKey: string,
+  limit: number,
+  scope: { authorId: string; teamId?: string | null }
+): Promise<Strategem[]> {
+  const results = await searchResources(
+    query,
+    limit,
+    apiKey,
+    { authorId: scope.authorId, teamId: scope.teamId ?? null },
+    { sourceTypes: ["memory"] },
+  );
+  return results.map((r: any) => {
+    const meta = r.metadata || {};
+    return {
+      id: String(r.id || ""),
+      content: String(r.text || ""),
+      topic: meta.topic,
+      platform: meta.platform,
+      performanceScore: meta.performanceScore,
+      timestamp: meta.timestamp || new Date(meta.createdAt || Date.now()).toISOString(),
+    } satisfies Strategem;
+  });
 }

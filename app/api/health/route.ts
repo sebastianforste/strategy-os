@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../utils/db";
 import { authOptions } from "@/utils/auth";
-import { HttpError, jsonError, requireSession } from "@/utils/request-guard";
+import { HttpError, jsonError, requireSessionForRequest } from "@/utils/request-guard";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await requireSession(authOptions);
+    await requireSessionForRequest(req, authOptions);
     // Basic query to check DB availability
     await prisma.resource.count();
     return NextResponse.json({ status: "ok" });

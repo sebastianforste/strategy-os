@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { JSDOM } from "jsdom";
 import { z } from "zod";
 
 import { authOptions } from "@/utils/auth";
@@ -10,8 +9,9 @@ import {
   jsonError,
   parseJson,
   rateLimit,
-  requireSession,
+  requireSessionForRequest,
 } from "@/utils/request-guard";
+import { ingestWebHtml } from "@/utils/web-ingest";
 
 /**
  * ORACLE SCRAPER API
@@ -20,8 +20,8 @@ import {
  */
 export async function POST(req: NextRequest) {
     try {
-        await requireSession(authOptions);
-        rateLimit({ key: `scrape`, limit: 30, windowMs: 60_000 });
+        const session = await requireSessionForRequest(req, authOptions);
+        await rateLimit({ key: `scrape:${session.user.id}`, limit: 30, windowMs: 60_000 });
 
         const body = await parseJson(req, z.object({ url: z.string().url().max(2048) }));
         const url = await assertSafeUrl(body.url);
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
         console.log(`[Oracle] Scraping: ${url.toString()}`);
 
         // 1. Fetch the raw HTML
-        const { status, text: html } = await fetchTextWithLimits({
+        const { status, text: html, contentType } = await fetchTextWithLimits({
             url,
             timeoutMs: 5000,
             maxBytes: 2 * 1024 * 1024,
@@ -42,31 +42,30 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: `Failed to fetch URL (${status}).` }, { status: 502 });
         }
 
-        // 2. Parse with JSDOM
-        const dom = new JSDOM(html);
-        const doc = dom.window.document;
+        // 2. Content-type sanity check (avoid treating PDFs/images as text).
+        const normalizedType = (contentType || "").toLowerCase();
+        if (normalizedType && !normalizedType.includes("text/html") && !normalizedType.includes("application/xhtml+xml")) {
+            return NextResponse.json(
+                { error: `Unsupported content-type for scraping: ${contentType}` },
+                { status: 415 }
+            );
+        }
 
-        // 3. Extract core content
-        // Remove noise
-        const noise = doc.querySelectorAll('script, style, nav, footer, iframe, ads');
-        noise.forEach((n: any) => n.remove());
-
-        // Focus on main content areas
-        const mainContent = doc.querySelector('main, article, #content, .content, #main, .main') || doc.body;
-        
-        // Extract text
-        let text = mainContent.textContent || "";
-        
-        // Clean up whitespace
-        text = text.replace(/\s+/g, ' ').trim();
-
-        // Limit length to avoid blowing up tokens
-        const extracted = text.substring(0, 10000);
+        // 3. Extract + normalize.
+        const extracted = ingestWebHtml(html);
+        const limitedText = extracted.text.substring(0, 10_000);
 
         return NextResponse.json({ 
             success: true, 
-            text: extracted,
-            length: extracted.length
+            url: url.toString(),
+            title: extracted.title,
+            canonicalUrl: extracted.canonicalUrl,
+            excerpt: extracted.excerpt,
+            contentSha256: extracted.contentSha256,
+            contentType,
+            text: limitedText,
+            length: limitedText.length,
+            extractedAt: new Date().toISOString(),
         });
 
     } catch (e: any) {

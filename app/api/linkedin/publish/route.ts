@@ -1,118 +1,75 @@
 /**
- * LINKEDIN PUBLISH API ROUTE
- * --------------------------
- * Phase 17.3: Server-side LinkedIn publishing endpoint
+ * LINKEDIN PUBLISH API ROUTE (Idempotent)
+ * --------------------------------------
+ * Unified publishing via PublishEngine. Requires OAuth connection.
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { createPost, getCurrentUserProfile } from "../../../../utils/linkedin-api-v2";
-import { prisma } from "../../../../utils/db";
-import { logger } from "../../../../utils/logger";
+import { NextResponse } from "next/server";
+import { z } from "zod";
 
-const log = logger.scope("API/LinkedIn");
+import { authOptions } from "@/utils/auth";
+import { HttpError, jsonError, parseJson, rateLimit, requireSessionForRequest } from "@/utils/request-guard";
+import { publishStrategy } from "@/utils/publish-engine";
+import { prisma } from "@/utils/db";
 
-export async function POST(request: NextRequest) {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function POST(req: Request) {
   try {
-    // Get authenticated session
-    const session = await getServerSession();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await requireSessionForRequest(req, authOptions);
+    await rateLimit({ key: `linkedin_publish:${session.user.id}`, limit: 10, windowMs: 60_000 });
 
-    // Get request body
-    const body = await request.json();
-    const { content, visibility = "PUBLIC", strategyId } = body;
+    const { content, strategyId } = await parseJson(
+      req,
+      z
+        .object({
+          content: z.string().min(1).max(40_000),
+          strategyId: z.string().max(64).optional(),
+        })
+        .strict(),
+    );
 
-    if (!content) {
-      return NextResponse.json({ error: "Content is required" }, { status: 400 });
-    }
-
-    // Get user's LinkedIn token from database
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      include: {
-        accounts: {
-          where: { provider: "linkedin" },
-        },
-      },
-    });
-
-    if (!user || user.accounts.length === 0) {
-      return NextResponse.json(
-        { error: "LinkedIn account not connected" },
-        { status: 400 }
-      );
-    }
-
-    const linkedInAccount = user.accounts[0];
-    const accessToken = linkedInAccount.access_token;
-
-    if (!accessToken) {
-      return NextResponse.json(
-        { error: "LinkedIn token expired. Please reconnect." },
-        { status: 401 }
-      );
-    }
-
-    // Get user's person URN
-    const profile = await getCurrentUserProfile(accessToken);
-    if (!profile) {
-      return NextResponse.json(
-        { error: "Could not get LinkedIn profile" },
-        { status: 500 }
-      );
-    }
-
-    // Create post
-    const result = await createPost(accessToken, profile.personUrn, content, visibility);
-
-    if (!result.success) {
-      log.error("LinkedIn publish failed", undefined, { error: result.error });
-      return NextResponse.json(
-        { error: result.error || "Failed to publish" },
-        { status: 500 }
-      );
-    }
-
-    // Update strategy if provided
-    if (strategyId && result.postId) {
-      await prisma.strategy.update({
-        where: { id: strategyId },
+    let resolvedStrategyId = (strategyId || "").trim();
+    if (!resolvedStrategyId) {
+      const created = await prisma.strategy.create({
         data: {
-          isPublished: true,
-          publishedAt: new Date(),
-          externalId: result.postId,
+          content,
+          title: content.split("\n")[0]?.slice(0, 80) || "Untitled Strategy",
           platform: "LINKEDIN",
+          authorId: session.user.id,
+          isPublished: false,
+          mode: "ghost_protocol",
+          persona: "cso",
+          input: content.slice(0, 200),
+          assets: {},
         },
+        select: { id: true },
       });
+      resolvedStrategyId = created.id;
     }
 
-    // Log audit
-    await prisma.auditLog.create({
-      data: {
-        action: "linkedin_post_published",
-        actor: session.user.email,
-        metadata: {
-          postId: result.postId,
-          strategyId,
-          contentLength: content.length,
-        },
-      },
+    const result = await publishStrategy({
+      strategyId: resolvedStrategyId,
+      platform: "LINKEDIN",
+      userId: session.user.id,
+      content,
+      requestId: req.headers.get("x-request-id"),
     });
 
-    log.info("LinkedIn post published", { postId: result.postId, userId: user.id });
+    if (result.status === "in_progress") {
+      return NextResponse.json({ success: false, error: "Publish in progress." }, { status: 409 });
+    }
 
     return NextResponse.json({
       success: true,
-      postId: result.postId,
-      postUrl: `https://www.linkedin.com/feed/update/${result.postId}`,
+      strategyId: resolvedStrategyId,
+      postId: result.externalId,
+      postUrl: result.url,
+      message: result.status === "already_published" ? "Already published." : "Published successfully.",
     });
-  } catch (error) {
-    log.error("LinkedIn publish error", error as Error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+  } catch (e) {
+    if (e instanceof HttpError) return jsonError(e.status, e.message, e.code);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

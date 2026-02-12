@@ -50,6 +50,7 @@ import BatchGeneratorModal from "./BatchGeneratorModal";
 import SettingsModal from "./SettingsModal";
 import TeamSettingsModal from "./TeamSettingsModal";
 import TerminalConsole from "./TerminalConsole";
+import VideoStudio from "./VideoStudio";
 const MemoryDashboard = dynamic(() => import("./MemoryDashboard"), { ssr: false });
 const MastermindDashboard = dynamic(() => import("./MastermindDashboard"), { 
     ssr: false,
@@ -97,7 +98,7 @@ import Web3Social from "./Web3Social";
 import MarketIntelligence from "./MarketIntelligence";
 import PredictiveAnalytics from "./PredictiveAnalytics";
 import RelationshipDashboard from "./RelationshipDashboard";
-import VideoStudio from "./VideoStudio";
+import VideoStudioView from "./VideoStudio";
 import AgencyHub from "./AgencyHub";
 import ReputationProfile from "./ReputationProfile";
 import ComplianceSandbox from "./ComplianceSandbox";
@@ -123,6 +124,7 @@ import AlphaMarket from "./AlphaMarket";
 import HardwareSyncV2 from "./HardwareSyncV2";
 import NewsletterV2 from "./NewsletterV2";
 import AutonomousExit from "./AutonomousExit";
+// import VideoStudio from "./VideoStudio"; // Remove duplicate import if any
 import { TrendOpportunity } from "../utils/trend-surfer";
 import { EngagementTarget } from "../utils/engagement-agent";
 import { evaluateAutoPilot, AutonomousDecision } from "../utils/autonomous-agent";
@@ -136,8 +138,17 @@ import { ResearchProgress } from "../utils/research-service";
 import { GeneratedAssets } from "../utils/ai-service";
 import { createPostingJob } from "../utils/posting-agent";
 import { logger } from "../utils/logger";
+import type { Citation } from "../utils/citations";
 
 const log = logger.scope("StreamingConsole");
+
+type Capabilities = {
+  authenticated: boolean;
+  hasGeminiKey: boolean;
+  hasSerperKey: boolean;
+  connectedProviders: { linkedin: boolean; twitter: boolean; google: boolean };
+  features: Record<string, boolean>;
+};
 
 export default function StreamingConsole(props: StreamingConsoleProps) {
   const {
@@ -234,21 +245,46 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
   const [currentPostingJob, setCurrentPostingJob] = useState<any>(null);
   const [prediction, setPrediction] = useState<any>(null);
   const [ragConcepts, setRagConcepts] = useState<string[]>([]);
+  const [citations, setCitations] = useState<Citation[]>([]);
+  const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
 
   const [clicheCheckText, setClicheCheckText] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/capabilities")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setCapabilities(data as Capabilities);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCapabilities(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // --- AUTO-PILOT LOGIC ---
   const runAutoPilotCheck = async (content: string) => {
     if (!isAutoPilot || !apiKeys.gemini) return;
+    if (capabilities && !capabilities.features?.autopilot) return;
     
     log.info("Auto-Pilot active. Evaluating content...", { length: content.length });
     
     try {
-        const { checkFacts } = await import("../utils/fact-checker");
         const { calculateAuthorityScore } = await import("../utils/authority-scorer");
         const { generateMastermindBriefing } = await import("../utils/mastermind-briefing");
 
-        const facts = await checkFacts(content, apiKeys.gemini, process.env.NEXT_PUBLIC_SERPER_API_KEY || "");
+        const factsRes = await fetch("/api/fact-check", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ content }),
+        });
+        const factsData = await factsRes.json().catch(() => ({}));
+        const facts = Array.isArray((factsData as any).results) ? ((factsData as any).results as any[]) : [];
         const integrityScore = facts.length > 0 ? Math.round((facts.filter(r => r.verdict === 'verified').length / facts.length) * 100) : 100;
         const authority = calculateAuthorityScore(content);
         
@@ -278,9 +314,15 @@ export default function StreamingConsole(props: StreamingConsoleProps) {
       if (result.ragConcepts) {
         setRagConcepts(result.ragConcepts);
       }
+      if (result.citations) {
+        setCitations(result.citations);
+      } else {
+        setCitations([]);
+      }
     } else {
       // Create a partial assets object if only string is received
       setAssets({ textPost: result } as GeneratedAssets);
+      setCitations([]);
     }
     
     onGenerationComplete(result);
@@ -555,32 +597,56 @@ MODE: High Authority
             mode={consoleMode}
             setMode={setConsoleMode}
             isFloating={isFloating}
+            outputSlot={
+              (completion || isLoading || localError) && (
+                <OutputArea 
+                  isLoading={isLoading}
+                  completion={completion}
+                  localError={localError}
+                  platform={platform as any || 'linkedin'}
+                  onReset={() => setCompletion("")}
+                  onPublish={() => setIsPostingModalOpen(true)}
+                  onNewGeneration={() => {}}
+                  apiKey={apiKeys.gemini || ""}
+                  personaId={personaId as PersonaId}
+	                  onOpenVideoArchitect={() => setViewMode('video')}
+	                  ragConcepts={ragConcepts}
+	                  citations={citations}
+	                />
+	              )
+	            }
          >
             {/* View Switches */}
             {viewMode === 'mastermind' && (
-               <MastermindDashboard 
-                  apiKey={apiKeys.gemini} 
-                  trends={allTrends}
-                  engagementTargets={allEngagementTargets}
-                  queueCount={0} 
-                  onViewChange={setViewMode}
-                  isAutoPilot={isAutoPilot}
-                  setIsAutoPilot={setIsAutoPilot}
-                  decisions={decisions}
-                  autoPilotThreshold={autoPilotThreshold}
-                  setAutoPilotThreshold={setAutoPilotThreshold}
-                  autoPilotPlatforms={autoPilotPlatforms}
-                  setAutoPilotPlatforms={setAutoPilotPlatforms}
-                  initialView={clicheCheckText ? 'cliche_killer' : undefined}
-                  initialClicheText={clicheCheckText || undefined}
-                  onClearClicheText={() => setClicheCheckText(null)}
-               />
+                  <MastermindDashboard 
+                     apiKey={apiKeys.gemini} 
+                     trends={allTrends}
+                     engagementTargets={allEngagementTargets}
+                     queueCount={0} 
+                     onViewChange={setViewMode}
+                     isAutoPilot={isAutoPilot}
+                     setIsAutoPilot={setIsAutoPilot}
+                     decisions={decisions}
+                     autoPilotThreshold={autoPilotThreshold}
+                     setAutoPilotThreshold={setAutoPilotThreshold}
+                     autoPilotPlatforms={autoPilotPlatforms}
+                     setAutoPilotPlatforms={setAutoPilotPlatforms}
+                     initialView={clicheCheckText ? 'cliche_killer' : undefined}
+                     initialClicheText={clicheCheckText || undefined}
+                     onClearClicheText={() => setClicheCheckText(null)}
+                  />
             )}
 
             {viewMode === 'feed' && (
                <div className="w-full animate-in fade-in duration-500">
                   <TrendMonitor 
                   apiKey={apiKeys.gemini} 
+                  canScan={Boolean(capabilities?.hasGeminiKey && capabilities?.hasSerperKey)}
+                  disabledReason={
+                    capabilities
+                      ? "Requires stored Gemini + Serper keys (Settings -> API Keys)."
+                      : "Loading capabilities..."
+                  }
                   onSelectTrend={handleTrendSelect} 
                   onTrendsFetched={setAllTrends}
                   />
@@ -741,7 +807,7 @@ MODE: High Authority
 
             {viewMode === 'video' && (
                 <div className="w-full animate-in fade-in duration-500">
-                    <VideoStudio />
+                    <VideoStudioView content={completion} apiKey={apiKeys.gemini} />
                 </div>
             )}
 

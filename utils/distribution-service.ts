@@ -9,6 +9,7 @@ export interface DistributionResult {
     platform: string;
     postId?: string;
     url?: string;
+    strategyId?: string;
     error?: string;
 }
 
@@ -26,7 +27,8 @@ export interface PlatformConfig {
 export async function publishToPlatform(
     platform: 'linkedin' | 'x',
     content: string,
-    config: PlatformConfig
+    config: PlatformConfig,
+    options?: { imageUrl?: string; personaId?: string; title?: string; strategyId?: string }
 ): Promise<DistributionResult> {
     // If we have real tokens, we'd call the real APIs here.
     // For now, we implement a robust proxy that can handle both mock and real flows.
@@ -37,7 +39,14 @@ export async function publishToPlatform(
         const response = await fetch('/api/distribute', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ platform, content, config })
+            body: JSON.stringify({
+              platform,
+              content,
+              imageUrl: options?.imageUrl,
+              persona: options?.personaId,
+              title: options?.title,
+              strategyId: options?.strategyId,
+            })
         });
 
         const data = await response.json();

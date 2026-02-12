@@ -8,16 +8,30 @@ import os from "os";
 import { z } from "zod";
 
 import { authOptions } from "@/utils/auth";
-import { HttpError, jsonError, parseJson, rateLimit, requireSession } from "@/utils/request-guard";
-
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
-const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY || "");
+import { getStoredApiKeys } from "@/utils/server-api-keys";
+import { HttpError, jsonError, parseJson, rateLimit, requireSessionForRequest } from "@/utils/request-guard";
 
 export async function POST(req: Request) {
   let tempFilePath: string | null = null;
   try {
-    await requireSession(authOptions);
-    rateLimit({ key: "audio_transcribe", limit: 10, windowMs: 60_000 });
+    const session = await requireSessionForRequest(req, authOptions);
+    await rateLimit({ key: `audio_transcribe:${session.user.id}`, limit: 10, windowMs: 60_000 });
+
+    const storedKeys = await getStoredApiKeys();
+    const geminiKey =
+      (storedKeys?.gemini || "").trim() ||
+      (process.env.GEMINI_API_KEY || "").trim() ||
+      (process.env.GOOGLE_API_KEY || "").trim();
+
+    if (!geminiKey) {
+      return NextResponse.json(
+        { error: "Gemini API key required. Configure it in Settings first." },
+        { status: 400 }
+      );
+    }
+
+    const genAI = new GoogleGenerativeAI(geminiKey);
+    const fileManager = new GoogleAIFileManager(geminiKey);
 
     const formData = await parseJson(
       req,

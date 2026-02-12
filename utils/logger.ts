@@ -31,6 +31,33 @@ function formatMessage(level: LogLevel, message: string, context?: LogContext): 
   return `[${timestamp}] [${level.toUpperCase()}] ${message}${contextStr}`;
 }
 
+function formatJson(level: LogLevel, message: string, context?: LogContext): string {
+  return JSON.stringify({
+    ts: new Date().toISOString(),
+    level,
+    msg: message,
+    ...(context ? context : {}),
+  });
+}
+
+function emit(level: LogLevel, message: string, context?: LogContext) {
+  if (isDev) {
+    const formatted = formatMessage(level, message, context);
+    if (level === "debug") console.log(`${colors.debug}${formatted}${colors.reset}`);
+    else if (level === "info") console.log(`${colors.info}${formatted}${colors.reset}`);
+    else if (level === "warn") console.warn(`${colors.warn}${formatted}${colors.reset}`);
+    else console.error(`${colors.error}${formatted}${colors.reset}`);
+    return;
+  }
+
+  // Production: JSON lines, debug suppressed by default.
+  if (level === "debug") return;
+  const line = formatJson(level, message, context);
+  if (level === "warn") console.warn(line);
+  else if (level === "error") console.error(line);
+  else console.log(line);
+}
+
 /**
  * Main logger object
  */
@@ -39,26 +66,21 @@ export const logger = {
    * Debug level - only in development
    */
   debug: (message: string, context?: LogContext) => {
-    if (isDev) {
-      console.log(`${colors.debug}${formatMessage("debug", message, context)}${colors.reset}`);
-    }
+    emit("debug", message, context);
   },
 
   /**
    * Info level - important operational events
    */
   info: (message: string, context?: LogContext) => {
-    if (isDev) {
-      console.log(`${colors.info}${formatMessage("info", message, context)}${colors.reset}`);
-    }
-    // In production, could send to external logging service
+    emit("info", message, context);
   },
 
   /**
    * Warn level - recoverable issues
    */
   warn: (message: string, context?: LogContext) => {
-    console.warn(`${colors.warn}${formatMessage("warn", message, context)}${colors.reset}`);
+    emit("warn", message, context);
   },
 
   /**
@@ -69,9 +91,7 @@ export const logger = {
       ? { errorMessage: error.message, stack: error.stack }
       : { errorRaw: error };
     
-    console.error(
-      `${colors.error}${formatMessage("error", message, { ...context, ...errorDetails })}${colors.reset}`
-    );
+    emit("error", message, { ...context, ...errorDetails });
 
     // In production, send to error tracking (Sentry, etc.)
     // if (!isDev && typeof window !== 'undefined') {
@@ -103,6 +123,20 @@ export const logger = {
     warn: (msg: string, ctx?: LogContext) => logger.warn(`[${serviceName}] ${msg}`, ctx),
     error: (msg: string, err?: Error | unknown, ctx?: LogContext) => 
       logger.error(`[${serviceName}] ${msg}`, err, ctx),
+  }),
+
+  with: (base: LogContext) => ({
+    debug: (msg: string, ctx?: LogContext) => logger.debug(msg, { ...base, ...ctx }),
+    info: (msg: string, ctx?: LogContext) => logger.info(msg, { ...base, ...ctx }),
+    warn: (msg: string, ctx?: LogContext) => logger.warn(msg, { ...base, ...ctx }),
+    error: (msg: string, err?: Error | unknown, ctx?: LogContext) => logger.error(msg, err, { ...base, ...ctx }),
+    scope: (serviceName: string) => ({
+      debug: (msg: string, ctx?: LogContext) => logger.debug(`[${serviceName}] ${msg}`, { ...base, ...ctx }),
+      info: (msg: string, ctx?: LogContext) => logger.info(`[${serviceName}] ${msg}`, { ...base, ...ctx }),
+      warn: (msg: string, ctx?: LogContext) => logger.warn(`[${serviceName}] ${msg}`, { ...base, ...ctx }),
+      error: (msg: string, err?: Error | unknown, ctx?: LogContext) =>
+        logger.error(`[${serviceName}] ${msg}`, err, { ...base, ...ctx }),
+    }),
   }),
 };
 

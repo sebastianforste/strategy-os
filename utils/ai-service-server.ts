@@ -1,15 +1,26 @@
 import "server-only";
 import { GoogleGenAI } from "@google/genai";
-import { PERSONAS, PersonaId } from "./personas";
+import { PERSONAS, PersonaId, Persona } from "./personas";
 import { verifyConstraints } from "./constraint-service";
 import { optimizeContent } from "./refinement-service";
 import { SYSTEM_PROMPTS, formatPrompt } from "./prompts";
-import { prisma, Resource } from "./db";
 import { AI_CONFIG } from "./config";
 import { isRateLimitError, getErrorMessage } from "./gemini-errors";
 import { GeneratedAssets } from "./ai-service";
-import { retrieveMemories } from "./memory-service";
 import { getRoute } from "./model-mixer";
+import { buildPersonaContractInstructions, getPersonaContract } from "./persona-contract";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "./auth";
+import { retrieveContext } from "./knowledge-store";
+
+export interface OperationalResult<T> {
+    success: boolean;
+    data: T | null;
+    error?: string;
+    isRateLimit?: boolean;
+    resilienceIndicator?: number; // 0-1 scale of confidence
+    retryPath?: string; // Suggested route for recovery
+}
 
 /**
  * PROMPT CONSTRUCTION: SYSTEM INSTRUCTION
@@ -17,11 +28,28 @@ import { getRoute } from "./model-mixer";
  * Composes the base persona, JSON schema, strategic context, and memories.
  */
 export function constructSystemInstruction(
-  persona: any,
+  persona: Partial<Persona>,
   strategicContext: string,
-  memories: string[] = []
+  memories: string[] = [],
+  task: "draft" | "comment" = "draft"
 ): string {
-  let instruction = (persona?.basePrompt || persona?.systemPrompt || "") + "\n" + (persona?.jsonSchema || "");
+  const personaForContract: Persona = {
+    id: persona?.id || "cso",
+    name: persona?.name || "Strategist",
+    description: persona?.description || "High-signal strategic operator.",
+    voice: persona?.voice,
+    signaturePhrases: persona?.signaturePhrases,
+    antiPatterns: persona?.antiPatterns,
+    basePrompt: persona?.basePrompt,
+    systemPrompt: persona?.systemPrompt,
+    jsonSchema: persona?.jsonSchema,
+  };
+
+  const contractInstruction = buildPersonaContractInstructions(
+    getPersonaContract(personaForContract, task),
+    { preserveFacts: task !== "comment" }
+  );
+  let instruction = `${contractInstruction}\n\n${persona?.basePrompt || persona?.systemPrompt || ""}\n${persona?.jsonSchema || ""}`;
   
   if (strategicContext) {
     instruction += "\n" + strategicContext;
@@ -63,7 +91,14 @@ export function constructUserPrompt(input: string, signals: any[] = []): string 
  */
 export function parseAIResponse(json: any): GeneratedAssets {
   return {
-    textPost: json.textPost || json.text_post || json["LinkedIn Text Post"] || json["LinkedIn Post"] || "",
+    textPost:
+      json.textPost ||
+      json.text_post ||
+      json.linkedinPost ||
+      json.linkedingPost ||
+      json["LinkedIn Text Post"] ||
+      json["LinkedIn Post"] ||
+      "",
     imagePrompt: json.imagePrompt || json.image_prompt || json["Visualize Value Image Prompt"] || json["Image Prompt"] || "",
     thumbnailPrompt: json.thumbnailPrompt || json.thumbnail_prompt || json["YouTube Thumbnail Prompt"] || "High contrast close-up with bold text overlay.",
     videoScript: json.videoScript || json.video_script || json["60s Video Script"] || "",
@@ -72,6 +107,54 @@ export function parseAIResponse(json: any): GeneratedAssets {
     visualConcept: json.visualConcept || json.visual_concept || json["Visual Concept"] || "Strategy",
     ragConcepts: [] // Populated by the caller
   };
+}
+
+function extractFallbackTopic(input: string): string {
+  const quotedInput = input.match(/INPUT:\s*["']([\s\S]*?)["']\s*(?:\n|$)/i);
+  if (quotedInput?.[1]?.trim()) return quotedInput[1].trim();
+
+  const trimmed = input.trim();
+  if (!trimmed) return "Strategic execution in an AI-first market";
+
+  const firstMeaningfulLine = trimmed
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 20 && !line.endsWith(":"));
+
+  return (firstMeaningfulLine || trimmed).slice(0, 180);
+}
+
+function buildResilienceFallbackAssets(input: string, personaName: string, ragConcepts: string[]): GeneratedAssets {
+  const topic = extractFallbackTopic(input);
+  return {
+    textPost: `${personaName} perspective:\n\n${topic} is now a margin and trust problem, not a tooling discussion.\n\nTeams that redesign work around outcomes will outperform teams that still monetize effort.\n\nPick one workflow, set a measurable target, and publish the delta in 30 days.`,
+    xThread: [
+      `1/ ${topic} is shifting from hype to operating model.`,
+      "2/ Outcome-based execution beats effort-based billing.",
+      "3/ Start small: one workflow, one metric, one 30-day sprint.",
+      "4/ Measure quality, cycle time, and margin expansion.",
+      "5/ Publish wins and compound distribution."
+    ],
+    substackEssay: `# ${topic}\n\nThe next strategic moat is not access to AI.\nIt is disciplined execution, proof loops, and trust at scale.`,
+    imagePrompt: "Minimalist geometric split-screen showing old process vs AI-native workflow with clear performance delta.",
+    videoScript: `Hook: ${topic} is no longer optional.\nBody: Winners redesign work for outcomes, not activity.\nCTA: Run one 30-day pilot and share measurable results.`,
+    ragConcepts,
+  };
+}
+
+function buildFallbackComment(postContent: string, tone: string, personaName: string): string {
+  const base = postContent
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 140);
+  const prefix = `${personaName}:`;
+  if (tone.toLowerCase().includes("question")) {
+    return `${prefix} Strong signal in "${base}". What operating metric would prove this is durable, not just a short-term win?`;
+  }
+  if (tone.toLowerCase().includes("contrarian")) {
+    return `${prefix} Useful take, but execution usually breaks at incentives. The real test is whether outcomes improve while cycle time drops.`;
+  }
+  return `${prefix} Good point on "${base}". The leverage is tying this to one measurable outcome and sharing the before/after delta.`;
 }
 
 /**
@@ -85,61 +168,34 @@ export function parseAIResponse(json: any): GeneratedAssets {
  * Retrieves the most recent ingested documents to inform generation.
  * [Phase 22 Update]: Now uses Semantic Search via LanceDB if available.
  */
-async function fetchContext(query: string): Promise<{ context: string; concepts: string[] }> {
-    const concepts: string[] = [];
-    try {
-        let contextString = "";
+async function fetchContext(query: string, apiKey: string): Promise<{ context: string; concepts: string[]; citations: any[] }> {
+  try {
+    const session = await getServerSession(authOptions);
+    const authorId = session?.user?.id;
+    const teamId = (session?.user as any)?.teamId ?? null;
+    if (!authorId) return { context: "", concepts: [], citations: [] };
 
-        // 1. Try Semantic Search (LanceDB)
-        try {
-             // Dynamic import to avoid build issues if vector-store setup is partial
-             const { searchVectorStore } = await import("./vector-store");
-             const results = await searchVectorStore(query, 5);
-             
-             if (results.length > 0) {
-                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const semanticItems = results.map((r: any) => {
-                     const meta = r.metadata || {};
-                     concepts.push(meta.title || "Untitled Concept");
-                     return `- [${meta.title}] (Relevance: High) Summary: ${meta.summary || r.text.slice(0, 100)}...`;
-                  }).join("\n");
-                 contextString += `\nSTRATEGIC CONTEXT (Deep Memory / Semantic):\n${semanticItems}\n`;
-             }
-        } catch (e) {
-            console.warn("[AI Service] Vector search failed (or not active), falling back to recent.", e);
-        }
+    const retrieval = await retrieveContext({
+      query,
+      apiKey,
+      authorId,
+      teamId,
+      limit: 6,
+      include: {
+        resources: true,
+        knowledge: true,
+        strategems: true,
+        voiceMemory: false,
+        styleMemory: false,
+      },
+    });
 
-        // 2. Fetch Recent Documents (Prisma) - Chronological Anchor
-        // We always include a couple of recent ones just in case the semantic search missed "news".
-        const recentResources = await prisma.resource.findMany({
-            take: 3,
-            orderBy: { createdAt: 'desc' },
-            where: { type: 'pdf' }
-        });
-
-        if (recentResources.length > 0) {
-            const recentItems = recentResources.map((r: Resource) => {
-                concepts.push(r.title);
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const meta = r.metadata as any || {};
-                return `- [${r.title}] (Type: ${meta.document_type || 'Doc'}, Date: ${meta.date || 'Unknown'}) Summary: ${meta.summary || r.metadata}`;
-            }).join("\n");
-            
-            // Avoid duplication if possible, but for now appending is safer context
-            contextString += `\nRECENT DOCUMENTS:\n${recentItems}\n`;
-        }
-
-        if (!contextString) return { context: "", concepts: [] };
-        
-        return { 
-            context: `${contextString}\n(Use this verified context to ground your strategy.)\n`,
-            concepts 
-        };
-
-    } catch (error) {
-        console.warn("[AI Service] Failed to fetch context:", error);
-        return { context: "", concepts: [] };
-    }
+    const concepts = retrieval.citations.map((c) => c.title || c.id).filter(Boolean);
+    return { context: retrieval.contextText || "", concepts, citations: retrieval.citations };
+  } catch (error) {
+    console.warn("[AI Service] Failed to fetch context:", error);
+    return { context: "", concepts: [], citations: [] };
+  }
 }
 
 /**
@@ -184,6 +240,7 @@ export async function generateContent(
   const PRIMARY_MODEL = AI_CONFIG.primaryModel;
   const FALLBACK_MODEL = AI_CONFIG.fallbackModel;
   const persona = customPersona || PERSONAS[personaId];
+  let lastRateLimitError: unknown = null;
   
   // 1. Model Mixer Selection
   let modelName = getRoute({ 
@@ -192,28 +249,18 @@ export async function generateContent(
   });
   
   // 2. FETCH CONTEXT & MEMORIES
-  const { context: strategicContext, concepts: ragConcepts } = await fetchContext(input);
+  const { context: strategicContext, concepts: ragConcepts, citations } = await fetchContext(input, apiKey);
   if (strategicContext) {
       console.log(`[AI Service] Injecting Strategic Context with ${ragConcepts.length} concepts...`);
   }
-  
-  let formattedMemories: string[] = [];
-  try {
-    const rawMemories = await retrieveMemories(input, apiKey, 2);
-    if (rawMemories.length > 0) {
-      console.log(`[AI Service] Injecting ${rawMemories.length} relevant memories...`);
-    }
-    formattedMemories = rawMemories.map(m => `Topic: ${m.topic || 'Unknown'} | Content: ${m.content.substring(0, 200)}...`);
-  } catch (e) {
-    console.warn("[AI Service] Memory retrieval failed", e);
-  }
 
   // 3. CONSTRUCT INSTRUCTIONS
-  let finalSystemInstruction = constructSystemInstruction(persona, strategicContext, formattedMemories);
+  let finalSystemInstruction = constructSystemInstruction(persona, strategicContext, [], "draft");
   if (personaId === "custom" && persona?.geminiModelId) {
     console.log(`Using custom voice model: ${persona.geminiModelId}`);
     modelName = persona.geminiModelId;
-    finalSystemInstruction = "You are a LinkedIn creator with a unique voice. Maintain this voice strictly.";
+    const customContract = buildPersonaContractInstructions(getPersonaContract(persona, "draft"));
+    finalSystemInstruction = `${customContract}\n\nYou are a LinkedIn creator with a unique voice. Maintain this voice strictly.`;
   }
 
   const basePrompt = constructUserPrompt(input, signals);
@@ -255,6 +302,7 @@ export async function generateContent(
         const parsedRaw = JSON.parse(cleanedContent);
         const parsed = parseAIResponse(parsedRaw);
         parsed.ragConcepts = ragConcepts;
+        parsed.citations = citations as any;
 
         console.log("📝 Running Adversarial Refinement Loop...");
         parsed.textPost = await optimizeContent(parsed.textPost, apiKey);
@@ -274,7 +322,10 @@ export async function generateContent(
           return { ...parsed, textPost: `[CONSTRAINT FAILED] ${parsed.textPost}` };
         }
       } catch (e: any) {
-        if (isRateLimitError(e)) return null;
+        if (isRateLimitError(e)) {
+          lastRateLimitError = e;
+          return null;
+        }
         if (attempts > MAX_ATTEMPTS) throw e;
         await new Promise(r => setTimeout(r, 1000)); // Delay before retry
       }
@@ -291,7 +342,18 @@ export async function generateContent(
   }
   
   if (result) return result;
-  throw new Error("AI Generation failed after fallback.");
+  
+  if (lastRateLimitError) {
+    console.warn(`[AI Service] ${getErrorMessage(lastRateLimitError)} Returning resilience fallback draft.`);
+    const fallback = buildResilienceFallbackAssets(input, persona?.name || "Strategist", ragConcepts);
+    return {
+        ...fallback,
+        _resilienceActive: true,
+        _error: getErrorMessage(lastRateLimitError)
+    } as any;
+  }
+  
+  throw new Error(`AI Architecture failed: ${getErrorMessage(lastRateLimitError || "Internal Logic Error")}`);
 }
 
 /**
@@ -382,7 +444,7 @@ export async function generateComment(
     const modelName = AI_CONFIG.fallbackModel;
 
     const persona = PERSONAS[personaId];
-    const personaContext = persona?.basePrompt || "";
+    const personaContext = constructSystemInstruction(persona, "", [], "comment");
 
     let prompt: string;
     
@@ -424,6 +486,10 @@ ${options.relatedSignals.map((s: any) => `- ${s.title} (${s.source}): ${s.snippe
         });
         return result.text || "Error: No response";
     } catch (e) {
+        if (isRateLimitError(e)) {
+            console.warn(`[Comment] ${getErrorMessage(e)} Returning fallback comment.`);
+            return buildFallbackComment(postContent, tone, persona?.name || "Strategist");
+        }
         console.error("Comment generation failed:", e);
         return "Error generating comment. Please try again.";
     }

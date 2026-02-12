@@ -10,7 +10,7 @@ import { GoogleGenAI } from "@google/genai";
 import { 
     PersonaId, 
     PERSONAS, 
-    Persona 
+    Persona
 } from "../utils/personas";
 import { SectorId, SECTORS } from "../utils/sectors";
 import { createColleaguePersona } from "../utils/colleague-persona";
@@ -23,6 +23,11 @@ import { PlatformAdapter } from "../utils/platforms/types";
 import { stitchService } from "../utils/stitch-service";
 import { moltbookService } from "../utils/moltbook-service";
 import { constructEnrichedPrompt } from "../utils/prompt-builder";
+import { AI_CONFIG } from "../utils/config";
+import { resolveApiKeys, resolveGeminiKey } from "../utils/server-api-keys";
+import { buildPersonaContractInstructions, getPersonaContract } from "../utils/persona-contract";
+import { evaluateContentQuality, summarizeQualityFailures } from "../utils/content-quality";
+import { getErrorMessage, isRateLimitError } from "../utils/gemini-errors";
 
 // Helper to sanitize filename
 function sanitizeFilename(text: string): string {
@@ -85,10 +90,37 @@ export async function generateCommentAction(
 
 
 
+
 export async function generateHooksAction(topic: string, apiKey: string) {
     if (!apiKey) throw new Error("API Key required");
     const { generateAlternativeHooks } = await import("../utils/virality-scorer");
-    return await generateAlternativeHooks(topic, "Current hook placeholder", apiKey); // Note: We might need to pass current hook if available, or just topic
+    return await generateAlternativeHooks(topic, "Current hook placeholder", apiKey);
+}
+
+// Phase 25: Video Architect Integration
+export async function generateVideoScriptAction(
+    content: string, 
+    apiKey: string, 
+    platform: "linkedin" | "tiktok" | "youtube" = "linkedin"
+) {
+    if (!apiKey) throw new Error("API Key required");
+    const { generateVideoScript } = await import("../utils/video-service");
+    
+    try {
+        const script = await generateVideoScript(content, platform, apiKey);
+        return {
+            success: true,
+            data: script
+        };
+    } catch (error) {
+        console.error("[Video Action] Failed:", error);
+        return {
+            success: false,
+            error: getErrorMessage(error),
+            isRateLimit: isRateLimitError(error),
+            retryPath: isRateLimitError(error) ? "Queue / Mastermind" : undefined
+        };
+    }
 }
 
 // Phase 24: Virality Engine V2
@@ -140,6 +172,146 @@ export async function refineAuthorityAction(
 
     const refined = await generateContent(refinementPrompt, apiKey);
     return refined;
+}
+
+/**
+ * PERSONA REVISION ACTION
+ * Rewrites an existing draft to match the selected persona voice while preserving meaning.
+ */
+export async function reviseWithPersonaAction(
+    text: string,
+    apiKey: string,
+    personaId: PersonaId,
+    instruction?: string,
+    options?: {
+        customPersona?: Partial<Persona>;
+        preserveFacts?: boolean;
+        platform?: "linkedin" | "twitter";
+    }
+): Promise<string> {
+    if (!text.trim()) throw new Error("Draft is empty");
+
+    const resolvedApiKey = await resolveGeminiKey(apiKey);
+    if (!resolvedApiKey) throw new Error("API Key required");
+
+    const persona = options?.customPersona || PERSONAS[personaId] || PERSONAS.cso;
+    if (resolvedApiKey.toLowerCase().trim() === "demo") {
+        return applyAntiRobotFilter(text).trim();
+    }
+
+    const userInstruction = instruction?.trim() || "Tighten clarity, authority, and flow while preserving core claims.";
+    const personaContract = buildPersonaContractInstructions(
+        getPersonaContract(persona as Persona, "revise"),
+        { preserveFacts: options?.preserveFacts !== false }
+    );
+    const systemInstruction = `${personaContract}\n\n${persona.basePrompt || persona.systemPrompt || ""}\n\nOUTPUT: Plain text only. No JSON. No markdown fences.`;
+
+    const prompt = `
+You are revising an existing draft in the exact voice of "${persona.name}".
+
+Revision objective:
+${userInstruction}
+
+Non-negotiables:
+1. Preserve original meaning and factual claims.
+2. Improve rhythm, readability, and conviction.
+3. Keep platform-ready short paragraphs.
+4. Do not add disclaimers or meta commentary.
+
+Original draft:
+"""${text}"""
+
+Return only the revised draft text.
+`.trim();
+
+    const genAI = new GoogleGenAI({ apiKey: resolvedApiKey });
+    const modelName = personaId === "custom" && persona.geminiModelId
+        ? persona.geminiModelId
+        : AI_CONFIG.staticPrimaryModel;
+    const buildRateLimitRevision = () => `${persona.name} take:\n\n${applyAntiRobotFilter(text).trim()}\n\nKeep the argument outcome-driven: define one measurable objective, compress decision latency, and communicate the expected commercial impact in plain language.\n\nThat framing preserves the claim while making the message more executive-ready.`;
+    let usedRateLimitFallback = false;
+    let revised = "";
+    try {
+        const result = await genAI.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+                systemInstruction,
+                responseMimeType: "text/plain",
+            }
+        });
+        revised = applyAntiRobotFilter((result.text || "").trim());
+    } catch (error) {
+        if (!isRateLimitError(error)) throw error;
+        console.warn(`[Persona Revision] ${getErrorMessage(error)} Falling back to structured cleanup.`);
+        revised = buildRateLimitRevision();
+        usedRateLimitFallback = true;
+    }
+
+    if (!revised) {
+        throw new Error("No revised text generated.");
+    }
+
+    const platform = options?.platform || "linkedin";
+    const initialReport = evaluateContentQuality({
+        content: revised,
+        sourceText: options?.preserveFacts !== false ? text : undefined,
+        persona: persona as Persona,
+        platform,
+        mode: "revise",
+    });
+
+    if (initialReport.pass) {
+        return revised;
+    }
+
+    const repairPrompt = `
+The revised draft failed quality gates.
+
+Failed checks:
+${initialReport.reasons.map((reason, index) => `${index + 1}. ${reason}`).join("\n")}
+
+Original draft:
+"""${text}"""
+
+Current revision:
+"""${revised}"""
+
+Rewrite now to satisfy every failed check while preserving the intent.
+Return only final revised text.
+`.trim();
+
+    let repaired = "";
+    try {
+        const repairedResult = await genAI.models.generateContent({
+            model: modelName,
+            contents: repairPrompt,
+            config: {
+                systemInstruction,
+                responseMimeType: "text/plain",
+            }
+        });
+        repaired = applyAntiRobotFilter((repairedResult.text || "").trim());
+    } catch (error) {
+        if (!isRateLimitError(error)) throw error;
+        console.warn(`[Persona Revision] ${getErrorMessage(error)} Returning first-pass revision.`);
+        repaired = revised;
+        usedRateLimitFallback = true;
+    }
+
+    const repairedReport = evaluateContentQuality({
+        content: repaired,
+        sourceText: options?.preserveFacts !== false ? text : undefined,
+        persona: persona as Persona,
+        platform,
+        mode: "revise",
+    });
+
+    if (!repairedReport.pass && !usedRateLimitFallback) {
+        throw new Error(`Revision quality gate failed: ${summarizeQualityFailures(repairedReport)}`);
+    }
+
+    return repaired;
 }
 
 /**
@@ -235,19 +407,38 @@ export async function processInput(
   isReplyMode: boolean = false
 ): Promise<GeneratedAssets> { // GeneratedAssets is { textPost, imagePrompt, videoScript, imageUrl? }
   if (!input) throw new Error("Input required");
-  if (!apiKeys.gemini) throw new Error("Gemini API Key required");
+
+  const resolvedApiKeys = await resolveApiKeys(apiKeys);
+  const geminiKey = (resolvedApiKeys?.gemini || "").trim();
+
+  if (!geminiKey) throw new Error("Gemini API Key required");
+
+  // Demo mode should be deterministic, fast, and offline.
+  if (geminiKey.toLowerCase() === "demo") {
+    return {
+      textPost: `[DEMO MODE]\n\nHere is a generated post about: ${input}\n\nShip the loop, not the theater.\n- Persist drafts\n- Publish idempotently\n- Show citations\n`,
+      imagePrompt: "",
+      videoScript: "",
+      citations: [
+        {
+          id: "demo:web:example",
+          source: "web",
+          title: "Example Source",
+          url: "https://example.com",
+          chunkIndex: 0,
+        },
+      ],
+    };
+  }
 
   // Select Adapter
   const adapter: PlatformAdapter = platform === "twitter" ? TwitterAdapter : LinkedInAdapter;
-
-  // Sanitize key
-  const geminiKey = apiKeys.gemini.trim();
 
   // 1. Construct Prompt (Refactored)
   // For Server Action (Legacy): We can't easily access localStorage.
   // We'll skip few-shot unless we refactor processInput to accept it too.
   // For now, passing empty string to fix the crash.
-  const { prompt: enrichedInput, mode } = await constructEnrichedPrompt(
+  const { prompt: enrichedInput, mode, citations } = await constructEnrichedPrompt(
       input, 
       geminiKey, 
       personaId, 
@@ -311,7 +502,8 @@ export async function processInput(
   const finalAssets = {
     ...rawAssets,
     textPost: processedText,
-    imageUrl // Return the URL (or empty string)
+    imageUrl, // Return the URL (or empty string)
+    ...(Array.isArray(citations) && citations.length ? { citations } : {}),
   };
 
   // 4. Save to Filesystem
@@ -420,7 +612,7 @@ export async function synthesizeVoiceDNAAction(trainingPosts: string[], apiKey: 
 
     try {
         const result = await genAI.models.generateContent({
-            model: "models/gemini-2.0-flash-exp", // or "gemini-2.0-flash"
+            model: AI_CONFIG.staticPrimaryModel,
             contents: analysisPrompt
         });
         
@@ -474,7 +666,12 @@ export async function processInputAgentic(
   const { onResearchProgress, onCouncilProgress, viralityThreshold = 75, maxIterations = 3 } = options;
   
   if (!topic) throw new Error("Topic required for agentic mode");
-  if (!apiKeys.gemini) throw new Error("Gemini API Key required");
+
+  const resolvedApiKeys = await resolveApiKeys(apiKeys);
+  const geminiKey = (resolvedApiKeys?.gemini || "").trim();
+  const serperKey = (resolvedApiKeys?.serper || apiKeys?.serper || "").trim();
+
+  if (!geminiKey) throw new Error("Gemini API Key required");
 
   console.log(`[Agentic Mode] Starting autonomous workflow for: "${topic}"`);
   const startTime = Date.now();
@@ -483,7 +680,7 @@ export async function processInputAgentic(
   console.log("[Agentic Mode] Phase 1: Deep Research...");
   const researchBrief = await runDeepResearch(
     topic,
-    { gemini: apiKeys.gemini, serper: apiKeys.serper },
+    { gemini: geminiKey, serper: serperKey },
     onResearchProgress
   );
   
@@ -497,7 +694,7 @@ export async function processInputAgentic(
   console.log("[Agentic Mode] Phase 2: Autonomous Council...");
   const councilResult = await runAutonomousCouncil(
     enrichedTopic,
-    apiKeys.gemini,
+    geminiKey,
     {
       threshold: viralityThreshold,
       maxIterations: maxIterations,

@@ -93,8 +93,9 @@ export default function GhostAgentDashboard({ apiKey, isOpen, onClose, onLoadDra
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 25 }}
-        className="relative ml-auto w-full max-w-4xl bg-[#0A0A0A] border-l border-white/10 h-full overflow-hidden flex"
+        className="relative ml-auto w-full max-w-4xl bg-black/40 backdrop-blur-3xl border-l border-white/10 h-full overflow-hidden flex shadow-[0_0_100px_rgba(0,0,0,0.8)]"
       >
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-pink-500/5 pointer-events-none" />
         {/* Left: Settings & Draft List */}
         <div className="w-1/3 border-r border-white/10 flex flex-col">
           <div className="p-4 border-b border-white/10 bg-white/5 space-y-4">
@@ -127,25 +128,40 @@ export default function GhostAgentDashboard({ apiKey, isOpen, onClose, onLoadDra
             <button
               onClick={handleHunt}
               disabled={isHunting}
-              className={`w-full py-3 rounded-lg flex items-center justify-center gap-2 font-bold text-sm transition-all ${
+              className={`w-full py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm transition-all relative overflow-hidden ${
                 isHunting 
-                  ? 'bg-white/5 text-neutral-500 cursor-wait'
-                  : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:shadow-lg hover:shadow-purple-500/25'
+                  ? 'bg-white/5 text-neutral-500 cursor-wait border border-white/5'
+                  : 'bg-white/5 text-white hover:bg-white/10 border border-white/10 shadow-[0_4px_24px_rgba(124,58,237,0.1)]'
               }`}
             >
+              {isHunting && (
+                <motion.div 
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/20 to-transparent"
+                    animate={{ x: ['-100%', '100%'] }}
+                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                />
+              )}
               {isHunting ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  HUNTING...
+                  ANALYZING...
                 </>
               ) : (
                 <>
-                  <Zap className="w-4 h-4" />
-                  EXECUTE
+                  <Zap className="w-4 h-4 text-purple-400" />
+                  INITIATE HUNT
                 </>
               )}
             </button>
-            {isHunting && <p className="text-[10px] font-mono text-purple-400 text-center animate-pulse">{huntLog}</p>}
+            {isHunting && (
+                <motion.p 
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-[10px] font-mono text-purple-400 text-center uppercase tracking-widest mt-2"
+                >
+                    {huntLog}
+                </motion.p>
+            )}
           </div>
           
           <div className="flex-1 overflow-y-auto">
@@ -176,37 +192,48 @@ export default function GhostAgentDashboard({ apiKey, isOpen, onClose, onLoadDra
               </div>
             ) : (
               <div className="divide-y divide-white/5">
-                {drafts.filter(d => d.status !== 'discarded').map(draft => (
-                  <button
-                    key={draft.id}
-                    onClick={() => setSelectedDraft(draft)}
-                    className={`w-full p-4 text-left hover:bg-white/5 transition-colors ${
-                      selectedDraft?.id === draft.id ? 'bg-white/10' : ''
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{draft.trend}</p>
-                        <p className="text-xs text-neutral-500 mt-0.5">{draft.topic}</p>
-                      </div>
-                      <div className={`text-xs font-mono font-bold ${getScoreColor(draft.viralityScore)}`}>
-                        {draft.viralityScore}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      {draft.status === 'scheduled' && (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400 font-bold flex items-center gap-1">
-                          <Calendar className="w-3 h-3" /> SCHEDULED
-                        </span>
-                      )}
-                      {draft.status === 'unread' && (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold">
-                          NEW
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))}
+                <AnimatePresence mode="popLayout">
+                    {drafts.filter(d => d.status !== 'discarded').map((draft, index) => (
+                    <motion.button
+                        key={draft.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        onClick={() => setSelectedDraft(draft)}
+                        className={`w-full p-4 text-left hover:bg-white/5 transition-colors group relative ${
+                        selectedDraft?.id === draft.id ? 'bg-white/10' : ''
+                        }`}
+                    >
+                        {selectedDraft?.id === draft.id && (
+                            <motion.div 
+                                layoutId="activeDraft"
+                                className="absolute inset-y-0 left-0 w-1 bg-purple-500"
+                            />
+                        )}
+                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate group-hover:text-purple-300 transition-colors">{draft.trend}</p>
+                            <p className="text-[10px] uppercase tracking-wider text-neutral-500 mt-1 font-bold">{draft.topic}</p>
+                        </div>
+                        <div className={`text-xs font-mono font-bold ${getScoreColor(draft.viralityScore)}`}>
+                            {draft.viralityScore}
+                        </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                        {draft.status === 'scheduled' && (
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400 font-bold flex items-center gap-1 border border-green-500/10">
+                            <Calendar className="w-3 h-3" /> SCHEDULED
+                            </span>
+                        )}
+                        {draft.status === 'unread' && (
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold border border-blue-500/10">
+                            NEW
+                            </span>
+                        )}
+                        </div>
+                    </motion.button>
+                    ))}
+                </AnimatePresence>
               </div>
             )}
           </div>

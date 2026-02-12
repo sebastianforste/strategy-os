@@ -1,25 +1,33 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/utils/db";
+import { getStoredApiKeys } from "@/utils/server-api-keys";
 import { z } from "zod";
+import crypto from "crypto";
 
 import { authOptions } from "@/utils/auth";
-import { HttpError, jsonError, parseJson, rateLimit, requireSession } from "@/utils/request-guard";
+import { HttpError, jsonError, parseJson, rateLimit, requireSessionForRequest } from "@/utils/request-guard";
+import { chunkText } from "@/utils/text-chunker";
 
 export async function POST(request: Request) {
   try {
-    await requireSession(authOptions);
-    rateLimit({ key: `ingest`, limit: 60, windowMs: 60_000 });
+    const session = await requireSessionForRequest(request, authOptions);
+    await rateLimit({ key: `ingest:${session.user.id}`, limit: 60, windowMs: 60_000 });
 
     const { filename, metadata, content_summary } = await parseJson(
       request,
       z
         .object({
           filename: z.string().min(1).max(300),
-          metadata: z.object({}).passthrough(),
+          metadata: z.record(z.string(), z.unknown()),
           content_summary: z.string().max(20_000).optional(),
         })
         .strict(),
     );
+
+    const metaSize = JSON.stringify(metadata || {}).length;
+    if (metaSize > 50_000) {
+      throw new HttpError(400, "metadata too large");
+    }
 
     if (!filename || !metadata) {
       return NextResponse.json(
@@ -37,6 +45,7 @@ export async function POST(request: Request) {
         title: filename,
         type: "pdf", // Defaulting to PDF as this is an OCR tool ingestion
         url: `local://${filename}`, // Placeholder for local file reference
+        authorId: session.user.id,
         metadata: {
             ...metadata,
             content_summary
@@ -52,17 +61,41 @@ export async function POST(request: Request) {
     
     // Import dynamically to avoid build-time issues if module isn't present
     const { upsertResource } = await import("@/utils/vector-store");
-    
-    await upsertResource(
-        resource.id,
-        textToEmbed,
-        { 
-            title: filename, 
-            type: "pdf", 
-            summary: content_summary,
-            date: metadata.date || new Date().toISOString() 
-        }
-    );
+    const storedKeys = await getStoredApiKeys();
+    const geminiKey = (storedKeys?.gemini || "").trim();
+
+    if (geminiKey) {
+      const sha256 = crypto.createHash("sha256").update(textToEmbed).digest("hex");
+      const extractedAt = new Date().toISOString();
+
+      const chunks = chunkText({
+        text: textToEmbed,
+        chunkSize: 1400,
+        overlap: 160,
+        maxChunks: 24,
+      });
+      for (const chunk of chunks) {
+        const chunkId = `pdf:${resource.id}:${sha256}:${chunk.index}`;
+        await upsertResource(
+          chunkId,
+          `${filename}\n${resource.url}\n\n[Chunk ${chunk.index + 1}/${chunks.length} ${chunk.start}-${chunk.end}]\n${chunk.text}`,
+          {
+            resourceId: resource.id,
+            sourceType: "pdf",
+            authorId: session.user.id,
+            teamId: null,
+            title: filename,
+            url: resource.url,
+            sha256,
+            extractedAt,
+            chunkIndex: chunk.index,
+            start: chunk.start,
+            end: chunk.end,
+          },
+          geminiKey,
+        );
+      }
+    }
 
     return NextResponse.json({ success: true, resource }, { status: 201 });
   } catch (error: any) {

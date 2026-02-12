@@ -1,30 +1,42 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText } from "ai";
 import { AI_CONFIG } from "../../../utils/config";
+import { resolveApiKeys } from "../../../utils/server-api-keys";
 import { z } from "zod";
 
 import { authOptions } from "@/utils/auth";
-import { HttpError, jsonError, parseJson, rateLimit, requireSession } from "@/utils/request-guard";
+import { HttpError, jsonError, parseJson, rateLimit, requireSessionForRequest } from "@/utils/request-guard";
 
 export async function POST(req: Request) {
   try {
-    await requireSession(authOptions);
-    rateLimit({ key: "newsletter", limit: 20, windowMs: 60_000 });
+    const session = await requireSessionForRequest(req, authOptions);
+    await rateLimit({ key: `newsletter:${session.user.id}`, limit: 20, windowMs: 60_000 });
 
     const { prompt, apiKeys } = await parseJson(
       req,
       z
         .object({
           prompt: z.string().min(1).max(40_000),
-          apiKeys: z.object({ gemini: z.string().min(1).max(512) }).passthrough(),
+          apiKeys: z
+            .object({ gemini: z.string().min(1).max(512).optional(), serper: z.string().optional() })
+            .strict()
+            .optional(),
         })
         .strict(),
     );
 
     if (!prompt) return new Response("Prompt required", { status: 400 });
-    if (!apiKeys?.gemini) return new Response("Gemini API Key required", { status: 400 });
 
-    const google = createGoogleGenerativeAI({ apiKey: apiKeys.gemini });
+    const resolved = await resolveApiKeys(apiKeys);
+    const geminiKey = (resolved?.gemini || "").trim();
+    if (!geminiKey) return new Response("Gemini API Key required", { status: 400 });
+
+    if (geminiKey.toLowerCase() === "demo") {
+      const mock = `# Executive Summary\n\n[DEMO MODE]\n\n- Key decision: standardize inputs and measure outcomes.\n- Risk: shipping without idempotency.\n\n## Action Items\n- Tighten the pipeline.\n- Add telemetry.\n`;
+      return new Response(mock, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    }
+
+    const google = createGoogleGenerativeAI({ apiKey: geminiKey });
     const model = AI_CONFIG.primaryModel;
 
     const systemInstruction = `

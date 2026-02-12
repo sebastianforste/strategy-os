@@ -87,6 +87,7 @@ export interface CommandCenterHelperProps {
   onToggleRadar?: (enabled: boolean) => void;
   onTriggerAutonomousDraft?: () => void;
   onOpenIdeaFactory?: () => void;
+  outputSlot?: React.ReactNode;
   children?: React.ReactNode;
   mode: 'post' | 'reply';
   setMode: (mode: 'post' | 'reply') => void;
@@ -134,6 +135,7 @@ export default function CommandCenterLayout({
   onTriggerAutonomousDraft,
   assets,
   onOpenIdeaFactory,
+  outputSlot,
   children,
   mode,
   setMode,
@@ -461,42 +463,8 @@ export default function CommandCenterLayout({
          </div>
       </div>
 
-        {/* TERMINAL OUTPUT SECTION */}
-        {(completion || phaseLogs.length > 0 || isGenerating) && (
-          <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <div className="flex items-center gap-2 px-1">
-                <Terminal className="w-3.5 h-3.5 text-white/30" />
-                <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">System Output</span>
-             </div>
-                          <div className="rounded-xl bg-black/60 border border-white/10 p-5 font-mono text-sm shadow-inner relative overflow-hidden group/terminal">
-                {/* Scanline effect */}
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(124,58,237,0.06),rgba(0,255,0,0.02),rgba(124,58,237,0.06))] z-[1] pointer-events-none bg-[length:100%_4px,6px_100%] opacity-50"></div>
-                
-                <div ref={outputRef} className="max-h-[400px] overflow-y-auto pr-2 custom-scrollbar relative z-10 space-y-3">
-                   
-                   {/* Phase Logs */}
-                   {phaseLogs.map((log, i) => (
-                      <div key={i} className="text-white/50 text-xs flex gap-2">
-                        <span className="text-brand-500/50">›</span>
-                        {log}
-                      </div>
-                   ))}
-
-                   {/* Main Completion */}
-                   {completion && (
-                     <div className="text-white/90 whitespace-pre-wrap leading-relaxed">
-                        {completion}
-                     </div>
-                   )}
-
-                   {/* Pulsing Cursor */}
-                   {isGenerating && (
-                     <span className="inline-block w-2 h-4 bg-brand-500 animate-pulse ml-1 align-middle"></span>
-                   )}
-                </div>
-             </div>
-          </div>
-        )}
+        {/* TERMINAL OUTPUT SLOT (Standardized Phase 2) */}
+        {outputSlot}
 
       </main>
 

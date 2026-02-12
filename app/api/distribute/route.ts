@@ -1,330 +1,188 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { prisma } from "../../../utils/db";
-import { getCurrentUserProfile, createPost, createPostWithImage } from "../../../utils/linkedin-api-v2";
-import { moltbookService } from "../../../utils/moltbook-service";
 import { z } from "zod";
+import crypto from "crypto";
 
+import { prisma } from "@/utils/db";
 import { authOptions } from "@/utils/auth";
-import { HttpError, jsonError, parseJson, rateLimit, requireSession } from "@/utils/request-guard";
+import { HttpError, jsonError, parseJson, rateLimit, requireSessionForRequest } from "@/utils/request-guard";
+import { publishStrategy } from "@/utils/publish-engine";
+import { moltbookService } from "@/utils/moltbook-service";
 
-/**
- * API DISTRIBUTE ROUTE - Ghost Protocol
- * -------------------------------------
- * Handles the actual API requests to social platforms.
- */
+const DistributeSchema = z
+  .object({
+    platform: z.enum(["linkedin", "twitter", "x", "substack", "discord", "slack", "moltbook"]),
+    content: z.string().min(1).max(40_000),
+    imageUrl: z.string().max(2048).optional(),
+    persona: z.string().max(64).optional(),
+    title: z.string().max(200).optional(),
+    strategyId: z.string().max(64).optional(),
+    idempotencyKey: z.string().max(200).optional(),
+  })
+  .strict();
 
 export async function POST(req: Request) {
-    try {
-        await requireSession(authOptions);
-        rateLimit({ key: "distribute", limit: 10, windowMs: 60_000 });
+  try {
+    const session = await requireSessionForRequest(req, authOptions);
+    await rateLimit({ key: `distribute:${session.user.id}`, limit: 10, windowMs: 60_000 });
 
-        const { platform, content, imageUrl, persona, title } = await parseJson(
-          req,
-          z
-            .object({
-              platform: z.string().min(1).max(32),
-              content: z.string().min(1).max(40_000),
-              imageUrl: z.string().max(2048).optional(),
-              persona: z.string().max(64).optional(),
-              title: z.string().max(200).optional(),
-            })
-            .strict(),
-        );
+    const body = await parseJson(req, DistributeSchema);
+    const requestId = req.headers.get("x-request-id");
+    const effectiveTitle = (body.title || "").trim() || body.content.slice(0, 80) || "Untitled Strategy";
 
-        if (!platform || !content) {
-            return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
-        }
+    // Strategy-linked, idempotent publishing (LinkedIn + X/Twitter).
+    if (body.platform === "linkedin" || body.platform === "twitter" || body.platform === "x") {
+      const isLinkedIn = body.platform === "linkedin";
 
-        // 1. Get authenticated session (Real Integration)
-        const session = await getServerSession(authOptions);
-        // Note: You might need to pass authOptions if not globally configured or import from your auth config file.
-        
-        let accessToken = process.env.LINKEDIN_ACCESS_TOKEN; // Fallback for dev
-        let user: any = null;
-
-        if (session?.user?.email) {
-             user = await prisma.user.findUnique({
-                where: { email: session.user.email },
-                include: { accounts: { where: { provider: "linkedin" } } }
-             });
-             
-             if (user?.accounts?.[0]?.access_token) {
-                 accessToken = user.accounts[0].access_token;
-             }
-        }
-
-        // 2. MOCK MODE (If secrets are missing AND no real token found)
-        if (platform === 'linkedin' && !accessToken && !process.env.LINKEDIN_CLIENT_SECRET) {
-            console.warn(`[API/Distribute] Missing LinkedIn credentials. Returning MOCK success.`);
-            await new Promise(r => setTimeout(r, 1500));
-            return NextResponse.json({
-                success: true,
-                platform,
-                postId: `mock-${Date.now()}`,
-                url: "https://www.linkedin.com/feed/",
-                message: "MOCK: Post distributed successfully via Ghost Protocol."
-            });
-        }
-
-        if (platform === 'linkedin' && accessToken) {
-            // REAL LINKEDIN PUBLISHING
-            const profile = await getCurrentUserProfile(accessToken);
-            if (!profile) {
-                return NextResponse.json({ success: false, error: "Failed to fetch LinkedIn profile" }, { status: 401 });
-            }
-
-            let result;
-            if (imageUrl) {
-                result = await createPostWithImage(accessToken, profile.personUrn, content, imageUrl);
-            } else {
-                result = await createPost(accessToken, profile.personUrn, content);
-            }
-
-            if (result.success) {
-                // PERSISTENCE: Save to database for analytics loop
-                if (user?.id) {
-                    try {
-                        await prisma.strategy.create({
-                             data: {
-                                 content,
-                                 platform: platform.toUpperCase() === 'TWITTER' ? 'TWITTER' : 'LINKEDIN',
-                                 authorId: user.id,
-                                 isPublished: true,
-                                 publishedAt: new Date(),
-                                 externalId: result.postId,
-                                 title: content.substring(0, 50) + "...",
-                                 mode: "ghost_protocol",
-                                 persona: persona || "cso"
-                             }
-                        });
-                        console.log(`[API/Distribute] Persisted strategy for ${user.email}`);
-                    } catch (dbError) {
-                         console.error("[API/Distribute] Failed to persist strategy:", dbError);
-                         // Don't fail the request if persistence fails, just log it
-                    }
-                }
-
-                return NextResponse.json({
-                    success: true,
-                    platform,
-                    postId: result.postId,
-                    url: `https://www.linkedin.com/feed/update/${result.postId}`,
-                    message: "Published successfully to LinkedIn."
-                });
-            } else {
-                return NextResponse.json({ success: false, error: result.error }, { status: 500 });
-            }
-        }
-
-        // 3. TWITTER / X PUBLISHING
-        if (platform === 'twitter') {
-            // Find Twitter account for authenticated user
-            let twitterToken = process.env.TWITTER_ACCESS_TOKEN; // Fallback for dev
-            
-            if (session?.user?.email) {
-                const twitterUser = await prisma.user.findUnique({
-                    where: { email: session.user.email },
-                    include: { accounts: { where: { provider: "twitter" } } }
-                });
-                
-                if (twitterUser?.accounts?.[0]?.access_token) {
-                    twitterToken = twitterUser.accounts[0].access_token;
-                    user = twitterUser; // Set for persistence
-                }
-            }
-            
-            // MOCK MODE if no credentials
-            if (!twitterToken && !process.env.TWITTER_CLIENT_SECRET) {
-                console.warn(`[API/Distribute] Missing Twitter credentials. Returning MOCK success.`);
-                await new Promise(r => setTimeout(r, 1000));
-                return NextResponse.json({
-                    success: true,
-                    platform,
-                    postId: `mock-tw-${Date.now()}`,
-                    url: "https://x.com/home",
-                    message: "MOCK: Distributed successfully to X (no credentials)."
-                });
-            }
-            
-            if (twitterToken) {
-                // Import Twitter API dynamically
-                const { postTweet, postThread } = await import("../../../utils/twitter-api");
-                
-                // Check if content is a thread (multiple paragraphs)
-                const tweets = content.split("\n\n").filter((t: string) => t.trim().length > 0);
-                
-                let result;
-                if (tweets.length > 1 && tweets.every((t: string) => t.length <= 280)) {
-                    // Post as thread
-                    result = await postThread(twitterToken, tweets);
-                    if (result.success) {
-                        // Persist to database
-                        if (user?.id) {
-                            try {
-                                await prisma.strategy.create({
-                                    data: {
-                                        content,
-                                        platform: 'TWITTER',
-                                        authorId: user.id,
-                                        isPublished: true,
-                                        publishedAt: new Date(),
-                                        externalId: result.tweetIds[0],
-                                        title: content.substring(0, 50) + "...",
-                                        mode: "ghost_protocol",
-                                        persona: persona || "cso"
-                                    }
-                                });
-                            } catch (dbError) {
-                                console.error("[API/Distribute] Failed to persist Twitter strategy:", dbError);
-                            }
-                        }
-                        
-                        return NextResponse.json({
-                            success: true,
-                            platform,
-                            postId: result.tweetIds[0],
-                            url: `https://x.com/i/status/${result.tweetIds[0]}`,
-                            message: `Published thread (${result.tweetIds.length} tweets) to X.`
-                        });
-                    }
-                } else {
-                    // Post as single tweet (truncate if needed)
-                    const tweetContent = content.length > 280 ? content.substring(0, 277) + "..." : content;
-                    result = await postTweet(twitterToken, tweetContent);
-                    
-                    if (result.success) {
-                        if (user?.id) {
-                            try {
-                                await prisma.strategy.create({
-                                    data: {
-                                        content,
-                                        platform: 'TWITTER',
-                                        authorId: user.id,
-                                        isPublished: true,
-                                        publishedAt: new Date(),
-                                        externalId: result.tweetId,
-                                        title: content.substring(0, 50) + "...",
-                                        mode: "ghost_protocol",
-                                        persona: persona || "cso"
-                                    }
-                                });
-                            } catch (dbError) {
-                                console.error("[API/Distribute] Failed to persist Twitter strategy:", dbError);
-                            }
-                        }
-                        
-                        return NextResponse.json({
-                            success: true,
-                            platform,
-                            postId: result.tweetId,
-                            url: `https://x.com/i/status/${result.tweetId}`,
-                            message: "Published successfully to X."
-                        });
-                    }
-                }
-                
-                return NextResponse.json({ success: false, error: result?.error || "Twitter post failed" }, { status: 500 });
-            }
-        }
-
-        // 4. DISCORD / SLACK WEBHOOKS
-        if (platform === 'discord' || platform === 'slack') {
-            const webhookUrl = platform === 'discord' 
-                ? process.env.DISCORD_WEBHOOK_URL 
-                : process.env.SLACK_WEBHOOK_URL;
-
-            // MOCK MODE if no webhook configured
-            if (!webhookUrl) {
-                console.warn(`[API/Distribute] Missing ${platform.toUpperCase()} webhook. Returning MOCK success.`);
-                await new Promise(r => setTimeout(r, 800));
-                return NextResponse.json({
-                    success: true,
-                    platform,
-                    postId: `mock-webhook-${Date.now()}`,
-                    message: `MOCK: Content sent to ${platform} (no webhook configured).`
-                });
-            }
-
-            try {
-                const messagePayload = platform === 'slack' 
-                    ? { text: `*StrategyOS Distribution*\n\n${content}` }
-                    : { 
-                        content: `**StrategyOS Distribution**\n\n${content}`,
-                        embeds: imageUrl ? [{ image: { url: imageUrl } }] : []
-                      };
-
-                const response = await fetch(webhookUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(messagePayload)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`${platform.toUpperCase()} webhook returned ${response.status}`);
-                }
-
-                return NextResponse.json({
-                    success: true,
-                    platform,
-                    postId: `hook-${Date.now()}`,
-                    message: `Successfully pushed to ${platform}.`
-                });
-            } catch (hookError) {
-                console.error(`[API/Distribute] ${platform} webhook failed:`, hookError);
-                return NextResponse.json({ success: false, error: `${platform} webhook failed` }, { status: 500 });
-            }
-        }
-
-        // 5. MOLTBOOK PUBLISHING
-        if (platform === 'moltbook') {
-            const submolt = "strategy"; // Default
-            try {
-                const result = await moltbookService.postToMoltbook(content, submolt);
-                if (result.success) {
-                    return NextResponse.json({
-                        success: true,
-                        platform,
-                        postId: result.data?.id || `molt-${Date.now()}`,
-                        url: result.data?.id ? `https://www.moltbook.com/post/${result.data.id}` : "https://www.moltbook.com",
-                        message: "Published successfully to Moltbook."
-                    });
-                } else {
-                    return NextResponse.json({ success: false, error: result.error || "Moltbook post failed" }, { status: 500 });
-                }
-            } catch (moltError: any) {
-                console.error("[API/Distribute] Moltbook failed:", moltError);
-                return NextResponse.json({ success: false, error: moltError.message }, { status: 500 });
-            }
-        }
-
-        // 6. SUBSTACK (FALLTHROUGH TO MOCK FOR NOW)
-        if (platform === 'substack') {
-            await new Promise(r => setTimeout(r, 600));
-            return NextResponse.json({
-                success: true,
-                platform,
-                postId: `mock-subs-${Date.now()}`,
-                message: "Substack draft simulated. Use 'Copy for Substack' in the UI for optimal results."
-            });
-        }
-
-        return NextResponse.json({
-            success: true,
-            platform,
-            postId: `post-${Date.now()}`,
-            url: platform === 'linkedin' ? "https://www.linkedin.com/feed/" : platform === 'twitter' ? "https://x.com/home" : undefined,
-            message: "Distributed successfully (Fallthrough Mock)."
+      let strategyId = (body.strategyId || "").trim();
+      if (!strategyId) {
+        // Best-effort reuse to avoid duplicates on retries/double-clicks.
+        const existing = await prisma.strategy.findFirst({
+          where: {
+            authorId: session.user.id,
+            isPublished: false,
+            content: body.content,
+            platform: isLinkedIn ? "LINKEDIN" : "TWITTER",
+          },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
         });
 
-    } catch (e) {
-        if (e instanceof HttpError) {
-            return jsonError(e.status, e.message, e.code);
+        if (existing?.id) {
+          strategyId = existing.id;
+        } else {
+          const created = await prisma.strategy.create({
+            data: {
+              content: body.content,
+              title: effectiveTitle,
+              platform: isLinkedIn ? "LINKEDIN" : "TWITTER",
+              authorId: session.user.id,
+              isPublished: false,
+              mode: "ghost_protocol",
+              persona: body.persona || "cso",
+              input: body.content.slice(0, 200),
+              assets: {},
+            },
+            select: { id: true },
+          });
+          strategyId = created.id;
         }
-        console.error("[API/Distribute] Error:", e);
-        return NextResponse.json({ 
-            success: false, 
-            error: e instanceof Error ? e.message : "Distribution server error" 
-        }, { status: 500 });
+      }
+
+      const derivedKey = `publish:${strategyId}:${isLinkedIn ? "LINKEDIN" : "TWITTER"}:${crypto
+        .createHash("sha256")
+        .update(body.content)
+        .digest("hex")
+        .slice(0, 16)}`;
+
+      const result = await publishStrategy({
+        strategyId,
+        platform: isLinkedIn ? "LINKEDIN" : "TWITTER",
+        userId: session.user.id,
+        content: body.content,
+        imageUrl: body.imageUrl,
+        requestId,
+        idempotencyKey: body.idempotencyKey || derivedKey,
+      });
+
+      if (result.status === "in_progress") {
+        return NextResponse.json(
+          { success: false, error: "Publish in progress. Please retry shortly.", strategyId },
+          { status: 409 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        platform: body.platform,
+        strategyId,
+        postId: result.externalId,
+        url: result.url,
+        message: result.status === "already_published" ? "Already published." : "Published successfully.",
+      });
     }
+
+    // Webhooks (no strategy persistence).
+    if (body.platform === "discord" || body.platform === "slack") {
+      const webhookUrl =
+        body.platform === "discord" ? process.env.DISCORD_WEBHOOK_URL : process.env.SLACK_WEBHOOK_URL;
+
+      if (!webhookUrl) {
+        return NextResponse.json(
+          {
+            success: true,
+            platform: body.platform,
+            postId: `mock-webhook-${Date.now()}`,
+            message: `MOCK: Content sent to ${body.platform} (no webhook configured).`,
+          },
+          { status: 200 },
+        );
+      }
+
+      const messagePayload =
+        body.platform === "slack"
+          ? { text: `*StrategyOS Distribution*\n\n${body.content}` }
+          : {
+              content: `**StrategyOS Distribution**\n\n${body.content}`,
+              embeds: body.imageUrl ? [{ image: { url: body.imageUrl } }] : [],
+            };
+
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(messagePayload),
+      });
+
+      if (!response.ok) {
+        return NextResponse.json(
+          { success: false, error: `${body.platform.toUpperCase()} webhook returned ${response.status}` },
+          { status: 502 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        platform: body.platform,
+        postId: `hook-${Date.now()}`,
+        message: `Successfully pushed to ${body.platform}.`,
+      });
+    }
+
+    // Moltbook (no strategy persistence yet).
+    if (body.platform === "moltbook") {
+      const submolt = "strategy";
+      const result = await moltbookService.postToMoltbook(body.content, submolt);
+      if (!result.success) {
+        return NextResponse.json({ success: false, error: result.error || "Moltbook post failed" }, { status: 502 });
+      }
+      const id = result.data?.id || `molt-${Date.now()}`;
+      return NextResponse.json({
+        success: true,
+        platform: body.platform,
+        postId: id,
+        url: result.data?.id ? `https://www.moltbook.com/post/${result.data.id}` : "https://www.moltbook.com",
+        message: "Published successfully to Moltbook.",
+      });
+    }
+
+    // Substack is mock for now.
+    if (body.platform === "substack") {
+      await new Promise((r) => setTimeout(r, 250));
+      return NextResponse.json({
+        success: true,
+        platform: body.platform,
+        postId: `mock-subs-${Date.now()}`,
+        message: "Substack draft simulated. Use 'Copy for Substack' in the UI for optimal results.",
+      });
+    }
+
+    return NextResponse.json({ success: false, error: "Unsupported platform" }, { status: 400 });
+  } catch (e) {
+    if (e instanceof HttpError) {
+      return jsonError(e.status, e.message, e.code);
+    }
+    return NextResponse.json(
+      { success: false, error: e instanceof Error ? e.message : "Distribution server error" },
+      { status: 500 },
+    );
+  }
 }

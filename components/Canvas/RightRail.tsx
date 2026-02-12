@@ -5,13 +5,15 @@ import { motion } from "framer-motion";
 import { Clock3, Rocket, ShieldCheck } from "lucide-react";
 import { IntentState } from "@/utils/intent-engine";
 import { getAuditLogs, AuditEntry } from "@/utils/audit-service";
+import type { Citation } from "@/utils/citations";
 
 interface RightRailProps {
   content: string;
   intentState: IntentState;
+  citations?: Citation[];
 }
 
-export function RightRail({ content, intentState }: RightRailProps) {
+export function RightRail({ content, intentState, citations = [] }: RightRailProps) {
   const [logs, setLogs] = React.useState<AuditEntry[]>([]);
 
   const fetchLogs = async () => {
@@ -32,10 +34,10 @@ export function RightRail({ content, intentState }: RightRailProps) {
   const latest = logs[0];
 
   return (
-    <aside className="h-full w-full overflow-hidden rounded-3xl border border-white/10 bg-[rgba(15,18,24,0.78)] backdrop-blur-2xl">
+    <aside className="h-full w-full overflow-hidden rounded-3xl border border-[var(--stitch-border,#24282D)]/70 bg-[rgba(15,18,24,0.78)] backdrop-blur-2xl">
       <div className="flex h-full flex-col">
         <div className="border-b border-white/10 px-5 py-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/60">Audit</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--stitch-text-secondary,#8A8D91)]">Audit</p>
           <h3 className="mt-1 text-lg font-semibold text-white">Runtime Telemetry</h3>
         </div>
 
@@ -49,14 +51,47 @@ export function RightRail({ content, intentState }: RightRailProps) {
         </div>
 
         <div className="border-b border-white/10 px-4 py-3">
-          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+            <div className="rounded-xl border border-[var(--stitch-border,#24282D)]/60 bg-black/20 px-3 py-2">
             <p className="text-[10px] uppercase tracking-[0.18em] text-white/60">Latest Action</p>
-            <p className="mt-1 text-xs font-semibold text-white">{latest?.action || "No activity yet"}</p>
-            <p className="mt-1 line-clamp-2 text-[11px] text-white/60">
+              <p className="mt-1 text-xs font-semibold text-white">{latest?.action || "No activity yet"}</p>
+            <p className="mt-1 line-clamp-2 text-[11px] text-[var(--stitch-text-secondary,#8A8D91)]">
               {latest?.output || "Generate, polish, and publish events will stream here."}
             </p>
           </div>
         </div>
+
+        {citations.length > 0 && (
+          <div className="border-b border-white/10 px-4 py-3">
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Sources Used</p>
+              <div className="mt-2 space-y-2">
+                {citations.slice(0, 10).map((c, idx) => {
+                  const label = (c.title || c.url || c.id).toString();
+                  return (
+                    <div key={`${c.id}-${idx}`} className="text-[11px] text-white/70">
+                      <div className="text-[10px] font-mono uppercase tracking-[0.14em] text-white/45">
+                        {c.source}
+                        {typeof c.chunkIndex === "number" ? ` • chunk ${c.chunkIndex + 1}` : ""}
+                      </div>
+                      {c.url ? (
+                        <a
+                          href={c.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-emerald-200 hover:text-white underline underline-offset-4 break-words"
+                        >
+                          {label}
+                        </a>
+                      ) : (
+                        <div className="text-emerald-200 break-words">{label}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
           {logs.length > 0 ? (
@@ -76,9 +111,9 @@ export function RightRail({ content, intentState }: RightRailProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
-              <span className="text-[10px] uppercase tracking-[0.2em] text-white/70">Synchronized</span>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--stitch-text-secondary,#8A8D91)]">Synchronized</span>
             </div>
-            <span className="text-[10px] text-white/50">v13.0</span>
+            <span className="text-[10px] text-[var(--stitch-text-secondary,#8A8D91)]">v13.0</span>
           </div>
           <p className="mt-2 line-clamp-1 text-[10px] text-white/50">
             Draft length: {Math.max(0, content.trim().length)} characters

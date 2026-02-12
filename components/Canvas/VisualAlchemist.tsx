@@ -3,7 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Layers, ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
-import theme from '../../theme.json';
+import rawTheme from '../../theme.json';
+import type { StrategyTheme } from '@/types/theme';
+
+const theme = rawTheme as StrategyTheme;
 
 export interface CarouselSlide {
   id: string;

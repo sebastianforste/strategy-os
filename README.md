@@ -1,118 +1,78 @@
-# StrategyOS 🧠 (World-Class Edition)
+# StrategyOS
 
-**The high-velocity content engine for the modern Chief Strategy Officer.**
+StrategyOS is a Next.js 16 application for strategy-focused AI writing, persona-guided revision, and multi-surface publishing workflows. It is the flagship implementation of the [2026 Development Manifesto](file:///Users/sebastian/Developer/DEVELOPMENT_MANIFESTO_2026.md).
 
-StrategyOS is a premium AI Strategist that helps you write high-status, contrarian LinkedIn content. Restored to its peak February 3rd design, it now enforces "World-Class" standards for every asset generated.
+## What It Does
+StrategyOS transforms raw input into "World-Class" strategy and content using an autonomous orchestrator.
+- **Unified Canvas**: A cinematic writing shell (`/`) for drafting and polishing.
+- **Ghost Agent V2**: Dynamic sector selection and persona-based authority refinement.
+- **Intelligence Pipeline**: Autonomous score evaluation (Virality, Authority) and iterative quality gates.
+- **Stitch Token Pipeline**: Visual source of truth using `theme.json` for a seamless "Stitch" design system.
+- **Contextual Memory**: RAG-enhanced generation using LanceDB and Gemini embeddings.
 
----
+## The 2026 Stack
+Built on the **StrategyOS Standard**:
+- **Framework**: Next.js 16 (App Router) + React 19
+- **Database**: Prisma 7 + SQLite + LanceDB (Vector)
+- **AI**: Gemini 3 Flash (Primary) + Gemini 2.5 Flash Lite (Fallback)
+- **Styling**: Tailwind CSS 4 + Glassmorphic UI
 
-## 🚀 Key Features
+## Quick Start
+1. Install dependencies
+```bash
+npm install
+```
 
-*   **AI Drafting Engine**: Generates 3 assets (Text, Image Prompt, Video Script) from one topic.
-*   **World-Class Personas**: Choose from the Strategist (CSO), the Founder, or the Provocateur—now calibrated for maximum authority and zero "AI-smell."
-*   **Viral Syntax (Bro-etry)**: Guaranteed vertical rhythm. Every sentence is its own paragraph. Single sentences separated by double line breaks.
-*   **Anti-Robot Core V2**: Automatic filtering of 24+ high-frequency "LLM words" (e.g., *embark, delve, leverage*).
-*   **Cinematic Dark Theme**: A premium, "Visualize Value" inspired UI with noise textures and aurora gradients.
-*   **Trend Hunter**: Scans the web via Google Grounding for real-time strategic context.
-*   **Visualize Value Images**: Minimalist vector art via Google Imagen 4.
-*   **Comment Generator**: Persona-aligned, high-status replies to spark engagement.
-*   **Smart Export**: One-click copy for Notion, Google Docs, or direct to social.
-*   **Local-First Architecture**: Secure, fast, and private.
+2. Sync database schema
+```bash
+npx prisma db push --schema prisma/schema.prisma
+```
 
----
+3. Start development server
+```bash
+npm run dev
+```
 
-## 🛠️ Prerequisites
+4. Open
+- [http://localhost:3000](http://localhost:3000)
 
-To run this app, you need:
+## Environment Setup
+Copy `.env.example` into `.env.local` and set keys as needed.
 
-1.  **Node.js**: Version 18 or higher. [Download here](https://nodejs.org/).
-2.  **API Keys** (See `.env.example`):
-    *   **Google Gemini API Key**: Required for AI generation.
-    *   **NextAuth Secret**: Required for authentication (run `openssl rand -base64 32` to generate).
-    *   **Social Keys** (Optional): LinkedIn/Twitter keys for collecting analytics/publishing.
+Minimum useful setup:
+- `GEMINI_API_KEY` (or `GOOGLE_API_KEY`)
 
-> **Note:** You can run the app in **Demo Mode** without any keys! Just enter `demo` in the settings menu.
+Optional:
+- OAuth provider keys (Google/LinkedIn/Twitter)
+- Stitch project config (`STITCH_PROJECT_ID`)
+- social and webhook integrations
 
----
+### Demo Mode
+You can use `demo` as the Gemini key in the UI for non-production smoke flows.
 
-## ⚡ Quick Start
+## Commands
+- Dev: `npm run dev`
+- Build: `npm run build`
+- Start: `npm run start`
+- Lint: `npm run lint`
+- Unit tests: `npm test`
+- E2E tests: `npx playwright test`
+- Stitch sync: `npx tsx scripts/stitch-sync.ts`
+- Stitch token usage check: `npx tsx scripts/check-stitch-token-usage.ts`
 
-1.  **Install Dependencies**
-    Open your terminal in this folder and run:
-    ```bash
-    npm install
-    ```
+## Quality Gates
+Current automated checks cover:
+- shell accessibility (named controls, keyboard nav, reduced motion)
+- responsive overlap regression at `360/390/768/834/1280/1440`
+- modal/tool interactions
+- onboarding, polish, publish paths
+- tools action matrix (mobile)
 
-    ```bash
-    npm install
-    ```
+## Documentation
+See `/docs/README.md` for the full documentation map.
 
-2.  **Initialize Database**
-    Create the local SQLite database:
-    ```bash
-    npx prisma db push
-    ```
-
-3.  **Run the App**
-    Start the local server:
-    ```bash
-    npm run dev
-    ```
-
-3.  **Open in Browser**
-    Go to [http://localhost:3000](http://localhost:3000).
-
----
-
-## 🎮 How to Use
-
-1.  **Enter a Topic**: Type a high-level concept (e.g., "The death of consulting").
-2.  **Select Persona**: Choose "CSO" (Analytical), "Storyteller" (Vulnerable), or "Contrarian" (Aggressive).
-3.  **Click Generate**: Watch the AI draft your content.
-4.  **Reply Mode (NEW)**: Click the "Reply" icon in the header to generate a comment for an external post using your selected persona.
-5.  **Refine**:
-    *   **Edit**: Tweaks the text directly.
-    *   **Save Template**: Click the Bookmark icon to reuse the structure later.
-    *   **Export**: Click the Download icon to copy for Notion/Docs.
-
----
-
-## 📂 Project Structure
-
-*   `/app`: The website pages (Next.js App Router).
-*   `/components`: The building blocks (Buttons, Inputs, Cards).
-*   `/utils`: The logic (AI Service, History, templates).
-*   `/actions`: Server-side code that protects your API keys.
-
----
-
-## 🆘 Troubleshooting
-
-*   **"Quota Exceeded" Error**: You might be using a free Gemini key. Switch the model in `utils/config.ts` to `models/gemini-2.0-flash-exp`.
-*   **Images/Search not working**: Ensure your Gemini API Key has access to `Google Search` and `Imagen` features (Google AI Studio keys usually do).
-*   **App won't start**: Try running `npm install` again to ensure all packages are downloaded.
-
----
-
-*Built with Next.js, TailwindCSS, and Framer Motion.*
-
-
-## Development Standards
-
-This project follows the "Senior Staff Mentor" persona standards.
-
-### 1. Technology Stack
-*   **Framework**: Next.js 16 (App Router).
-*   **Language**: TypeScript (Strict Mode).
-*   **Styling**: TailwindCSS with `clsx` and `tailwind-merge`.
-*   **State**: React Server Components (RSC) by default; Client Components only when interactivity is needed.
-
-### 2. Engineering Principles
-*   **Structure**:
-    *   `/app`: Routing and Pages (Server Components).
-    *   `/components`: Reusable UI elements (Radix UI / Shadcn).
-    *   `/utils`: Business logic and AI service wrappers.
-*   **Security**: API Keys must strictly be used in Server Actions or API Routes (`/app/api`), never exposed to the client.
-
-### 3. Workflow
-*   **Commits**: Conventional Commits (e.g., `feat: add user login`).
+## Notes
+- Service worker registration is production-only and guarded by `/sw.js` existence.
+- PWA manifest icons are expected at:
+  - `/public/icons/icon-192x192.png`
+  - `/public/icons/icon-512x512.png`

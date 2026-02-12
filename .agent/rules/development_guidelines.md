@@ -9,3 +9,6 @@
   brew install --cask gcloud-cli
   ```
 
+## UI Consistency
+- **Google Stitch**: ALL interactions with Google Stitch MUST follow the [google_stitch_rules.md](file:///Users/sebastian/Developer/strategy-os/.agent/rules/google_stitch_rules.md).
+

@@ -1,189 +1,59 @@
-# StrategyOS: World-Class Roadmap
+# StrategyOS World-Class Roadmap
 
-## Current State ✅ (Restored to Feb 3rd Design)
-StrategyOS has been restored to its peak aesthetic and logic state of February 3rd. It now functions as a **World-Class AI Strategist** with:
-- **Cinematic Dark Theme**: High-status UI with noise/aurora effects.
-- **Anti-Robot V2**: Expanded 24+ banned word list and automatic "Bro-etry" formatting.
-- **Extreme Persona Calibration**: Personas like Marcus Vane (CSO) are unhedged and authoritative.
-- **Focus Canvas Architecture**: Radical simplification; flattened 3-pane layout with zero-latency visual Actuation.
-- **Enrichment Pipeline V2**: Graph RAG, Moltbook agent discourse, and Google Stitch design-DNA grounding.
-- **RAG V2 (Voice Memory)**: LanceDB-backed persona-specific stylistic anchors with cross-session permanence.
-- **Advanced Anti-Robot V3**: Authoritative "Bro-etry" syntax with 30+ banned terminology filters.
-- **Generative UI Widgets**: Automated SWOT/Trend visualization injected directly into the canvas.
+## Definition of "World-Class" for This Product
+A world-class release must satisfy all three categories:
 
----
+1. Experience quality
+- no overlap at critical breakpoints
+- deterministic layout behavior
+- low-friction drafting and revision flow
 
-## The Gap: What's Missing from World-Class?
+2. Accessibility and reliability
+- named actionable controls
+- keyboard navigation and reduced motion compliance
+- clean runtime behavior (no hydration regressions, no invalid PWA assets)
 
-### 1. **Data Intelligence** (Biggest Opportunity)
-**Problem**: You generate content, but you don't know what *works*.
+3. Flow integrity
+- draft, revise, polish, preview, publish all functional
+- persona switching remains stable across responsive modes
 
-**Solution**: Analytics Layer
-- Track which personas get more engagement
-- Identify top-performing hooks
-- Learn from user edits (what they change = what's wrong)
-- Show "Predicted Virality Score" before posting
+## Current State (February 11, 2026)
+### Achieved
+- Unified Canvas responsive shell is in place.
+- Persona-guided revision is integrated into editor flow.
+- Stitch token pipeline is active and wired through runtime CSS vars.
+- E2E shell suite is fully green (`26/26`).
 
-**Impact**: Turns StrategyOS from a "generator" into a "coach".
+### Remaining Gaps
+- Vitest includes non-deterministic and outdated assertions in a subset of tests.
+- External model volatility can still break live functional tests.
+- Some legacy modules remain beyond core shell scope.
 
----
+## Phase Plan
+### Phase 1: Reliability Foundation
+- fix failing unit/integration tests
+- normalize model fallback references
+- reduce noisy vector-store failure paths
 
-### 2. **Brand Voice Cloning** (Premium Differentiator)
-**Problem**: Current personas are generic. Justin Welsh sounds like Justin Welsh. You should sound like *you*.
+### Phase 2: Product Consistency
+- unify behavior across legacy and shell pathways
+- tighten history/auth messaging and migration UX
+- standardize error surfaces in publish and generation paths
 
-**Solution**: Custom Voice Training
-- Let users upload 10-20 of their best posts
-- Fine-tune a personal GPT model on their style
-- Generate content that sounds exactly like them
+### Phase 3: Operational Maturity
+- CI stratification (deterministic vs live tests)
+- targeted performance budgets for generation latency
+- release checklist automation for shell/a11y/overlap gates
 
-**Tech**: Use OpenAI Fine-tuning API or Llama with LoRA adapters.
+## Metrics
+Track at each release:
+- E2E pass rate (target: 100%)
+- visual regression/overlap incidents (target: 0)
+- accessibility violations (target: 0)
+- model fallback success rate under quota pressure
+- publish success rate by platform
 
-**Impact**: This is the feature that makes people *pay*. "It literally writes like me."
-
----
-
-### 3. **Real LinkedIn Integration** (Removes Friction)
-**Problem**: "Share Intent" is a hack. Pro users want *actual* posting.
-
-**Solution**: OAuth + LinkedIn API
-- Connect LinkedIn account
-- Schedule posts (queue up a week's content)
-- Track real engagement metrics (likes, comments, shares)
-- Auto-repost top performers
-
-**Impact**: Becomes an essential part of their workflow, not just a tool.
-
----
-
-### 4. **Multi-Platform Expansion** (Market Expansion)
-**Problem**: You're LinkedIn-only. 60% of creators are multi-platform.
-
-**Solution**: Add Twitter/X, Instagram, Threads support
-- Persona: "The Thread Master" (for Twitter)
-- Auto-adapt content for each platform's style
-- Cross-post to all platforms with one click
-
-**Impact**: 3x your addressable market.
-
----
-
-### 5. **Content Repurposing Engine** (Time = Money)
-**Problem**: Users write one post, then manually rewrite it 5 times.
-
-**Solution**: "One Post → Five Formats"
-- LinkedIn Carousel (download PDF)
-- Twitter Thread (10 tweets)
-- Instagram Caption + Story
-- Blog Post (long-form)
-- YouTube Script
-
-**Impact**: 10x content output from the same input.
-
----
-
-### 6. **Collaboration & Teams** (B2B Revenue)
-**Problem**: Solo creators are a $10/month market. Agencies are $500/month.
-
-**Solution**: Team Workspaces
-- Brand guidelines (tone, banned words, approved hashtags)
-- Approval workflows (junior creates → senior approves)
-- Usage analytics (who's generating what)
-- Client management (agencies managing multiple brands)
-
-**Impact**: Unlock B2B SaaS revenue ($50k-$500k ARR).
-
----
-
-### 7. **Performance Feedback Loop** (The "Magic")
-**Problem**: AI doesn't learn from results.
-
-**Solution**: Reinforcement Learning from Human Feedback (RLHF)
-- After posting, user marks outcome: "💥 Viral" / "😐 Meh" / "💀 Flopped"
-- System learns which patterns = success
-- Future content gets better automatically
-
-**Impact**: This is how you beat ChatGPT. Personalization at scale.
-
----
-
-### 8. **Advanced Trend Matching** (Sophistication)
-**Problem**: Current trend detection is basic (keyword → news).
-
-**Solution**: Intelligent Trend Analysis
-- Sentiment analysis (Is this news positive or negative?)
-- Competitive intelligence (What are your competitors saying about this?)
-- Timing analysis (Is this trend peaking or just starting?)
-- Controversy detection (Will this get you canceled?)
-
-**Impact**: Avoid embarrassing mistakes. Ride trends at the right time.
-
----
-
-### 9. **Export & Template Library** (Professionalism)
-**Problem**: Users can't save/reuse patterns that work.
-
-**Solution**: Template System
-- Save successful posts as templates
-- Share templates with team
-- Community template marketplace ($)
-- Export to Notion, Google Docs, etc.
-
-**Impact**: Network effects. Users contribute back.
-
----
-
-### 10. **Mobile App** (Accessibility)
-**Problem**: Desktop-only = limits usage.
-
-**Solution**: Native iOS/Android apps
-- Voice input (speak your idea, AI writes the post)
-- Push notifications ("Your scheduled post is ready to review")
-- Camera integration (take photo → AI generates caption)
-
-**Impact**: Capture ideas in the moment.
-
----
-
-## Prioritization Matrix
-
-| Feature | Impact | Effort | Priority |
-|---------|--------|--------|----------|
-| **Brand Voice Cloning** | 🔥🔥🔥 | Medium | **P0** |
-| **Real LinkedIn API** | 🔥🔥 | High | **P1** |
-| **Performance Feedback** | 🔥🔥🔥 | High | **P1** |
-| **Multi-Platform** | 🔥🔥 | High | **P2** |
-| **Data Intelligence** | 🔥🔥🔥 | Medium | **DONE** |
-| **Content Repurposing** | 🔥🔥 | Medium | **DONE** |
-| **Team Workspaces** | 🔥🔥🔥 | Very High | **P3** |
-| **Mobile App** | 🔥 | Very High | **P3** |
-
----
-
-## My Recommendation: The "Influencer Stack" Upgrade
-
-### Phase 10: Real LinkedIn API (remove the "Manual" feeling)
-**Why**: Influencers schedule 2 weeks in advance. True automation requires OAuth.
-- **Features**: Connect LinkedIn, Scheduling (queue), Auto-repost best performers.
-- **Tech**: LinkedIn v2 API, OAuth flow.
-
-### Phase 12: Content Repurposing (The "Volume" Play)
-**Why**: Influencers don't just write text. They post carousels and threads.
-- **Features**: Auto-generate PDF Carousels from text posts. Auto-split into Twitter threads.
-- **Tech**: `react-pdf` for generation, simple UI toggles.
-
-### Phase 17: Mobile PWA (The "Lifestyle" Play)
-**Why**: Ideas happen at the gym or in an Uber.
-- **Features**: Install to home screen, voice-to-text drafting.
-- **Tech**: Next.js PWA manifest, service workers.
-
----
-
-## What Would You Like to Build Next?
-
-1. **Voice Cloning** (Make it sound like you)
-2. **Analytics** (Learn what works)
-3. **Real LinkedIn API** (Actual posting)
-4. **Multi-Platform** (Twitter, Instagram, etc.)
-5. **Something else?**
-
-Let me know and I'll build it.
+## Exit Criteria for "World-Class v1"
+1. E2E stable with zero P0 regressions across 3 consecutive release cycles.
+2. Unit/integration tests deterministic for default local/CI runs.
+3. No unresolved shell hydration, overlap, or unnamed-control defects.

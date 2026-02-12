@@ -23,9 +23,69 @@ export const MissionControlDashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 10000); // Poll every 10s
-    return () => clearInterval(interval);
+    let isUnmounted = false;
+    let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+    let source: EventSource | null = null;
+
+    const startPollingFallback = () => {
+      if (fallbackInterval) return;
+      void fetchData();
+      fallbackInterval = setInterval(fetchData, 10_000);
+    };
+
+    const startSse = () => {
+      try {
+        source = new EventSource("/api/mission-control/stream");
+
+        source.addEventListener("snapshot", (event) => {
+          if (isUnmounted) return;
+          try {
+            const parsed = JSON.parse((event as MessageEvent).data) as DashboardData;
+            // SSE payload comes over JSON; hydrate timestamps to Date for downstream components.
+            const hydrated: DashboardData = {
+              ...parsed,
+              recentActivity: (parsed.recentActivity || []).map((act: any) => ({
+                ...act,
+                timestamp: new Date(act.timestamp),
+              })),
+            };
+            setData(hydrated);
+            setLoading(false);
+          } catch (e) {
+            console.warn("Failed to parse telemetry snapshot", e);
+          }
+        });
+
+        source.addEventListener("error", () => {
+          // If SSE is unavailable (proxy/serverless), fall back to polling.
+          if (isUnmounted) return;
+          try {
+            source?.close();
+          } catch {
+            // ignore close errors
+          }
+          source = null;
+          startPollingFallback();
+        });
+      } catch (e) {
+        console.warn("Telemetry stream unavailable; falling back to polling", e);
+        startPollingFallback();
+      }
+    };
+
+    // Always fetch once so the UI populates fast even before SSE delivers.
+    void fetchData();
+    startSse();
+
+    return () => {
+      isUnmounted = true;
+      if (fallbackInterval) clearInterval(fallbackInterval);
+      try {
+        source?.close();
+      } catch {
+        // ignore close errors
+      }
+    };
   }, []);
 
   if (loading && !data) {

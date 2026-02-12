@@ -8,11 +8,11 @@ import {
 import { z } from "zod";
 
 import { authOptions } from "@/utils/auth";
-import { HttpError, jsonError, parseJson, rateLimit, requireSession } from "@/utils/request-guard";
+import { HttpError, jsonError, parseJson, rateLimit, requireSessionForRequest } from "@/utils/request-guard";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await requireSession(authOptions);
+    await requireSessionForRequest(req, authOptions);
     const stored = await getStoredApiKeys();
 
     return NextResponse.json({
@@ -31,8 +31,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    await requireSession(authOptions);
-    rateLimit({ key: `validate_key`, limit: 30, windowMs: 60_000 });
+    const session = await requireSessionForRequest(req, authOptions);
+    await rateLimit({ key: `validate_key:${session.user.id}`, limit: 30, windowMs: 60_000 });
 
     const body = await parseJson(
       req,

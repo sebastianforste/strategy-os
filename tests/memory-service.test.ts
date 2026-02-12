@@ -1,31 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { storeStrategem, retrieveMemories } from '../utils/memory-service';
 
-// Mock dependencies
-vi.mock('../utils/gemini-embedding', () => ({
-  getEmbedding: vi.fn().mockResolvedValue(new Array(1536).fill(0.1))
+vi.mock("next-auth/next", () => ({
+  getServerSession: vi.fn().mockResolvedValue({ user: { id: "u1" } }),
 }));
 
-vi.mock('../utils/lancedb-client', () => ({
-  getLanceDB: vi.fn().mockResolvedValue({
-    tableNames: vi.fn().mockResolvedValue(['strategems']),
-    openTable: vi.fn().mockResolvedValue({
-      add: vi.fn().mockResolvedValue(true),
-      search: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      toArray: vi.fn().mockResolvedValue([
-        { 
-          id: 'mem-1', 
-          content: 'Past success', 
-          topic: 'viral',
-          timestamp: new Date().toISOString()
-        }
-      ])
-    })
-  }),
-  openOrCreateTable: vi.fn().mockResolvedValue({
-      add: vi.fn().mockResolvedValue(true)
-  })
+vi.mock("../utils/vector-store", () => ({
+  upsertResource: vi.fn().mockResolvedValue(undefined),
+  searchResources: vi.fn().mockResolvedValue([
+    {
+      id: "memory:u1:mem-1",
+      text: "Past success",
+      metadata: { sourceType: "memory", topic: "viral", timestamp: new Date().toISOString() },
+    },
+  ]),
 }));
 
 describe('Memory Service Logic', () => {
@@ -46,6 +34,6 @@ describe('Memory Service Logic', () => {
   it('retrieves memories correctly', async () => {
     const memories = await retrieveMemories('viral', 'fake-key');
     expect(memories).toHaveLength(1);
-    expect(memories[0].id).toBe('mem-1');
+    expect(memories[0].id).toBe('memory:u1:mem-1');
   });
 });

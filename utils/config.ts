@@ -50,8 +50,9 @@ export const AI_CONFIG = {
   // Image generation model
   imageModel: "models/imagen-4.0-generate-001",
   
-  // Embedding model for RAG (3072 dimensions)
-  embeddingModel: "text-embedding-004",
+  // Embedding model for RAG (current Gemini-supported default)
+  embeddingModel: "gemini-embedding-001",
+  embeddingFallbackModels: ["text-embedding-004"] as const,
   
   // Model pool for manual rotation
   modelPool: MODEL_POOL,

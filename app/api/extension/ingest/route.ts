@@ -2,20 +2,24 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../utils/db";
 import { z } from "zod";
+import crypto from "crypto";
 
 import { authOptions } from "@/utils/auth";
+import { getStoredApiKeys } from "@/utils/server-api-keys";
+import { chunkText } from "@/utils/text-chunker";
 import { HttpError, jsonError, parseJson, rateLimit, requireSessionOrHeaderToken } from "@/utils/request-guard";
 
 export async function POST(req: Request) {
   try {
-    await requireSessionOrHeaderToken({
+    const auth = await requireSessionOrHeaderToken({
       req,
       headerName: "x-strategyos-extension-token",
       envVarName: "STRATEGYOS_EXTENSION_TOKEN",
       authOptions,
     });
 
-    rateLimit({ key: `extension_ingest`, limit: 60, windowMs: 60_000 });
+    const identity = auth.session?.user?.id || auth.session?.user?.email || auth.token || "unknown";
+    await rateLimit({ key: `extension_ingest:${identity}`, limit: 60, windowMs: 60_000 });
 
     const { type, content, title, source } = await parseJson(
       req,
@@ -43,9 +47,46 @@ export async function POST(req: Request) {
             title: title || "Clipped Content",
             type: "web",
             url: source || "",
-            metadata: { snippet: content, clippedAt: new Date() }
+            authorId: auth.session?.user?.id ?? null,
+            metadata: { snippet: content, clippedAt: new Date().toISOString(), sourceType: type }
         }
     });
+
+    // Best-effort: embed into LanceDB only when we have a session + stored Gemini key.
+    const authorId = auth.session?.user?.id || null;
+    const storedKeys = authorId ? await getStoredApiKeys() : null;
+    const geminiKey = (storedKeys?.gemini || "").trim();
+    if (authorId && geminiKey) {
+      try {
+        const { upsertResource } = await import("@/utils/vector-store");
+        const sha256 = crypto.createHash("sha256").update(content).digest("hex");
+        const extractedAt = new Date().toISOString();
+        const chunks = chunkText({ text: content, chunkSize: 1600, overlap: 200, maxChunks: 16 });
+        for (const chunk of chunks) {
+          const chunkId = `clip:${newResource.id}:${sha256}:${chunk.index}`;
+          await upsertResource(
+            chunkId,
+            `${title || "Clipped Content"}\n${source || ""}\n\n[Chunk ${chunk.index + 1}/${chunks.length} ${chunk.start}-${chunk.end}]\n${chunk.text}`,
+            {
+              resourceId: newResource.id,
+              sourceType: "web",
+              authorId,
+              teamId: null,
+              title: title || "Clipped Content",
+              url: source || "",
+              sha256,
+              extractedAt,
+              chunkIndex: chunk.index,
+              start: chunk.start,
+              end: chunk.end,
+            },
+            geminiKey,
+          );
+        }
+      } catch (e) {
+        console.warn("[EXTENSION] Vector upsert failed:", e);
+      }
+    }
 
     return NextResponse.json({ success: true, id: newResource.id });
   } catch (error) {

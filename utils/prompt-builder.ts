@@ -2,12 +2,24 @@
 import { PersonaId } from "./personas";
 import { SectorId, SECTORS } from "./sectors";
 import { PlatformAdapter } from "./platforms/types";
-import { findRelevantConcepts } from "./rag-service";
 import { findTrends, fetchTrendingNews } from "./trend-service";
 import { stitchService } from "./stitch-service";
 import { moltbookService } from "./moltbook-service";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth";
+import type { Citation } from "./citations";
+import { retrieveContext } from "./knowledge-store";
+import { emitTelemetryEvent } from "./telemetry";
+
+function getErrorText(error: unknown): string {
+    if (error instanceof Error && error.message) return error.message;
+    return String(error);
+}
+
+function isRequestScopeError(error: unknown): boolean {
+    const message = getErrorText(error).toLowerCase();
+    return message.includes("outside a request scope");
+}
 
 /**
  * Helper: Constructs the enriched prompt with RAG, Mode, and Platform instructions.
@@ -24,7 +36,7 @@ export async function constructEnrichedPrompt(
     rlhfContext: string = "", // RLHF learning loop context
     styleMemory: string = "", // Style learning context
     styleDNA: string = "", // Synthesized Style DNA from Voice Alchemist
-    adaptationContext?: { highDwellPosts: string[], performanceSummary: string },
+    adaptationContext?: { highDwellPosts: string[]; antiPatterns?: string[]; performanceSummary: string },
     isTeamMode: boolean = false,
     coworkerName?: string,
     coworkerRole?: string,
@@ -33,70 +45,65 @@ export async function constructEnrichedPrompt(
     isTopVoiceMode: boolean = false,
     sectorId: SectorId = "general",
     isReplyMode: boolean = false
-): Promise<{ prompt: string; mode: string }> {
+): Promise<{ prompt: string; mode: string; citations: Citation[] }> {
     const startTime = Date.now();
     console.log(`[Prompt Construction] START Persona: ${personaId}, Newsjack: ${forceTrends}`);
 
-    // RAG RETRIEVAL (Strategy Concepts)
-    let ragContext = "";
+    let citedContextSection = "";
+    let citations: Citation[] = [];
+
+    // Unified RAG retrieval (chunk-based + citations). We keep legacy context blocks for now,
+    // but prefer the cited context section when present.
     if (useRAG) {
         try {
             const ragStart = Date.now();
-            const { findGraphConcepts } = await import("./rag-service");
-            const graphConcepts = await findGraphConcepts(input, 5);
-            console.log(`[Graph RAG] Found ${graphConcepts.length} concepts in ${Date.now() - ragStart}ms`);
-            
-            if (graphConcepts.length > 0) {
-                ragContext = `
-                STRATEGY CONTEXT (From Gunnercooke Library & Knowledge Graph):
-                ${graphConcepts.map(c => `- ${c}`).join("\n")}
-                
-                USE THESE MENTAL MODELS AND LOGICAL ASSOCIATIONS.
-                `;
+            let authorId = "anonymous";
+            let teamId: string | null = null;
+            try {
+                const session = await getServerSession(authOptions);
+                if (session?.user?.id) {
+                    authorId = session.user.id;
+                    // next-auth session typing may not include teamId; prefer best-effort.
+                    teamId = (session.user as any)?.teamId ?? null;
+                }
+            } catch (e) {
+                if (!isRequestScopeError(e)) {
+                    console.warn(`[RAG] Session lookup failed: ${getErrorText(e).split("\n")[0]}`);
+                }
             }
-        } catch (e) {
-            console.warn("[Graph RAG] Retrieval failed:", e);
-        }
-    }
 
-    // RAG V2: VOICE MEMORY (Stylistic Matching)
-    let voiceMemoryContext = "";
-    if (useRAG) {
-        try {
-            const { searchVoiceMemory } = await import("./vector-store");
-            const memories = await searchVoiceMemory(personaId, input, 3);
-            console.log(`[RAG V2] Found ${memories.length} voice memories for ${personaId}`);
-            
-            if (memories.length > 0) {
-                voiceMemoryContext = `
-                VOICE MEMORY (Your past successful styles):
-                ${memories.map((m, i) => `[Style Reference ${i+1}]:\n${m.text}`).join("\n\n")}
-                
-                MIMIC THE TONE, CADENCE, AND STRUCTURE OF THESE REFERENCES.
-                `;
-            }
-        } catch (e) {
-            console.warn("[RAG V2] Voice memory retrieval failed:", e);
-        }
-    }
+            const retrieval = await retrieveContext({
+                query: input,
+                apiKey: geminiKey,
+                authorId,
+                teamId,
+                personaId,
+                limit: 6,
+                include: {
+                    resources: true,
+                    knowledge: true,
+                    strategems: true,
+                    voiceMemory: true,
+                    styleMemory: true,
+                },
+            });
 
-    // PHASE 24: STYLE MEMORY (User-uploaded samples)
-    let styleRagContext = "";
-    if (useRAG) {
-        try {
-            const { searchStyleMemory } = await import("./vector-store");
-            const styles = await searchStyleMemory(input, 2);
-            if (styles.length > 0) {
-                 styleRagContext = `
-                 USER STYLE REFERENCES (Mimic this exact writing style):
-                 ${styles.map((s, i) => `[Style Reference ${i+1}]:\n${s.text}`).join("\n\n")}
-                 
-                 CRITICAL: ADOPT THE VOCABULARY, SENTENCE STRUCTURE, AND RHYTHM OF THESE SAMPLES.
-                 `;
-                 console.log(`[Style RAG] Found ${styles.length} style references`);
-            }
+            citations = retrieval.citations;
+            citedContextSection = retrieval.contextText ? `\n${retrieval.contextText}\n` : "";
+            console.log(`[RAG] Retrieved ${retrieval.chunks.length} chunks in ${Date.now() - ragStart}ms`);
+
+            void emitTelemetryEvent({
+                kind: "rag_retrieval",
+                authorId: authorId === "anonymous" ? null : authorId,
+                teamId,
+                latencyMs: Date.now() - ragStart,
+                metadata: {
+                    chunks: retrieval.chunks.length,
+                    citations: retrieval.citations.length,
+                },
+            });
         } catch (e) {
-            console.warn("[Style RAG] Retrieval failed:", e);
+            console.warn(`[RAG] Retrieval failed: ${getErrorText(e).split("\n")[0]}`);
         }
     }
 
@@ -114,11 +121,15 @@ export async function constructEnrichedPrompt(
     // DARWIN ENGINE V2: ADAPTATION CONTEXT
     let adaptationSection = "";
     if (adaptationContext && adaptationContext.highDwellPosts.length > 0) {
+        const antiPatternSection = adaptationContext.antiPatterns && adaptationContext.antiPatterns.length > 0
+            ? `\nLOW-PERFORMING PATTERNS TO AVOID:\n${adaptationContext.antiPatterns.slice(0, 3).map((p, i) => `[Avoid ${i+1}]:\n${p}`).join("\n\n")}`
+            : "";
         adaptationSection = `
         DARWIN ENGINE V2 - RECENT HIGH-PERFORMING EXAMPLES:
         ${adaptationContext.highDwellPosts.map((p, i) => `[Successful Example ${i+1}]:\n${p}`).join("\n\n")}
         
         PERFORMANCE INSIGHT: ${adaptationContext.performanceSummary}
+        ${antiPatternSection}
         
         ADAPT YOUR Cadence and Tone to reflect these successful patterns while maintaining core persona DNA.
         `;
@@ -208,13 +219,16 @@ export async function constructEnrichedPrompt(
     let stitchDnaContext = "";
     try {
         const session = await getServerSession(authOptions);
-        const dna = await stitchService.getDesignDNA((session as any)?.accessToken);
+        const dna = await stitchService.getDesignDNA(session?.accessToken);
         if (dna) {
             stitchDnaContext = stitchService.formatDNAForPrompt(dna);
-            console.log(`[Stitch] Design DNA injected for visual grounding via OAuth.`);
+            const sourceLabel = dna.source === "oauth" ? "oauth" : "fallback-theme";
+            console.log(`[Stitch] Design DNA injected for visual grounding (${sourceLabel}).`);
         }
     } catch (e) {
-        console.warn("[Stitch] DNA retrieval failed:", e);
+        if (!isRequestScopeError(e)) {
+            console.warn(`[Stitch] DNA retrieval failed: ${getErrorText(e).split("\n")[0]}`);
+        }
     }
 
     // PHASE 28: MOLTBOOK TRENDS & SEARCH (AI Social Ingestion)
@@ -241,7 +255,7 @@ export async function constructEnrichedPrompt(
             console.log(`[Moltbook] Injected ${trendingPosts.length} trending and ${searchResults.length} search results.`);
         }
     } catch (e) {
-        console.warn("[Moltbook] Context retrieval failed:", e);
+        console.warn(`[Moltbook] Context retrieval failed: ${getErrorText(e).split("\n")[0]}`);
     }
     
     let enrichedInput = input;
@@ -290,18 +304,16 @@ export async function constructEnrichedPrompt(
 
     if (hasUrl) {
         mode = "Translator";
-        enrichedInput = `
-        ${platformInstr}
-        ${widgetInstructions}
-        ${ragContext}
-        ${fewShotContext}
-        ${rlhfSection}
-        ${styleSection}
-        ${dnaSection}
+	        enrichedInput = `
+	        ${platformInstr}
+	        ${widgetInstructions}
+	        ${citedContextSection}
+	        ${fewShotContext}
+	        ${rlhfSection}
+	        ${styleSection}
+	        ${dnaSection}
         ${sectorSection}
         ${adaptationSection}
-        ${voiceMemoryContext}
-        ${styleRagContext}
         ${strategicRealism}
         ${topVoiceInstr}
         ${stitchDnaContext}
@@ -330,18 +342,16 @@ export async function constructEnrichedPrompt(
 
                 if (trends.length > 0) {
                     const primaryTrend = trends[0];
-                    enrichedInput = `
-                    ${platformInstr}
-                    ${widgetInstructions}
-                    ${ragContext}
-                    ${fewShotContext}
-                    ${rlhfSection}
-                    ${styleSection}
-                    ${dnaSection}
+	                    enrichedInput = `
+	                    ${platformInstr}
+	                    ${widgetInstructions}
+	                    ${citedContextSection}
+	                    ${fewShotContext}
+	                    ${rlhfSection}
+	                    ${styleSection}
+	                    ${dnaSection}
                     ${sectorSection}
                     ${adaptationSection}
-                    ${voiceMemoryContext}
-                    ${styleRagContext}
                     ${strategicRealism}
                     ${topVoiceInstr}
                     ${stitchDnaContext}
@@ -364,18 +374,16 @@ export async function constructEnrichedPrompt(
                 }
             } catch (e) {
                 console.warn("Trend hunting failed or skipped:", e);
-                enrichedInput = `
-                    ${platformInstr}
-                    ${widgetInstructions}
-                    ${ragContext}
-                    ${fewShotContext}
-                    ${rlhfSection}
-                    ${styleSection}
-                    ${dnaSection}
+	                enrichedInput = `
+	                    ${platformInstr}
+	                    ${widgetInstructions}
+	                    ${citedContextSection}
+	                    ${fewShotContext}
+	                    ${rlhfSection}
+	                    ${styleSection}
+	                    ${dnaSection}
                     ${sectorSection}
                     ${adaptationSection}
-                    ${voiceMemoryContext}
-                    ${styleRagContext}
                     ${strategicRealism}
                     ${topVoiceInstr}
                     ${stitchDnaContext}
@@ -389,18 +397,16 @@ export async function constructEnrichedPrompt(
                 `;
             }
         } else {
-            enrichedInput = `
-                ${platformInstr}
-                ${widgetInstructions}
-                ${ragContext}
-                ${fewShotContext}
-                ${rlhfSection}
-                ${styleSection}
-                ${dnaSection}
+	            enrichedInput = `
+	                ${platformInstr}
+	                ${widgetInstructions}
+	                ${citedContextSection}
+	                ${fewShotContext}
+	                ${rlhfSection}
+	                ${styleSection}
+	                ${dnaSection}
                 ${sectorSection}
                 ${adaptationSection}
-                ${voiceMemoryContext}
-                ${styleRagContext}
                 ${strategicRealism}
                 ${topVoiceInstr}
                 ${stitchDnaContext}
@@ -418,13 +424,13 @@ export async function constructEnrichedPrompt(
     // PHASE 28: REPLY MODE (THE DISMANTLER)
     if (isReplyMode) {
         mode = "Dismantler";
-        enrichedInput = `
-            ${platformInstr}
-            ${ragContext}
-            ${styleSection}
-            ${dnaSection}
-            ${sectorSection}
-            ${stitchDnaContext}
+	        enrichedInput = `
+	            ${platformInstr}
+	            ${citedContextSection}
+	            ${styleSection}
+	            ${dnaSection}
+	            ${sectorSection}
+	            ${stitchDnaContext}
 
             MODE: THE DISMANTLER (High-Status Thread Reply)
             TARGET CONTENT TO DISMANTLE: 
@@ -440,5 +446,5 @@ export async function constructEnrichedPrompt(
     }
     
     console.log(`[Prompt Construction] DONE in ${Date.now() - startTime}ms. Mode: ${mode}`);
-    return { prompt: enrichedInput, mode };
+	    return { prompt: enrichedInput, mode, citations };
 }

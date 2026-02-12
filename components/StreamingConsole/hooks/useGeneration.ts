@@ -21,6 +21,7 @@ import { recordTopicUsage } from "../../../utils/preferences-service";
 import { logAudit } from "../../../utils/audit-service";
 import { isRateLimitError, getErrorMessage } from "../../../utils/gemini-errors";
 import { StyleMemoryService } from "../../../utils/style-memory-service";
+import { extractStrategyOSMeta } from "../../../utils/stream-meta";
 
 export interface GenerationOptions {
   apiKeys: ApiKeys;
@@ -107,19 +108,26 @@ export function useGeneration(options: GenerationOptions) {
       isReplyMode: outputFormat === "text" && isReplyMode
     },
     onFinish: (_prompt: string, result: string) => {
-      if (result && result.length > 5) {
+      const extracted = extractStrategyOSMeta(result || "");
+      const cleanText = extracted.text;
+      const citations = extracted.meta?.citations;
+
+      if (cleanText && cleanText.length > 5) {
         // Auto-speak first 150 chars
         voiceService.speak(
-          "Strategy generated. Reviewing the first few lines: " + result.substring(0, 150)
+          "Strategy generated. Reviewing the first few lines: " + cleanText.substring(0, 150)
         );
 
-        onGenerationComplete(result);
+        onGenerationComplete(
+          citations?.length ? ({ textPost: cleanText, citations } as GeneratedAssets) : cleanText
+        );
         
         if (apiKeys.gemini) {
-          generateSideAssetsAction(result, { gemini: apiKeys.gemini }, personaId)
+          generateSideAssetsAction(cleanText, { gemini: apiKeys.gemini }, personaId)
             .then((sideAssets) => {
               onGenerationComplete({
-                textPost: result,
+                textPost: cleanText,
+                ...(citations?.length ? { citations } : {}),
                 ...sideAssets,
               });
             })
@@ -130,7 +138,7 @@ export function useGeneration(options: GenerationOptions) {
         logAudit({
           action: "generate_complete",
           input: _prompt.substring(0, 50),
-          output: result.substring(0, 100),
+          output: cleanText.substring(0, 100),
           personaId,
           platform,
           durationMs: startTime ? Date.now() - startTime : 0,

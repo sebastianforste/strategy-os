@@ -21,12 +21,68 @@ export function jsonError(status: number, message: string, code?: string) {
   return NextResponse.json({ error: message, ...(code ? { code } : {}) }, { status });
 }
 
+export function isE2EEnabled(): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  if (process.env.E2E_TEST_UTILS !== "true") return false;
+  const token = (process.env.E2E_TOKEN || "").trim();
+  return Boolean(token);
+}
+
+export function assertE2EToken(req: Request): void {
+  if (!isE2EEnabled()) {
+    throw new HttpError(404, "Not found");
+  }
+  const expected = (process.env.E2E_TOKEN || "").trim();
+  const provided = (req.headers.get("x-e2e-token") || "").trim();
+  if (!expected || !provided || provided !== expected) {
+    throw new HttpError(404, "Not found");
+  }
+}
+
 export async function requireSession(authOptions?: NextAuthOptions): Promise<Session> {
   const session = authOptions ? await getServerSession(authOptions) : await getServerSession();
   if (!session?.user) {
     throw new HttpError(401, "Unauthorized");
   }
   return session;
+}
+
+export async function requireSessionForRequest(req: Request, authOptions?: NextAuthOptions): Promise<Session> {
+  const session = authOptions ? await getServerSession(authOptions) : await getServerSession();
+  if (session?.user) return session;
+
+  const allowDemoAuth = process.env.E2E_DEMO_AUTH === "true" && process.env.NODE_ENV !== "production";
+  if (allowDemoAuth) {
+    // Only allow demo-auth when the caller supplies the e2e token.
+    assertE2EToken(req);
+
+    const userId = (process.env.E2E_DEMO_USER_ID || "e2e-user").trim() || "e2e-user";
+    const email = (process.env.E2E_DEMO_USER_EMAIL || "e2e@local.test").trim() || "e2e@local.test";
+    const name = (process.env.E2E_DEMO_USER_NAME || "E2E User").trim() || "E2E User";
+
+    const { prisma } = await import("./db");
+    await prisma.user.upsert({
+      where: { id: userId },
+      update: { email, name },
+      create: { id: userId, email, name },
+      select: { id: true },
+    });
+
+    const fake: Session = {
+      user: {
+        id: userId,
+        email,
+        name,
+        image: null,
+        role: "ADMIN",
+        teamId: null,
+      } as any,
+      expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    };
+    return fake;
+  }
+
+  throw new HttpError(401, "Unauthorized");
 }
 
 export async function requireSessionOrHeaderToken({
@@ -75,17 +131,67 @@ export async function parseJson<T>(req: Request, schema: ZodSchema<T>): Promise<
 
 type RateLimitState = { resetAt: number; count: number };
 const rateLimitState = new Map<string, RateLimitState>();
+const RATE_LIMIT_MAX_KEYS = 10_000;
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60_000;
+let lastRateLimitCleanupAt = 0;
 
-export function rateLimit({
-  key,
-  limit,
-  windowMs,
-}: {
-  key: string;
-  limit: number;
-  windowMs: number;
-}) {
+function cleanupRateLimitState(now: number) {
+  if (now - lastRateLimitCleanupAt < RATE_LIMIT_CLEANUP_INTERVAL_MS) return;
+  lastRateLimitCleanupAt = now;
+
+  for (const [key, state] of rateLimitState.entries()) {
+    if (state.resetAt <= now) {
+      rateLimitState.delete(key);
+    }
+  }
+
+  // Hard cap to avoid unbounded growth if callers use untrusted keys.
+  if (rateLimitState.size > RATE_LIMIT_MAX_KEYS) {
+    const entries = Array.from(rateLimitState.entries()).sort((a, b) => a[1].resetAt - b[1].resetAt);
+    const overflow = entries.length - RATE_LIMIT_MAX_KEYS;
+    for (let i = 0; i < overflow; i += 1) {
+      rateLimitState.delete(entries[i][0]);
+    }
+  }
+}
+
+async function upstashIncr(key: string): Promise<number> {
+  const url = (process.env.UPSTASH_REDIS_REST_URL || "").trim();
+  const token = (process.env.UPSTASH_REDIS_REST_TOKEN || "").trim();
+  if (!url || !token) throw new Error("Upstash not configured");
+
+  const res = await fetch(`${url}/incr/${encodeURIComponent(key)}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Upstash INCR failed (${res.status})`);
+  const data = (await res.json().catch(() => null)) as any;
+  const n = Number(data?.result);
+  if (!Number.isFinite(n)) throw new Error("Upstash INCR invalid response");
+  return n;
+}
+
+async function upstashPexpire(key: string, ms: number): Promise<void> {
+  const url = (process.env.UPSTASH_REDIS_REST_URL || "").trim();
+  const token = (process.env.UPSTASH_REDIS_REST_TOKEN || "").trim();
+  if (!url || !token) throw new Error("Upstash not configured");
+
+  const res = await fetch(`${url}/pexpire/${encodeURIComponent(key)}/${ms}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Upstash PEXPIRE failed (${res.status})`);
+}
+
+function inMemoryRateLimit(key: string, limit: number, windowMs: number) {
   const now = Date.now();
+  cleanupRateLimitState(now);
   const existing = rateLimitState.get(key);
   if (!existing || existing.resetAt <= now) {
     rateLimitState.set(key, { resetAt: now + windowMs, count: 1 });
@@ -95,6 +201,44 @@ export function rateLimit({
     throw new HttpError(429, "Too many requests.");
   }
   existing.count += 1;
+}
+
+export async function rateLimit({
+  key,
+  limit,
+  windowMs,
+}: {
+  key: string;
+  limit: number;
+  windowMs: number;
+}) {
+  const url = (process.env.UPSTASH_REDIS_REST_URL || "").trim();
+  const token = (process.env.UPSTASH_REDIS_REST_TOKEN || "").trim();
+  const hasUpstash = Boolean(url && token);
+
+  if (hasUpstash) {
+    const now = Date.now();
+    const windowStart = Math.floor(now / windowMs) * windowMs;
+    const redisKey = `rl:${key}:${windowStart}`;
+    try {
+      const count = await upstashIncr(redisKey);
+      if (count === 1) {
+        // Ensure the key expires even if traffic stops.
+        await upstashPexpire(redisKey, windowMs + 1000);
+      }
+      if (count > limit) {
+        throw new HttpError(429, "Too many requests.");
+      }
+      return;
+    } catch (e) {
+      // Fallback to in-memory when Upstash is misconfigured or transiently unavailable.
+      // This is not durable, but it avoids hard downtime.
+      inMemoryRateLimit(key, limit, windowMs);
+      return;
+    }
+  }
+
+  inMemoryRateLimit(key, limit, windowMs);
 }
 
 function isPrivateIpv4(ip: string): boolean {
@@ -188,7 +332,7 @@ export async function fetchTextWithLimits({
   timeoutMs: number;
   maxBytes: number;
   headers?: Record<string, string>;
-}): Promise<{ status: number; text: string }> {
+}): Promise<{ status: number; text: string; contentType: string | null }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -196,16 +340,19 @@ export async function fetchTextWithLimits({
       headers,
       redirect: "manual",
       signal: controller.signal,
+      cache: "no-store",
     });
 
     if ([301, 302, 303, 307, 308].includes(res.status)) {
       throw new HttpError(400, "Redirects are not allowed.");
     }
 
+    const contentType = res.headers.get("content-type");
+
     // Stream read with maxBytes cap.
     const body = res.body;
     if (!body) {
-      return { status: res.status, text: "" };
+      return { status: res.status, text: "", contentType };
     }
 
     const reader = body.getReader();
@@ -229,7 +376,7 @@ export async function fetchTextWithLimits({
       offset += chunk.byteLength;
     }
     const text = new TextDecoder("utf-8", { fatal: false }).decode(combined);
-    return { status: res.status, text };
+    return { status: res.status, text, contentType };
   } catch (err) {
     if (err instanceof HttpError) throw err;
     if ((err as Error)?.name === "AbortError") {

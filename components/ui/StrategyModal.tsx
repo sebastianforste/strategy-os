@@ -54,6 +54,7 @@ export default function StrategyModal({ isOpen, onClose, title, children, maxWid
                                 </h2>
                                 <button 
                                     onClick={onClose}
+                                    aria-label={`Close ${title}`}
                                     className="p-2 hover:bg-white/10 rounded-full transition-colors group"
                                 >
                                     <X className="w-5 h-5 text-neutral-500 group-hover:text-white transition-colors" />

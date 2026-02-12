@@ -24,3 +24,8 @@ export async function applyEvolutionMutation(report: EvolutionReport): Promise<v
     const { savePersonaEvolution } = await import("../utils/evolution-service");
     await savePersonaEvolution(report);
 }
+
+export async function predictTrendsAction(sector: string, currentTrends: any[], apiKey: string) {
+    const { predictFutureTrends } = await import("../utils/trend-surfer");
+    return await predictFutureTrends(sector, currentTrends, apiKey);
+}

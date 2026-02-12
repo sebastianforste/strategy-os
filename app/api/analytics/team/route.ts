@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
 import { getTeamPerformance, getColleaguePerformance, generateTeamRecommendations } from "@/utils/analytics-service";
 import { authOptions } from "@/utils/auth";
-import { HttpError, jsonError, rateLimit, requireSession } from "@/utils/request-guard";
+import { HttpError, jsonError, rateLimit, requireSessionForRequest } from "@/utils/request-guard";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await requireSession(authOptions);
-    rateLimit({ key: "analytics_team", limit: 60, windowMs: 60_000 });
+    const session = await requireSessionForRequest(req, authOptions);
+    await rateLimit({ key: `analytics_team:${session.user.id}`, limit: 60, windowMs: 60_000 });
 
+    const teamId = (session.user as any)?.teamId ?? null;
     const [performance, colleagues] = await Promise.all([
-      getTeamPerformance(),
-      getColleaguePerformance()
+      getTeamPerformance({ teamId, authorId: session.user.id }),
+      getColleaguePerformance({ teamId, authorId: session.user.id })
     ]);
 
     // Generate AI insights

@@ -1,6 +1,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { generateContent } from '../utils/ai-service-server';
+import * as vectorStore from "../utils/vector-store";
+
+// MOCK: next-auth session (needed for scoped RAG + resource queries)
+vi.mock("next-auth/next", () => ({
+    getServerSession: vi.fn().mockResolvedValue({ user: { id: "user_test_1" } }),
+}));
 
 // MOCK: @google/genai
 vi.mock('@google/genai', () => {
@@ -28,20 +34,6 @@ vi.mock('@google/genai', () => {
         }
     };
 });
-
-// MOCK: utils/db.ts
-// We use a hoisted variable for the mock function
-const { mockFindMany } = vi.hoisted(() => {
-  return { mockFindMany: vi.fn() };
-});
-
-vi.mock('../utils/db', () => ({
-    prisma: {
-        resource: {
-            findMany: mockFindMany
-        }
-    }
-}));
 
 // MOCK: utils/prompts.ts
 vi.mock('../utils/prompts', async (importOriginal) => {
@@ -81,11 +73,19 @@ const consoleSpy = vi.spyOn(console, 'log');
 
 // MOCK: utils/vector-store.ts
 vi.mock('../utils/vector-store', () => ({
-    searchVectorStore: vi.fn().mockImplementation(async (query) => {
-        // Return empty array for the "no resources" test
+    searchResources: vi.fn().mockImplementation(async (query) => {
         if (query === "EMPTY_TEST") return [];
-        return [{ text: "Mock vector search result" }];
-    })
+        return [
+            {
+                id: "res_1",
+                text: "Mock vector search result",
+                metadata: { title: "Mock Resource", summary: "Mock summary", sourceType: "web" },
+                vector: [],
+                createdAt: Date.now(),
+            },
+        ];
+    }),
+    searchVectorStore: vi.fn().mockResolvedValue([]),
 }));
 
 describe('AI Service - RAG Logic', () => {
@@ -94,37 +94,18 @@ describe('AI Service - RAG Logic', () => {
     });
 
     it('should inject context when resources exist', async () => {
-        const mockResources = [
-            {
-                title: 'Test Doc',
-                metadata: {
-                    document_type: 'Report',
-                    date: '2025-01-01',
-                    summary: 'Strategic Overview'
-                }
-            }
-        ];
-        mockFindMany.mockResolvedValue(mockResources);
-
         await generateContent("Test Input", "test-key", "cso");
 
-        expect(mockFindMany).toHaveBeenCalledWith({
-            take: 3,
-            orderBy: { createdAt: 'desc' },
-            where: { type: 'pdf' }
-        });
+        expect(vectorStore.searchResources).toHaveBeenCalled();
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Injecting Strategic Context"));
     });
 
     it('should NOT inject context when no resources exist', async () => {
-        // Arrange
-        mockFindMany.mockResolvedValue([]); 
-
         // Act - Use specific query to trigger empty vector search mock
         await generateContent("EMPTY_TEST", "test-key", "cso");
 
         // Assert
-        expect(mockFindMany).toHaveBeenCalled();
+        expect(vectorStore.searchResources).toHaveBeenCalled();
         expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining("Injecting Strategic Context"));
     });
 });

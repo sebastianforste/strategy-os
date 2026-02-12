@@ -3,6 +3,7 @@ import { generateContent } from "./ai-service-server";
 import { GeneratedAssets } from "./ai-service";
 import { PERSONAS } from "./personas";
 import { schedulePost } from "./archive-service";
+import { SECTORS, SectorId } from "./sectors";
 
 export interface GhostDraft {
   id: string;
@@ -14,24 +15,6 @@ export interface GhostDraft {
   status: 'unread' | 'saved' | 'discarded' | 'scheduled';
   viralityScore: number;
 }
-
-// Dynamic sectors based on 2027-2028 executive concerns
-const SECTORS = [
-  "SaaS Pricing Models",
-  "Remote Work Leadership",
-  "AI Regulation",
-  "Corporate Real Estate",
-  "B2B Sales Strategy",
-  "Venture Capital Trends",
-  "Employee Retention Crisis",
-  "Supply Chain Fragility",
-  "Cybersecurity Insurance",
-  "Executive Burnout",
-  "ESG Compliance",
-  "Quantum Computing Risk",
-  "Creator Economy M&A",
-  "Generative AI Liability"
-];
 
 /**
  * GHOST AGENT V2: Autonomous Strategist
@@ -97,7 +80,7 @@ async function selectTrendingSectors(apiKey: string, count: number): Promise<Sec
     if (generalTrends.length > 0) {
        // 2. Analyze top trends to find best sectors
        // We'll take the top 5 trends and ask AI to map them
-       const trendSummary = generalTrends.slice(0, 5).map((t, i) => `${i+1}. "${t.title}" (${t.source}): ${t.snippet}`).join("\n");
+       const trendSummary = generalTrends.slice(0, 5).map((t: any, i: number) => `${i+1}. "${t.title}" (${t.source}): ${t.snippet}`).join("\n");
        
        const analysisPrompt = `
        TASK: Analyze these real-world trends and map them to the most relevant business sectors.
@@ -106,31 +89,33 @@ async function selectTrendingSectors(apiKey: string, count: number): Promise<Sec
        ${trendSummary}
        
        AVAILABLE SECTORS:
-       ${SECTORS.join(", ")}
+       ${Object.values(SECTORS).map(s => `${s.id}: ${s.name}`).join(", ")}
        
        INSTRUCTIONS:
-       For the top ${count} most "viral" or "critical" trends, identifying the matching Sector.
-       If no existing sector fits, INVENT a new relevant sector name (e.g., "Neuromorphic Computing").
+       For the top ${count} most "viral" or "critical" trends, identification of the matching Sector ID from the list above.
        
        OUTPUT JSON ONLY:
        [
-         { "sector": "Sector Name", "trendIndex": 1 },
+         { "sectorId": "saas", "trendIndex": 1 },
          ...
        ]
        `;
 
        const analysis = await generateContent(analysisPrompt, apiKey, "cso");
        try {
-           const parsed = JSON.parse(analysis.textPost.replace(/```json|```/g, "").trim());
+           const cleanedText = analysis.textPost.replace(/```json|```/g, "").trim();
+           const parsed = JSON.parse(cleanedText);
            
            if (Array.isArray(parsed)) {
                parsed.forEach((p: any) => {
                    const trendIdx = (p.trendIndex || 1) - 1;
                    const trend = generalTrends[trendIdx];
+                   const sectorId = p.sectorId as SectorId;
+                   const sector = SECTORS[sectorId] || SECTORS.general;
                    if (trend) {
                        opportunities.push({
-                           sector: p.sector,
-                           trendContext: `REAL NEWS: "${trend.title}" - ${trend.snippet}`,
+                           sector: sector.name,
+                           trendContext: `REAL NEWS: "${trend.title}" - ${trend.snippet}\n\nSECTOR FOCUS: ${sector.contextPrompt}`,
                            source: trend.source
                        });
                    }
@@ -139,7 +124,7 @@ async function selectTrendingSectors(apiKey: string, count: number): Promise<Sec
        } catch (parseError) {
            console.warn("[Ghost V2] Failed to parse sector map, using fallback mapping", parseError);
            // Fallback: Just map 1-to-1 linearly
-           generalTrends.slice(0, count).forEach(t => {
+           generalTrends.slice(0, count).forEach((t: any) => {
                opportunities.push({
                    sector: "Emerging Market Trend",
                    trendContext: `REAL NEWS: "${t.title}" - ${t.snippet}`,
@@ -154,11 +139,12 @@ async function selectTrendingSectors(apiKey: string, count: number): Promise<Sec
   
   // Fill remaining slots with random sectors if needed
   while (opportunities.length < count) {
-      const randomSector = SECTORS[Math.floor(Math.random() * SECTORS.length)];
-      // Ensure specific uniqueness in a real impl, but simple check here
+      const sectorIds = Object.keys(SECTORS) as SectorId[];
+      const randomSectorId = sectorIds[Math.floor(Math.random() * sectorIds.length)];
+      const sector = SECTORS[randomSectorId];
       opportunities.push({
-          sector: randomSector,
-          trendContext: "No breaking news. Invent a 'Silent Crisis' scenario common in this industry.",
+          sector: sector.name,
+          trendContext: `No breaking news. Invent a 'Silent Crisis' scenario common in ${sector.name}.\n\nSECTOR FOCUS: ${sector.contextPrompt}`,
           source: "Ghost Logical Inference"
       });
   }

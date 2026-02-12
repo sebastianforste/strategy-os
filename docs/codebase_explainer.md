@@ -1,57 +1,80 @@
-# Developer Directory - Engineering Inventory
+# StrategyOS Codebase Explainer
 
-**Root**: `/Users/sebastian/Developer`
-**Scan Date**: 2026-01-26
+## 1. App Topology
+- Framework: Next.js App Router
+- Main page: `app/page.tsx`
+- Root shell: `components/UnifiedCanvas.tsx`
+- Core editor: `components/Canvas/CanvasEditor.tsx`
+- Command input: `components/Canvas/OmniBar.tsx`
 
-## 1. Executive Summary
-The `~/Developer` directory governs a diverse ecosystem of tools ranging from frontend applications to background daemons and content repositories. The most active development is focused on **Strategy OS**, a complex AI-powered Next.js application.
+## 2. Directory Map
+- `app/`: pages, layout, API routes
+- `components/`: UI and shell modules
+- `actions/`: server actions orchestrating generation/publish/revision
+- `utils/`: services (AI, auth, analytics, storage, vector, platform adapters)
+- `prisma/`: schema + DB configuration
+- `e2e/`: Playwright end-to-end specs
+- `tests/`: Vitest unit/integration tests
+- `scripts/`: maintenance, verification, and tooling scripts
 
-## 2. Project Inventorydfad
-Projects are listed by decreasing modification activity.
+## 3. Runtime Flow (Primary)
+1. User input enters omnibar in `UnifiedCanvas`.
+2. `onDraft` / command parser routes action.
+3. Server action `processInput` (`actions/generate.ts`) orchestrates:
+   - prompt construction (`utils/prompt-builder.ts`)
+   - AI generation (`utils/ai-service-server.ts`)
+   - optional image generation (`utils/image-service.ts`)
+   - anti-robot post-processing (`utils/text-processor.ts`)
+4. Result is rendered in editor and optionally persisted via history/audit services.
 
-### Active Projects (Deep Dived)
-1.  **[Strategy OS](./strategy-os.md)** (TypeScript/Next.js)
-    -   *Status*: Active Development.
-    -   *Purpose*: CDSO Persona Content Generator.
-    -   *Key Tech*: Next.js 16, Google Gemini 3, Local Filesystem persistence.
+## 4. Persona Revision Path
+- Entry point: `Revise` control in `CanvasEditor`
+- Handler: `handlePersonaRevision` in `UnifiedCanvas`
+- Server action: `reviseWithPersonaAction`
+- Tone source: `utils/personas.ts`
+- Result passes through anti-robot filter before rendering.
 
-2.  **[SentinelDaemon](./SentinelDaemon.md)** (Python)
-    -   *Status*: Functional.
-    -   *Purpose*: Background service to organize `~/Downloads` into `~/Developer` folders using AI.
-    -   *Key Tech*: Watchdog, Gemini 1.5 Flash.
+## 5. Responsive Shell Model
+- Mode hook: `hooks/useLayoutMode.ts`
+- Modes: `desktop | tablet | mobile`
+- Types: `types/shell-ui.ts`
 
-3.  **[Gunnercooke Marketing](./gunnercooke-marketing.md)** (Markdown/Python)
-    -   *Status*: Data Repository.
-    -   *Purpose*: High-signal marketing book summaries (potential RAG dataset).
+Behavior:
+- desktop: persistent rails
+- tablet: drawer rails
+- mobile: tools sheet + single-column workspace
 
-### Other Projects (Snapshot)
--   `personal_finance_dashboard`: Likely a Streamlit or Dash app.
--   `legal_agent`: AI Agent project.
--   `teams_voice_memos`: Productivity tool.
--   `scripts`: General shell/python utility scripts.
--   `dotfiles`: System configuration.
+## 6. Design System Integration
+- Token source: `theme.json`
+- Sync script: `scripts/stitch-sync.ts`
+- Runtime CSS variable injection: `app/layout.tsx`
+- Token diagnostics panel: `components/Canvas/DesignTokensView.tsx`
+- Token consistency checks:
+  - `scripts/check-stitch-token-usage.ts`
+  - `tests/stitch-token-consistency.test.ts`
 
-## 3. Cross-Cutting Concerns
+## 7. Persistence Layers
+- Prisma/SQLite for strategies, auth, teams, templates, resources.
+- Client-side history/audit stores for low-latency UX.
+- Optional history migration endpoint: `app/api/migrate-history/route.ts`.
 
-### Security & Secrets
--   **Pattern**: API Keys (Gemini, OpenAi, Serper) are consistently managed via `.env` files (`python-dotenv` or Next.js built-in support).
--   **Risk**: `strategy-os` exposes some keys to the client via `NEXT_PUBLIC_` prefix/localStorage. This is acceptable for a local-only single-user tool but risky if deployed.
+## 8. API Surface (App Router)
+Representative endpoints:
+- generation: `app/api/generate/route.ts`
+- distribution: `app/api/distribute/route.ts`
+- health: `app/api/health/route.ts`
+- key validation: `app/api/validate-key/route.ts`
+- analytics: `app/api/analytics/team/route.ts`, `app/api/analytics/dashboard/route.ts`
+- history: `app/api/history/route.ts`, `app/api/migrate-history/route.ts`
+- auth: `app/api/auth/[...nextauth]/route.ts`
 
-### AI Integration
--   **Pattern**: Heavy reliance on **Google Gemini** models across both TypeScript (`strategy-os`) and Python (`SentinelDaemon`) stacks.
--   **Architecture**: Logic is often centralized in `utils/ai-service` or dedicated helper modules (`sorter.py`), showing a good separation of concerns.
+## 9. Reliability Controls
+- Service worker registration runs only in production and checks `/sw.js` first.
+- PWA icons are explicit in `public/manifest.json`.
+- Reduced-motion styles enforced in `app/globals.css`.
+- E2E guardrails cover overlap/accessibility/tools/modal/core actions.
 
-### Persistence
--   **Pattern**: Preference for **Local Filesystem** storage (`generated_posts`, `downloads` sorting) and **Browser Storage** (History) over SQL/NoSQL databases. Simplifies architecture but limits scalability.
-
-## 4. Prioritized Improvement Plan
-
-### P0: Observability & Robustness
-1.  **Strategy OS**: Move `scripts/` testing logic into a real test suite (`jest` or `vitest`).
-2.  **SentinelDaemon**: Implement a logging rotation to avoid massive log files on long runs.
-
-### P1: Security
-1.  **Strategy OS**: Consider moving API calls entirely to Server Actions to avoid `NEXT_PUBLIC_` usage (partially implemented, but keys still live in Client Settings).
-
-### P2: Architecture
-1.  **Gunnercooke**: Implement the ingestion pipeline in `src/` to make the data usable.
+## 10. Current Risks to Watch
+- External model availability and quota can still fail generation paths.
+- Auth-required routes return `401` in local unauthenticated runs.
+- Some legacy modules remain in repository but are not part of primary shell flow.

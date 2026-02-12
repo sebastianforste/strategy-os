@@ -40,6 +40,7 @@ yarn-error.log*
 .antigravity/
 dev.db
 prisma/dev.db
+tmp_prisma.db
 playwright-report/
 server-debug.log
 

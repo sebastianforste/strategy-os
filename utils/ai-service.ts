@@ -6,6 +6,7 @@
  */
 
 import { PersonaId } from "./personas";
+import type { Citation } from "./citations";
 
 export interface GeneratedAssets {
   /** The main LinkedIn text post content (filtered & formatted). */
@@ -28,6 +29,8 @@ export interface GeneratedAssets {
   visualConcept?: string;
   /** Concepts retrieved from the Knowledge Graph (if RAG was used). */
   ragConcepts?: string[];
+  /** Citations for any retrieved context injected into prompts (if available). */
+  citations?: Citation[];
 }
 
 // Re-export type if needed for other components

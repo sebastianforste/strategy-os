@@ -33,4 +33,3 @@ describe("request-guard", () => {
     await expect(parseJson(req, z.object({}))).rejects.toMatchObject({ status: 400 });
   });
 });
-

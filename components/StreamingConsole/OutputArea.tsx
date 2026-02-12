@@ -9,13 +9,14 @@
 
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Bot, FileText } from "lucide-react";
+import { Sparkles, Bot, FileText, Clapperboard } from "lucide-react";
 import SkeletonLoader from "../SkeletonLoader";
 import LinkedInPreview from "../previews/LinkedInPreview";
 import TwitterPreview from "../previews/TwitterPreview";
 import SwotWidget, { SwotData } from "../widgets/SwotWidget";
 import TrendWidget, { TrendData } from "../widgets/TrendWidget";
 import { extractWidgets } from "../../utils/widget-parser";
+import type { Citation } from "../../utils/citations";
 
 export interface OutputAreaProps {
   isLoading: boolean;
@@ -29,7 +30,9 @@ export interface OutputAreaProps {
   onUpdateCompletion?: (text: any) => void;
   onOpenRepurposing?: () => void;
   onOpenAuditor?: () => void;
+  onOpenVideoArchitect?: () => void;
   ragConcepts?: string[];
+  citations?: Citation[];
 }
 
 import { detectCliches, ClicheViolation } from "../../utils/cliche-detector";
@@ -57,8 +60,10 @@ export default function OutputArea({
   onUpdateCompletion, 
   onOpenRepurposing,
   onOpenAuditor,
-  ragConcepts = []
-}: OutputAreaProps & { personaId: PersonaId; onUpdateCompletion?: (text: string) => void; onOpenRepurposing?: () => void; onOpenAuditor?: () => void; ragConcepts?: string[] }) {
+  onOpenVideoArchitect,
+  ragConcepts = [],
+  citations = []
+}: OutputAreaProps & { personaId: PersonaId; onUpdateCompletion?: (text: string) => void; onOpenRepurposing?: () => void; onOpenAuditor?: () => void; onOpenVideoArchitect?: () => void; ragConcepts?: string[]; citations?: Citation[] }) {
   const [cliches, setCliches] = useState<ClicheViolation[]>([]);
   const [showClicheReport, setShowClicheReport] = useState(false);
   const [isRoastOpen, setIsRoastOpen] = useState(false);
@@ -493,6 +498,43 @@ export default function OutputArea({
                 </div>
               )}
 
+              {/* Sources Used (Citations) */}
+              {citations.length > 0 && (
+                <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl">
+                  <h4 className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Sources Used
+                  </h4>
+                  <div className="space-y-2">
+                    {citations.slice(0, 10).map((c, i) => {
+                      const label = (c.title || c.url || c.id).toString();
+                      return (
+                        <div key={`${c.id}-${i}`} className="flex items-start justify-between gap-3 text-xs">
+                          <div className="min-w-0">
+                            <div className="text-[10px] text-neutral-500 font-mono uppercase tracking-widest">
+                              {c.source} {typeof c.chunkIndex === "number" ? `• chunk ${c.chunkIndex + 1}` : ""}
+                            </div>
+                            {c.url ? (
+                              <a
+                                href={c.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-emerald-200 hover:text-white underline underline-offset-4 break-words"
+                              >
+                                {label}
+                              </a>
+                            ) : (
+                              <div className="text-emerald-200 break-words">{label}</div>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-neutral-600 font-mono shrink-0">{i + 1}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="mt-4 p-5 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-white/5 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 backdrop-blur-sm">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-blue-500/20 rounded-2xl shadow-lg shadow-blue-500/10">
@@ -614,6 +656,18 @@ export default function OutputArea({
                        </button>
                    </div>
                )}
+                {/* Video Architect Button */}
+                {onOpenVideoArchitect && (
+                    <div className="flex justify-center mt-2">
+                        <button 
+                            onClick={onOpenVideoArchitect}
+                            className="flex items-center gap-2 px-4 py-2 bg-brand-500/10 hover:bg-brand-600/20 text-brand-400 text-xs font-bold rounded-xl transition-all border border-brand-500/20"
+                        >
+                            <Clapperboard className="w-3 h-3" />
+                            Architect Video
+                        </button>
+                    </div>
+                )}
 
               <motion.button
                 initial={{ opacity: 0 }}

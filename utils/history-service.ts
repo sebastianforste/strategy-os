@@ -27,6 +27,11 @@ export interface HistoryItem {
 }
 
 const STORAGE_KEY = "strategyos_history";
+const SESSION_CACHE_TTL_MS = 30_000;
+
+let authSessionState: boolean | null = null;
+let authSessionCheckedAt = 0;
+let sessionProbePromise: Promise<boolean> | null = null;
 
 let isSaving = false;
 const historyQueue: (() => Promise<void>)[] = [];
@@ -38,6 +43,48 @@ async function processQueue() {
   if (next) await next();
   isSaving = false;
   processQueue();
+}
+
+async function hasAuthenticatedSession(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+
+  const now = Date.now();
+  if (authSessionState !== null && now - authSessionCheckedAt < SESSION_CACHE_TTL_MS) {
+    return authSessionState;
+  }
+
+  if (sessionProbePromise) {
+    return sessionProbePromise;
+  }
+
+  sessionProbePromise = fetch("/api/auth/session", { cache: "no-store" })
+    .then(async (response) => {
+      if (!response.ok) return false;
+      const data = await response.json();
+      return Boolean(data?.user);
+    })
+    .catch(() => false)
+    .finally(() => {
+      sessionProbePromise = null;
+    });
+
+  const isAuthenticated = await sessionProbePromise;
+  authSessionState = isAuthenticated;
+  authSessionCheckedAt = now;
+  return isAuthenticated;
+}
+
+function getLocalHistory(workspaceId?: string): HistoryItem[] {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return [];
+
+  const allHistory: HistoryItem[] = JSON.parse(raw);
+  const targetWorkspace = workspaceId || getActiveWorkspaceId();
+
+  return allHistory.filter(item => {
+      if (!item.workspaceId) return targetWorkspace === "default";
+      return item.workspaceId === targetWorkspace;
+  });
 }
 
 export async function saveHistory(input: string, assets: GeneratedAssets, personaId: string = "cso"): Promise<string> {
@@ -59,8 +106,11 @@ export async function saveHistory(input: string, assets: GeneratedAssets, person
         const updated = [newItem, ...existing].slice(0, 200);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         
-        // Trigger background migration without blocking resolve
-        migrateHistoryToCloud().catch(err => console.warn("[History] Background migration failed", err));
+        // Trigger background migration without blocking resolve.
+        hasAuthenticatedSession().then((isAuthenticated) => {
+          if (!isAuthenticated) return;
+          migrateHistoryToCloud().catch(err => console.warn("[History] Background migration failed", err));
+        });
 
         resolve(newItem.id);
       } catch (e) {
@@ -74,24 +124,20 @@ export async function saveHistory(input: string, assets: GeneratedAssets, person
 
 export async function getHistory(workspaceId?: string): Promise<HistoryItem[]> {
   try {
-    // 1. Try to get from cloud/Prisma first
-    const response = await fetch("/api/history");
-    if (response.ok) {
-        const data = await response.json();
-        if (data.history && data.history.length > 0) return data.history;
+    // 1. Try to get from cloud/Prisma first (only when authenticated)
+    if (await hasAuthenticatedSession()) {
+      const response = await fetch("/api/history");
+      if (response.ok) {
+          const data = await response.json();
+          if (data.history && data.history.length > 0) return data.history;
+      } else if (response.status === 401) {
+          authSessionState = false;
+          authSessionCheckedAt = Date.now();
+      }
     }
 
     // 2. Fallback to LocalStorage (Legacy)
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    
-    const allHistory: HistoryItem[] = JSON.parse(raw);
-    const targetWorkspace = workspaceId || getActiveWorkspaceId();
-    
-    return allHistory.filter(item => {
-        if (!item.workspaceId) return targetWorkspace === "default";
-        return item.workspaceId === targetWorkspace;
-    });
+    return getLocalHistory(workspaceId);
   } catch (e) {
     console.error("Failed to load history:", e);
     return [];
@@ -154,7 +200,16 @@ export async function getTopRatedPosts(personaId?: string, limit: number = 3): P
 
 export async function migrateHistoryToCloud(): Promise<{ success: boolean; migrated: number; failed: number; message: string }> {
   try {
-    const history = await getHistory();
+    if (!(await hasAuthenticatedSession())) {
+      return {
+        success: true,
+        migrated: 0,
+        failed: 0,
+        message: "Skipped migration: user is not signed in.",
+      };
+    }
+
+    const history = getLocalHistory();
     if (history.length === 0) {
       return { success: true, migrated: 0, failed: 0, message: "No history to migrate." };
     }
@@ -168,6 +223,17 @@ export async function migrateHistoryToCloud(): Promise<{ success: boolean; migra
     });
 
     const data = await response.json();
+
+    if (response.status === 401) {
+      authSessionState = false;
+      authSessionCheckedAt = Date.now();
+      return {
+        success: true,
+        migrated: 0,
+        failed: 0,
+        message: "Skipped migration: session is no longer authenticated.",
+      };
+    }
 
     if (!response.ok) {
       throw new Error(data.error || "Migration failed");
@@ -193,4 +259,11 @@ export async function migrateHistoryToCloud(): Promise<{ success: boolean; migra
       message: error instanceof Error ? error.message : "Unknown error occurred"
     };
   }
+}
+
+// Test helper: reset auth-session cache between unit tests.
+export function __resetHistoryAuthCacheForTests(): void {
+  authSessionState = null;
+  authSessionCheckedAt = 0;
+  sessionProbePromise = null;
 }

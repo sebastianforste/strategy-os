@@ -10,9 +10,9 @@ interface DevicePreviewProps {
 
 export function DevicePreview({ content, platform }: DevicePreviewProps) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center bg-[#0F1115] p-12">
+    <div className="flex flex-1 flex-col items-center justify-center bg-[rgba(12,16,22,0.9)] px-4 py-8 md:p-12">
       {/* iPhone 15 Pro Frame (CSS-Only) */}
-      <div className="relative w-[320px] h-[650px] bg-black rounded-[55px] border-[8px] border-[#24282D] shadow-2xl overflow-hidden ring-4 ring-[#16181D]">
+      <div className="relative h-[min(650px,76vh)] w-[min(320px,90vw)] overflow-hidden rounded-[55px] border-[8px] border-[var(--stitch-border,#24282D)] bg-black shadow-2xl ring-4 ring-[var(--stitch-surface,#16181D)]">
         {/* Dynamic Island */}
         <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-7 bg-black rounded-full z-20" />
         
@@ -53,8 +53,8 @@ export function DevicePreview({ content, platform }: DevicePreviewProps) {
       </div>
 
       <div className="mt-8 text-center">
-        <h4 className="text-[10px] font-mono text-emerald-500 uppercase tracking-widest">High-Fidelity Preview: iPhone 15 Pro</h4>
-        <p className="text-[9px] text-[#8A8D91] mt-1 italic">Pixel-accurate font rendering for {platform}</p>
+        <h4 className="text-[10px] font-mono text-[var(--stitch-accent,#7c3bed)] uppercase tracking-widest">High-Fidelity Preview: iPhone 15 Pro</h4>
+        <p className="text-[9px] text-[var(--stitch-text-secondary,#8A8D91)] mt-1 italic">Pixel-accurate font rendering for {platform}</p>
       </div>
     </div>
   );

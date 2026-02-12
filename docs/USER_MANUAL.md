@@ -1,186 +1,115 @@
-# StrategyOS: The World-Class AI Strategist User Manual 🧬
+# StrategyOS User Manual
 
-Welcome to **StrategyOS**. This isn't just a "writing tool." It is an **Agentic Content Engine** designed to ghostwrite high-status, authoritative content that dominates the LinkedIn algorithm and establishes you as a Category King.
+## 1. Overview
+StrategyOS is a writing studio for strategy-oriented content creation.
 
----
+Primary surface: `UnifiedCanvas`.
 
-## 🏗️ 1. The Core Philosophy: "Anti-Robot"
+Core loop:
+1. choose persona
+2. draft or generate content
+3. revise in persona voice
+4. polish
+5. preview
+6. publish
 
-Before generating a single word, understand the **StrategyOS Protocol**:
+## 2. First Run
+1. Open `http://localhost:3000`.
+2. In the setup banner, enter your Gemini key (or `demo`).
+3. Click `Test key`, then `Save`.
 
-1.  **Status Over Volume**: We do not spam. We drop "Knowledge Bombs"—high-signal insights that force the reader to stop scrolling.
-2.  **The Anti-Robot Filter**: The engine is hardcoded to reject "GPT-isms."
-    *   🚫 *Banned*: "Delve," "Unleash," "Leverage," "In today's fast-paced world," "Excited to share."
-    *   ✅ *Enforced*: "The dangerous part is...", "Here's the truth.", "Stop doing X."
-3.  **Viral Syntax ("Bro-etry")**:
-    *   Short, punchy sentences.
-    *   Double spacing for readability.
-    *   No paragraphs longer than 3 lines.
+If key save succeeds, generation controls are unblocked.
 
-> [!IMPORTANT]
-> **Treat StrategyOS as a Partner, not a Tool.** Don't ask it to "write a post." Ask it to "analyze this trend and give me a contrarian perspective."
+## 3. Layout Behavior
+- Desktop (`>=1280`): left personas rail + right telemetry rail visible.
+- Tablet (`768-1279`): rails open via `Toggle personas panel` and `Toggle telemetry panel`.
+- Mobile (`<768`): compact top bar + `Tools` panel for secondary actions.
 
----
+## 4. Personas
+Available built-in personas:
+- `cso` → The Strategist
+- `storyteller` → The Founder
+- `colleague` → The High-Performer
+- `contrarian` → The Provocateur
+- `custom` → Your Voice
 
-## 🚀 2. Getting Started
+Ways to switch:
+- persona dropdown in shell
+- left rail buttons (desktop/tablet drawer)
+- omnibar command: `/persona <id>`
 
-### System Requirements
-*   **Gemini Pro 1.5 API Key**: Required for the reasoning engine.
-*   **Serper.dev API Key**: Required for "Newsjacking" (real-time web search).
+## 5. Writing and Revision
+### Drafting
+- Type in the bottom omnibar and press `Execute`.
+- Or run command-style inputs (`/draft ...`, `/news ...`).
 
-### Configuration
-1.  Open the **Settings** (Gear Icon) in the bottom-left sidebar.
-2.  Enter your valid API keys.
-3.  Set your **Creativity** (Temperature).
-    *   *Recommendation*: Keep it at **0.7** for a balance of creativity and logic.
-    *   *Lower (0.3)* for data/facts.
-    *   *Higher (0.9)* for storytelling.
+### Persona-Guided Revision
+In the editor header:
+1. pick a preset (`Sharper`, `Shorter`, etc.) or type custom instruction
+2. click `Revise`
 
-### Workspace Context
-*   The system uses **Workspaces** to separate client/brand data.
-*   Ensure you are in the correct workspace before training the Voice Studio.
+Behavior:
+- revision preserves core claims
+- rewrite is guided by the active persona
+- button is disabled if draft content is empty
 
----
+## 6. Editor Actions
+- `Polish`: runs anti-robot cleanup and replacement pass
+- `Publish`: sends content through distribution API
+- `Waterfall`: enters repurposing layout mode
+- `Editor view` / `Preview view`: toggle working mode
+- `Open manifesto view`: full-screen reading mode
 
-## 🎛️ 3. Mission Control: The Streaming Console
+## 7. Tools Panel / Header Actions
+Actions available through desktop header or mobile tools panel:
+- Daily Briefing
+- Design DNA
+- Settings
+- History
+- Voice Training
+- Ghost Agent
+- Analytics
+- Manifesto
 
-This is your cockpit. Every strategic move starts here.
+## 8. Omnibar Commands
+Supported command set:
+- `/help`
+- `/settings`
+- `/history`
+- `/voice`
+- `/ghost`
+- `/analytics`
+- `/tokens`
+- `/briefing`
+- `/manifesto`
+- `/polish`
+- `/revise <instruction>` (alias: `/rewrite`)
+- `/publish`
+- `/preview [linkedin|twitter|x]`
+- `/editor`
+- `/waterfall`
+- `/persona <personaId>`
+- `/clear`
+- `/news <topic>`
+- `/draft <topic>`
 
-### The Input Field
-Don't just paste a topic. Give the engine **Context**.
-*   *Bad*: "Write about AI marketing."
-*   *Good*: "Newsjack the recent OpenAI update. Take the stance that 'Prompt Engineering is dead.' Use a cynical tone."
+## 9. Accessibility and UX
+- named controls for actionable buttons
+- keyboard navigation through shell controls
+- reduced-motion mode disables non-essential animation
+- safe-area-aware command dock spacing on mobile
 
-### The "Big Four" Modes
-Toggle these switches to change the engine's brain:
+## 10. Troubleshooting
+### `GET /sw.js 404` in dev
+Expected unless production PWA build is active. Service worker registration is production-only and guarded.
 
-| Mode | Icon | Functionality | When to Use |
-| :--- | :--- | :--- | :--- |
-| **Newsjack** | ⚡ | **Real-Time Search**: Scans the web for the latest news on your topic. | When commenting on a breaking event (e.g., Apple Vision Pro launch). |
-| **RAG** | 📚 | **Knowledge Base**: Searches your uploaded documents/memory for facts. | When writing about specific client results, case studies, or proprietary methods. |
-| **Swarm** | 🐝 | **Agent Debate**: Invokes a "Council" of agents (Visionary, Skeptic) to argue before writing. | For complex, controversial topics where you need to bulletproof your logic. |
-| **Agentic** | 📞 | **The Red Phone**: Fully autonomous loop. Researches, drafts, critiques, and refines until score > 80. | When you want the highest possible quality and have 2 minutes to wait. |
+### `Unauthorized` on `/api/history` or `/api/migrate-history`
+These endpoints require authenticated session.
 
----
+### Gemini quota/model errors
+If you see `429 RESOURCE_EXHAUSTED` or model `404`:
+- check billing/quota
+- update configured model chain in `utils/config.ts`
 
-## 🎭 4. Persona Intelligence
-
-StrategyOS doesn't just "write." It **embodies** a worldview.
-
-### The Roster
-1.  **The Strategist (Marcus Vane)**
-    *   *Vibe*: McKinsey Partner gone rogue. Cynical, authoritative, high-status.
-    *   *Best For*: Industry teardowns, strategic frameworks, "Hard Truths."
-2.  **The Founder (Katya Novak)**
-    *   *Vibe*: Vulnerable, in the trenches, building in public.
-    *   *Best For*: Failure stories, lessons learned, emotional hooks.
-3.  **The Provocateur (Declan Reyes)**
-    *   *Vibe*: Aggressive, polarizing, debate-seeking.
-    *   *Best For*: Twitter/X threads, attacking the status quo, "Hot Takes."
-4.  **The Curator (Jess Chen)**
-    *   *Vibe*: Analytical, helpful, high-signal.
-    *   *Best For*: "Top 10" lists, tool roundups, industry summaries.
-
-### 🧬 Custom Persona (Voice Studio)
-*   **What it is**: An AI clone of *your* specific writing style.
-*   **How to Train**:
-    1.  Open **Voice Studio** (Sidebar).
-    2.  Paste 5-10 of your *best-performing* past posts.
-    3.  Click **Synthesize DNA**.
-    4.  The system calculates your sentence length variance, vocabulary complexity, and "Hook Architecture."
-    5.  Select **"Your Voice"** in the main console to use it.
-
----
-
-## ⚡ 5. The "Viral Content" Workflow
-
-Follow this sequence to generate World-Class content:
-
-1.  **Scan the Radar**: Check the **Trend Monitor** (Chart Icon) to see what's spiking in your sector.
-2.  **Select an Angle**: Click a trend to auto-populate the input.
-3.  **Choose Your Fighter**: Select **The Strategist** (for authority) or **The Provocateur** (for engagement).
-4.  **Activate Agentic Mode**: Toggle the **Red Phone** (Agentic Mode) on.
-5.  **Execute**:
-    *   The system will first *Research* the topic live.
-    *   It will *Draft* 3 variations.
-    *   The *Council* will critique them.
-    *   It will output the *Final* high-status asset.
-6.  **The Polish**:
-    *   Use **Boardroom** to clean up any remaining fluff.
-    *   Use **Visual Alchemist** to generate a matching geometric image.
-
----
-
-## 🛠️ 6. Advanced Agentic Tools
-
-### 👻 Ghost Agent V2
-*   **Purpose**: Autonomous background hunter.
-*   **Action**: It wakes up periodically, scans your defined **Sectors** (e.g., SaaS, Fintech), and drafts content *without* you asking.
-*   **Notification**: You'll see a red dot on the Ghost icon when it finds a "High Virality" opportunity.
-
-### 🏛️ The Swarm Council
-*   **Purpose**: A stress-test for your ideas.
-*   **Action**: Opens a chat window where:
-    *   *The Visionary* proposes a wild idea.
-    *   *The Skeptic* tears it apart with logic.
-    *   *The Editor* synthesizes the winning arguments.
-*   **Access**: Click the "Council" button in the sidebar or toggle "Swarm" mode.
-
-### 🧪 Idea Factory
-*   **Purpose**: Batch processing.
-*   **Action**: Paste a messy list of 20 bullet points or notes. It will "Transmute" them into 20 polished LinkedIn hooks, Twitter threads, and Short Video scripts instantly.
-
-### 📉 Narrative Architect
-*   **Purpose**: Long-term storytelling.
-*   **Action**: Plan a "7-Day Arc." You give it a theme (e.g., "The Death of SEO"), and it maps out a week of content:
-    *   *Day 1*: The Hook/Problem.
-    *   *Day 3*: The Solution/Framework.
-    *   *Day 7*: The Call to Action.
-
----
-
-## 📊 7. Intelligence Hub (Analytics)
-
-This is the central command center for tracking and optimizing your strategic performance.
-
-### Performance Vitals
-- **Prisma-Backed History**: Every post is permanently indexed in your SQLite database.
-- **Trend Monitoring**: Tracks your system's "Heartbeat" (API latency, Error rates).
-
-### Virality Predictor (Engine V2)
-Every draft is scored (0-100) using a hybrid algorithm:
-- **Prisma Benchmarking**: Compares your hook against previous viral wins.
-- **Gemini Critique**: Real-time qualitative analysis of your "Executive Presence" and "Authority Score".
-- **Visual Trends**: Analyzes daily impressions and engagement patterns via the **Growth Curve**.
-
-### The Coach
-- **AI Recommendations**: Based on your lowest-performing areas, the system suggests specific persona shifts (e.g., "Switch to Contrarian to spark engagement") and hook improvements.
-
----
-
-## 💡 8. Strategic Recommendations
-
-### For LinkedIn
-*   **The "Inversion"**: Take a commonly held belief in your industry and respectfully destroy it. (e.g., "Why 'Hustle Culture' is keeping you poor.")
-*   **The "Visual Hook"**: Always attach a carousel or a high-contrast image. Text-only posts get buried.
-*   **Comment Strategy**: Use **The Provocateur** to generate replies to big creators in your niche.
-
-### For X (Twitter)
-*   **Thread Openers**: Must be under 20 words. Use a statistic or a dollar sign.
-*   **Frequency**: Use the **Ghost Agent** to schedule 3-5 tweets per day automatically.
-
----
-
-## ❓ 9. Troubleshooting
-
-*   **"System Stuck on 'Thinking'":**
-    *   *Fix*: Check if you have other terminal windows open using the same port. Run `lsof -i :3000` to check.
-*   **"Content sounds too generic":**
-    *   *Fix*: You haven't trained the Voice Studio. Upload more examples of *your* writing.
-    *   *Fix*: Turn **RAG** on to force it to use your specific knowledge.
-*   **"Unable to acquire lock":**
-    *   *Fix*: Run the `start_strategyos.command` script to clear the locks and restart.
-
----
-
-**StrategyOS v2.1** | *Built for World-Class Strategists*
+### Embedding warnings
+Embedding service now falls back automatically across configured embedding models.

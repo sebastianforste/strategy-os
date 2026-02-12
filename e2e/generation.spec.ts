@@ -13,6 +13,8 @@ test.describe('Content Generation Flow', () => {
   test('generation UI elements are present', async ({ page }) => {
     const textarea = page.getByPlaceholder(/What strategy do you want to build today/i);
     await expect(textarea).toBeVisible();
+    await expect(page.locator('input[aria-label="Persona revision instruction"]:visible').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Revise$/i })).toBeVisible();
 
     const button = page.getByRole('button', { name: /INITIATE SEQUENCE/i });
     await expect(button).toBeVisible();
@@ -28,7 +30,7 @@ test.describe('Content Generation Flow', () => {
   });
 
   test('omni command input stays focused on UnifiedCanvas generation flow', async ({ page }) => {
-    const input = page.getByLabel('Omni command input');
+    const input = page.locator('input[aria-label="Omni command input"]:visible').first();
     await input.click();
     await input.fill('/help');
     await expect(input).toHaveValue('/help');

@@ -41,6 +41,7 @@ export default function AnalyticsDashboard({ isOpen, onClose, apiKey }: Analytic
             >
                 <button 
                     onClick={onClose}
+                    aria-label="Close Analytics"
                     className="absolute top-6 right-6 p-2 bg-white/5 rounded-full hover:bg-white/10 text-white/50 hover:text-white transition-colors z-10"
                 >
                     <X className="w-5 h-5" />
@@ -71,7 +72,10 @@ export default function AnalyticsDashboard({ isOpen, onClose, apiKey }: Analytic
                             </button>
                         ))}
                     </div>
-                    <button className="p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 text-white/50 hover:text-white transition-all">
+                    <button
+                        aria-label="Download analytics report"
+                        className="p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 text-white/50 hover:text-white transition-all"
+                    >
                         <Download className="w-4 h-4" />
                     </button>
                 </div>

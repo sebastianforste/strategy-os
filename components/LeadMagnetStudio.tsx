@@ -7,10 +7,10 @@ import { MagnetType, LeadMagnet } from '@/utils/lead-magnet-service';
 interface LeadMagnetStudioProps {
     isOpen: boolean;
     onClose: () => void;
-    apiKey: string;
+    apiKey?: string;
 }
 
-export default function LeadMagnetStudio({ isOpen, onClose, apiKey }: LeadMagnetStudioProps) {
+export default function LeadMagnetStudio({ isOpen, onClose }: LeadMagnetStudioProps) {
     const [step, setStep] = useState<'input' | 'generating' | 'preview'>('input');
     const [topic, setTopic] = useState('');
     const [audience, setAudience] = useState('');
@@ -27,7 +27,7 @@ export default function LeadMagnetStudio({ isOpen, onClose, apiKey }: LeadMagnet
             const res = await fetch('/api/lead-magnet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ topic, audience, type, apiKey })
+                body: JSON.stringify({ topic, audience, type })
             });
             
             const data = await res.json();

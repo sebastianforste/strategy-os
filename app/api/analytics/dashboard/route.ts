@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { prisma } from "../../../../utils/db";
 import { logger } from "../../../../utils/logger";
+import { authOptions } from "@/utils/auth";
+import { HttpError, jsonError, rateLimit, requireSessionForRequest } from "@/utils/request-guard";
 
 const log = logger.scope("API/Analytics/Dashboard");
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const session = await getServerSession();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await requireSessionForRequest(req, authOptions);
+    await rateLimit({ key: `analytics_dashboard:${session.user.id}`, limit: 60, windowMs: 60_000 });
 
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+      where: { id: session.user.id },
       include: { 
           strategies: { 
               orderBy: { createdAt: 'desc' },
@@ -79,6 +78,9 @@ export async function GET() {
     });
 
   } catch (error) {
+    if (error instanceof HttpError) {
+      return jsonError(error.status, error.message, error.code);
+    }
     log.error("Dashboard analytics error", error as Error);
     return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }

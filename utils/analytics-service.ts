@@ -7,8 +7,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { ArchivedStrategy, getTopPerformers, getArchivedStrategies } from "./archive-service";
 import { AI_CONFIG } from "./config";
-
-const PRIMARY_MODEL = AI_CONFIG.primaryModel;
 import { prisma } from "./db";
 import { calculateReadability, analyzeSignaturePhrases } from "./analytics-helpers";
 
@@ -26,7 +24,7 @@ export async function getViralityPrediction(content: string, personaId: string, 
     const historicalSuccess = await prisma.strategy.findMany({
         where: {
             persona: personaId,
-            rating: "viral"
+            rating: "VIRAL"
         },
         take: 3
     });
@@ -62,7 +60,7 @@ export async function getViralityPrediction(content: string, personaId: string, 
 
     try {
         const result = await genAI.models.generateContent({
-            model: "models/gemini-2.0-flash-exp",
+            model: AI_CONFIG.staticPrimaryModel,
             contents: prompt,
             config: { responseMimeType: "application/json" }
         });
@@ -116,11 +114,19 @@ export interface ColleagueStats {
 /**
  * Get aggregated team performance metrics
  */
-export async function getTeamPerformance(teamId?: string): Promise<TeamPerformanceMetrics> {
+export async function getTeamPerformance(args?: { teamId?: string | null; authorId?: string | null }): Promise<TeamPerformanceMetrics> {
   try {
+    const whereScope =
+      args?.teamId
+        ? { teamId: args.teamId }
+        : args?.authorId
+          ? { authorId: args.authorId }
+          : {};
+
     const strategies = await prisma.strategy.findMany({
       where: {
         isPublished: true,
+        ...whereScope,
       },
       select: {
         persona: true,
@@ -172,7 +178,8 @@ export async function getTeamPerformance(teamId?: string): Promise<TeamPerforman
     const timeSeriesRaw = await prisma.strategy.findMany({
       where: {
         isPublished: true,
-        publishedAt: { gte: sevenDaysAgo }
+        publishedAt: { gte: sevenDaysAgo },
+        ...whereScope,
       },
       select: {
         publishedAt: true,
@@ -227,13 +234,21 @@ export async function getTeamPerformance(teamId?: string): Promise<TeamPerforman
 /**
  * Get stats for individual colleagues
  */
-export async function getColleaguePerformance(): Promise<ColleagueStats[]> {
+export async function getColleaguePerformance(args?: { teamId?: string | null; authorId?: string | null }): Promise<ColleagueStats[]> {
   try {
+    const whereScope =
+      args?.teamId
+        ? { teamId: args.teamId }
+        : args?.authorId
+          ? { authorId: args.authorId }
+          : {};
+
     const posts = await prisma.strategy.groupBy({
       by: ['teamMemberName', 'teamMemberRole'],
       where: {
         isTeamPost: true,
-        teamMemberName: { not: null }
+        teamMemberName: { not: null },
+        ...whereScope,
       },
       _count: {
         id: true
@@ -390,7 +405,7 @@ async function getAIRecommendations(topPerformers: ArchivedStrategy[], apiKey: s
 
     try {
         const result = await genAI.models.generateContent({
-            model: PRIMARY_MODEL,
+            model: AI_CONFIG.staticPrimaryModel,
             contents: prompt,
             config: { responseMimeType: "application/json" }
         });

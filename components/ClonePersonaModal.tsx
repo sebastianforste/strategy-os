@@ -33,18 +33,18 @@ export default function ClonePersonaModal({ onClose, onPersonaCreated, apiKey }:
       let textToAnalyze = input;
 
       if (mode === "url") {
-          // 1. Scrape the URL via our API
-          const scrapeRes = await fetch("/api/scrape", {
+          // 1. Ingest the URL via our API (scrape + persist + embed)
+          const scrapeRes = await fetch("/api/ingest-url", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ url: input })
           });
           
           const scrapeData = await scrapeRes.json();
-          if (!scrapeRes.ok || !scrapeData.text) {
-              throw new Error(scrapeData.error || "Failed to scrape URL. Ensure it is public.");
+          if (!scrapeRes.ok || !scrapeData?.extracted?.text) {
+              throw new Error(scrapeData.error || "Failed to ingest URL. Ensure it is public.");
           }
-          textToAnalyze = scrapeData.text;
+          textToAnalyze = scrapeData.extracted.text;
       }
 
       // 2. Analyze the text (either pasted or scraped)

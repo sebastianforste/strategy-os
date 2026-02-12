@@ -1,43 +1,57 @@
-# StrategyOS: 2026 Agentic Development Lifecycle
+# StrategyOS Development Lifecycle
 
-This document defines the standard operating procedure (SOP) for development within StrategyOS, leveraging the **Stitch-to-Antigravity Bridge**.
+This document defines the practical development lifecycle used for StrategyOS.
 
-## 1. The Core Setup: The "Bridge"
-We separate concerns between visual aesthetics and logical architecture.
+## 1. Lifecycle Phases
+### Phase A: Product Intent
+- define behavior change and quality gate
+- confirm no regressions to core shell actions (`draft`, `revise`, `polish`, `publish`, persona switch)
 
-### Phase A: Design & Scaffolding (The "Stitch" Phase)
-- **Tool:** Google Stitch / Stitch-MCP.
-- **Responsibility:** Atomic Generation (Tokens -> Atoms -> Molecules -> Screens).
-- **Output:** Tailwind-powered React components with static props.
-- **Workflow:** Define tokens in `theme.json` -> Generate individual components -> Assemble screens.
+### Phase B: Design System Alignment
+- use Stitch token pipeline as source of truth
+- update `theme.json` through `scripts/stitch-sync.ts` when design tokens change
+- avoid hardcoded palette values in shell/editor surfaces
 
-### Phase B: Logic & Integration (The "Antigravity" Phase)
-- **Tool:** Antigravity (Agentic AI).
-- **Responsibility:** "The Guts" (Prisma, Server Actions, Auth, API Routes).
-- **Workflow:** Ingest Stitch components -> Wire up dynamic props from `schema.prisma` -> Implement error handling and state management.
-- **Evidence-Based Loop**: Connect `analytics-service.ts` to the generation pipeline to inject historical "Winning Patterns" from previous viral posts.
+### Phase C: Implementation
+- implement with clear ownership boundaries:
+  - shell orchestration: `UnifiedCanvas`
+  - editor interactions: `CanvasEditor`
+  - model and generation services: `actions/` + `utils/`
 
-## 2. Best Practices (Mission Protocols)
+### Phase D: Verification
+Run:
+```bash
+npm test
+npx playwright test
+```
 
-### Mission Control (Manager View)
-- Use for multi-file/complex tasks.
-- Agent provides a **High-Level Plan** before execution.
-- Work is executed in chunked "Tasks" with pause-points for user review.
+Required checks:
+- responsive overlap gate
+- accessibility gate
+- modal/tools interaction gate
+- shell reliability gate (no hydration mismatch, no SW registration failure in dev)
 
-### Artifact-Driven Development
-- **Think First, Code Second.**
-- Every major feature requires an `implementation_plan.md` and `task.md`.
-- Architecture changes must be documented in a `SPEC.md` or `ADR.md` before implementation.
+### Phase E: Documentation and Handover
+- update impacted docs in `/docs`
+- capture known risks and operational guidance
 
-### Context Pinning (The Source of Truth)
-The following files are CRITICAL "Pinned Context" for every session:
-1. `prisma/schema.prisma` (Database Truth)
-2. `package.json` (Dependency Truth)
-3. `next.config.ts` (Config Truth)
-4. `tsconfig.json` (Path Truth)
+## 2. Engineering Rules
+- keep command semantics stable unless intentionally changed
+- add deterministic behavior for SSR/CSR boundaries
+- preserve keyboard and reduced-motion support
+- guard production-only features (service worker, external integrations)
 
-## 3. Technology Pillars
-- **shadcn/ui**: The "AI Native" component library.
-- **Next.js 16 (App Router)**: Reactive logic layer.
-- **Prisma**: Type-safe data access.
-- **Moltbook & Stitch**: AI-first design and social feedback loops.
+## 3. Stitch-to-Implementation Bridge
+Canonical chain:
+1. Stitch export HTML
+2. `scripts/stitch-sync.ts`
+3. `theme.json`
+4. CSS variables injected by `app/layout.tsx`
+5. components consume `var(--stitch-*)`
+
+## 4. Release Gate
+A change is release-ready only if:
+1. lint + tests pass
+2. E2E suite is green
+3. docs are updated for behavior changes
+4. no unresolved P0 regressions

@@ -39,7 +39,7 @@ export function SelectionToolbar() {
     <motion.div
       initial={{ opacity: 0, y: 10, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      className="fixed z-[100] flex items-center bg-[#16181D] border border-white/10 rounded-lg shadow-2xl p-1 gap-1 -translate-x-1/2"
+      className="fixed z-[100] flex -translate-x-1/2 items-center gap-1 rounded-lg border border-[var(--stitch-border,#24282D)] bg-[var(--stitch-surface,#16181D)] p-1 shadow-2xl"
       style={{ top: position.top, left: position.left }}
     >
       <button className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 rounded text-[10px] font-bold text-emerald-400 uppercase tracking-widest transition-colors">
@@ -47,7 +47,7 @@ export function SelectionToolbar() {
         Improve
       </button>
       <div className="w-[1px] h-4 bg-white/10" />
-      <button className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 rounded text-[10px] font-bold text-[#8A8D91] uppercase tracking-widest transition-colors">
+      <button className="flex items-center gap-2 rounded px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--stitch-text-secondary,#8A8D91)] transition-colors hover:bg-white/5">
         <MessageSquare size={14} />
         Critique
       </button>

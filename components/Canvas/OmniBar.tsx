@@ -6,12 +6,14 @@ import { Command, SendHorizonal, Sparkles } from "lucide-react";
 import { useSoundEngine } from "@/hooks/useSoundEngine";
 import { MechanicalOdometer } from "./MechanicalOdometer";
 import { getAuditLogs } from "@/utils/audit-service";
+import type { LayoutMode } from "@/types/shell-ui";
 
 interface OmniBarProps {
   onCommand: (cmd: string, args: string) => void;
   onDraft: (topic: string) => void;
   onUrl: (url: string) => void;
   onPublish: () => void;
+  layoutMode: LayoutMode;
   onTensionChange?: (isTensioned: boolean) => void;
   onActuate?: () => void;
   onModeChange?: (mode: 'MANUAL' | 'APERTURE' | 'PROGRAM') => void;
@@ -21,7 +23,7 @@ interface OmniBarProps {
 }
 
 export function OmniBar({ 
-  onCommand, onDraft, onUrl, onPublish, onTensionChange, onActuate, onModeChange, 
+  onCommand, onDraft, onUrl, onPublish, layoutMode, onTensionChange, onActuate, onModeChange, 
   viralScore = 85, currentMode = "PROGRAM", commandHints = ["/polish", "/publish", "/preview linkedin", "/settings", "/persona cso"]
 }: OmniBarProps) {
   const [input, setInput] = useState("");
@@ -98,14 +100,20 @@ export function OmniBar({
   };
 
   const hasInput = input.trim().length > 0;
+  const showOdometer = layoutMode === "desktop";
+  const showModeDial = layoutMode !== "mobile";
+  const showPublish = layoutMode !== "mobile";
+  const showHintChips = layoutMode !== "mobile";
 
   return (
-    <div className="w-full flex items-center gap-3 md:gap-4 isolate">
-      <div className="hidden xl:flex items-center gap-5 rounded-2xl border border-white/10 bg-[rgba(20,24,31,0.85)] px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+    <div className="isolate flex w-full items-center gap-3 md:gap-4">
+      {showOdometer && (
+      <div className="flex items-center gap-5 rounded-2xl border border-white/10 bg-[rgba(20,24,31,0.85)] px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
         <MechanicalOdometer value={logsCount} label="Cycles" digits={3} />
         <div className="h-8 w-px bg-white/10" />
         <MechanicalOdometer value={Math.floor(sessionSecs / 60)} label="Min" digits={2} />
       </div>
+      )}
 
       <motion.form
         onSubmit={handleSubmit}
@@ -133,13 +141,13 @@ export function OmniBar({
             setIsFocused(false);
             onTensionChange?.(false);
           }}
-          placeholder="What strategy do you want to build today?"
+          placeholder={layoutMode === "mobile" ? "Type a strategy prompt..." : "What strategy do you want to build today?"}
           className="flex-1 bg-transparent py-4 px-3 text-sm md:text-base text-white focus:outline-none placeholder:text-[var(--stitch-muted,#8A8D91)]/70"
           aria-label="Omni command input"
         />
 
         <div className="pr-2 flex items-center gap-1.5">
-          <span className="hidden lg:inline-flex items-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-300">
+          <span className={`${layoutMode === "desktop" ? "inline-flex" : "hidden"} items-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-300`}>
             Viral {viralScore}
           </span>
           <button
@@ -148,7 +156,7 @@ export function OmniBar({
               play("TACTILE_CLICK");
               onPublish();
             }}
-            className="hidden md:inline-flex items-center gap-1 rounded-xl border border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/80 hover:text-white hover:border-white/20"
+            className={`${showPublish ? "inline-flex" : "hidden"} items-center gap-1 rounded-xl border border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/80 hover:text-white hover:border-white/20`}
           >
             <Sparkles size={12} />
             Publish
@@ -172,7 +180,7 @@ export function OmniBar({
         </div>
 
         <AnimatePresence>
-          {isFocused && input === "" && (
+          {showHintChips && isFocused && input === "" && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -189,17 +197,21 @@ export function OmniBar({
         </AnimatePresence>
       </motion.form>
 
-      <div className="hidden md:flex flex-col items-center gap-1 group">
-         <motion.div 
-           className="size-12 md:size-14 rounded-full bg-[rgba(20,24,31,0.9)] border-2 border-white/15 flex items-center justify-center cursor-pointer relative shadow-[0_10px_30px_rgba(0,0,0,0.45)] hover:border-[var(--stitch-accent,#7c3bed)]/60 transition-colors"
-           animate={{ rotate: ["MANUAL", "APERTURE", "PROGRAM"].indexOf(currentMode) * 45 }}
-           onClick={handleModeSwitch}
-         >
+      {showModeDial && (
+        <div className="group hidden flex-col items-center gap-1 md:flex">
+          <motion.button
+            type="button"
+            aria-label="Switch mode"
+            className="relative flex size-12 items-center justify-center rounded-full border-2 border-white/15 bg-[rgba(20,24,31,0.9)] shadow-[0_10px_30px_rgba(0,0,0,0.45)] transition-colors hover:border-[var(--stitch-accent,#7c3bed)]/60 md:size-14"
+            animate={{ rotate: ["MANUAL", "APERTURE", "PROGRAM"].indexOf(currentMode) * 45 }}
+            onClick={handleModeSwitch}
+          >
             <div className="absolute top-1.5 h-3 w-1 rounded-full bg-[var(--stitch-accent,#7c3bed)] shadow-[0_0_12px_rgba(124,59,237,0.7)]" />
-            <div className="text-[10px] font-black text-white/60 select-none">M.A.P</div>
-         </motion.div>
-         <span className="text-[8px] font-bold text-white/90 uppercase tracking-[0.3em] h-2">{currentMode}</span>
-      </div>
+            <div className="select-none text-[10px] font-black text-white/60">M.A.P</div>
+          </motion.button>
+          <span className="h-2 text-[8px] font-bold uppercase tracking-[0.3em] text-white/90">{currentMode}</span>
+        </div>
+      )}
     </div>
   );
 }

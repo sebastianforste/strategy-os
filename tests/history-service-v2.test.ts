@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { saveHistory, getHistory } from '../utils/history-service';
+import { saveHistory, getHistory, __resetHistoryAuthCacheForTests } from '../utils/history-service';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -31,6 +31,7 @@ describe('History Service - Queue & Integrity', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorageMock.clear();
+    __resetHistoryAuthCacheForTests();
   });
 
   it('handles rapid sequential saves correctly', async () => {

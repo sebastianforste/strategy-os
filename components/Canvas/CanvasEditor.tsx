@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, Sparkles, Send, Waves } from "lucide-react";
+import { RefreshCw, Sparkles, Send, Waves, UserRound, PenLine } from "lucide-react";
 import { IntentState } from "@/utils/intent-engine";
 import { LensOverlay, Critique } from "./LensOverlay";
 import { REPLACEMENTS } from "@/utils/text-processor";
@@ -18,6 +18,7 @@ import { SelectionToolbar } from "./SelectionToolbar";
 import { TypographyGuardPlugin } from "@/hooks/useTypographyGuard";
 import { $createParagraphNode, $createTextNode, $getRoot } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import type { QualityReport } from "@/utils/content-quality";
 
 function InitialContentPlugin({ content }: { content: string }) {
   const [editor] = useLexicalComposerContext();
@@ -53,8 +54,19 @@ interface CanvasEditorProps {
   viewMode?: "EDITOR" | "WATERFALL";
   setViewMode?: (mode: "EDITOR" | "WATERFALL") => void;
   onPolish?: () => void;
+  onRevise?: (instruction?: string) => void;
+  isRevising?: boolean;
+  activePersonaName?: string;
+  activePersonaDescription?: string;
+  activePersonaFeatures?: string[];
+  revisionLockFacts?: boolean;
+  revisionToneStrength?: number;
+  onRevisionLockFactsChange?: (value: boolean) => void;
+  onRevisionToneStrengthChange?: (value: number) => void;
   onPublish?: () => void;
   isPublishing?: boolean;
+  qualityReport?: QualityReport;
+  qualityPlatform?: "linkedin" | "twitter";
 }
 
 export function CanvasEditor({
@@ -65,10 +77,22 @@ export function CanvasEditor({
   viewMode = "EDITOR",
   setViewMode,
   onPolish,
+  onRevise,
+  isRevising = false,
+  activePersonaName = "The Strategist",
+  activePersonaDescription = "Authoritative, cynical, clarity-obsessed.",
+  activePersonaFeatures = [],
+  revisionLockFacts = true,
+  revisionToneStrength = 65,
+  onRevisionLockFactsChange,
+  onRevisionToneStrengthChange,
   onPublish,
   isPublishing = false,
+  qualityReport,
+  qualityPlatform = "linkedin",
 }: CanvasEditorProps) {
   const [activeLens, setActiveLens] = useState<"SKEPTIC" | "ARCHITECT" | "NONE">("NONE");
+  const [revisionInstruction, setRevisionInstruction] = useState("");
   const [critiques] = useState<Critique[]>([
     {
       id: "1",
@@ -86,6 +110,19 @@ export function CanvasEditor({
 
   const words = content.split(/\s+/).filter(Boolean).length;
   const chars = content.length;
+  const personaFeatureList = activePersonaFeatures.slice(0, 4);
+  const canRevise = !isRevising && content.trim().length > 0;
+  const qualityTopIssues = qualityReport?.reasons?.slice(0, 2) || [];
+
+  const revisionPresets = useMemo(
+    () => [
+      { label: "Sharper", instruction: "Make it sharper and more decisive while preserving the core claim." },
+      { label: "Shorter", instruction: "Condense by about 25% and keep all key claims intact." },
+      { label: "More Contrarian", instruction: "Increase the contrarian angle and tighten the argument." },
+      { label: "Story Lead", instruction: "Open with a stronger story-driven hook and maintain this persona voice." },
+    ],
+    []
+  );
 
   const getFoldLineIndex = () => {
     let newlines = 0;
@@ -99,38 +136,38 @@ export function CanvasEditor({
   const foldIndex = getFoldLineIndex();
 
   return (
-    <main className="relative flex flex-1 flex-col overflow-hidden bg-[rgba(8,10,15,0.72)]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_40%_at_50%_0%,rgba(124,59,237,0.16),transparent_75%)]" />
+    <main className="relative flex flex-1 flex-col overflow-hidden bg-[color:var(--background)]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_40%_at_50%_0%,color-mix(in_oklab,var(--stitch-accent,#7c3bed)_20%,transparent),transparent_75%)]" />
 
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-[rgba(10,14,20,0.82)] px-4 py-3 backdrop-blur-xl md:px-8">
+      <header className="sticky top-0 z-30 border-b border-[color:var(--stitch-border,#24282D)] bg-[color:var(--card)] px-4 py-3 backdrop-blur-xl md:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <input
               type="text"
               placeholder="Untitled strategy brief"
               autoComplete="off"
-              className="w-[18rem] max-w-full bg-transparent text-base font-semibold text-white placeholder:text-white/40 focus:outline-none md:text-lg"
+              className="w-[18rem] max-w-full bg-transparent text-base font-semibold text-[color:var(--card-foreground)] placeholder:text-[color:var(--muted-foreground)] focus:outline-none md:text-lg"
             />
-            <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/55">
+            <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-[color:var(--muted-foreground)]">
               {intentState?.intent.replace("_", " ") || "Drafting"} Mode
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden items-center rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-white/70 sm:flex">
+            <div className="hidden items-center rounded-xl border border-[color:var(--stitch-border,#24282D)] bg-[color:var(--stitch-surface,#16181D)] px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-[color:var(--muted-foreground)] sm:flex">
               Words {words}
             </div>
-            <div className="hidden items-center rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-white/70 lg:flex">
+            <div className="hidden items-center rounded-xl border border-[color:var(--stitch-border,#24282D)] bg-[color:var(--stitch-surface,#16181D)] px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-[color:var(--muted-foreground)] lg:flex">
               Chars {chars}
             </div>
 
-            <div className="flex items-center rounded-xl border border-white/10 bg-black/25 p-1">
+            <div className="flex items-center rounded-xl border border-[color:var(--stitch-border,#24282D)] bg-[color:var(--stitch-surface,#16181D)] p-1">
               <button
                 onClick={() => setViewMode?.(viewMode === "EDITOR" ? "WATERFALL" : "EDITOR")}
                 className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] transition ${
                   viewMode === "WATERFALL"
                     ? "bg-[var(--stitch-accent,#7c3bed)] text-white"
-                    : "text-white/75 hover:text-white"
+                    : "text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]"
                 }`}
                 title="Waterfall repurposing"
               >
@@ -141,7 +178,7 @@ export function CanvasEditor({
 
             <button
               onClick={onPolish}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/85 hover:border-white/25 hover:text-white"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[color:var(--stitch-border,#24282D)] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground)] hover:border-[color:var(--stitch-accent,#7c3bed)]/45"
               title="Polish draft"
             >
               <Sparkles size={12} />
@@ -159,7 +196,145 @@ export function CanvasEditor({
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-3 rounded-2xl border border-[color:var(--stitch-border,#24282D)] bg-[color:var(--stitch-surface,#16181D)] p-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-[color:var(--muted-foreground)]">
+                <UserRound size={12} />
+                Voice Target
+              </p>
+              <p className="mt-1 text-sm font-semibold text-[color:var(--foreground)]">{activePersonaName}</p>
+              <p className="mt-1 max-w-[55ch] text-xs text-[color:var(--muted-foreground)]">{activePersonaDescription}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {personaFeatureList.map((feature) => (
+                <span
+                  key={feature}
+                  className="rounded-full border border-[var(--stitch-accent,#7c3bed)]/35 bg-[var(--stitch-accent,#7c3bed)]/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/80"
+                >
+                  {feature}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {revisionPresets.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => setRevisionInstruction(preset.instruction)}
+                disabled={isRevising}
+                className="rounded-full border border-[color:var(--stitch-border,#24282D)] bg-[color:var(--card)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--foreground)] hover:border-[color:var(--stitch-accent,#7c3bed)]/45 disabled:opacity-50"
+                aria-label={`Set revision brief to ${preset.label}`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-center">
+            <label className="sr-only" htmlFor="persona-revision-instruction">
+              Revision instruction
+            </label>
+            <input
+              id="persona-revision-instruction"
+              type="text"
+              value={revisionInstruction}
+              disabled={isRevising}
+              onChange={(event) => setRevisionInstruction(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  if (!canRevise) return;
+                  onRevise?.(revisionInstruction);
+                  setRevisionInstruction("");
+                }
+              }}
+              placeholder={`Revision brief for ${activePersonaName} (optional)`}
+              className="h-10 w-full rounded-xl border border-[color:var(--stitch-border,#24282D)] bg-[color:var(--background)] px-3 text-xs text-[color:var(--foreground)] placeholder:text-[color:var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[color:var(--stitch-accent,#7c3bed)]/30"
+              aria-label="Persona revision instruction"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (!canRevise) return;
+                onRevise?.(revisionInstruction);
+                setRevisionInstruction("");
+              }}
+              disabled={!canRevise}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[var(--stitch-accent,#7c3bed)]/45 bg-[var(--stitch-accent,#7c3bed)]/12 px-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-white hover:border-[var(--stitch-accent,#7c3bed)]/65 disabled:cursor-not-allowed disabled:opacity-60"
+              aria-label="Revise"
+              title={canRevise ? `Revise draft in ${activePersonaName} voice` : "Add draft text before revising"}
+            >
+              <PenLine size={12} />
+              {isRevising ? "Revising..." : "Revise"}
+            </button>
+          </div>
+          <div className="mt-2 grid gap-2 md:grid-cols-[auto_1fr_auto] md:items-center">
+            <label className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--stitch-border,#24282D)] bg-[color:var(--background)] px-3 py-2 text-xs text-[color:var(--foreground)]">
+              <input
+                type="checkbox"
+                checked={revisionLockFacts}
+                onChange={(event) => onRevisionLockFactsChange?.(event.target.checked)}
+                className="size-4 accent-[color:var(--stitch-accent,#7c3bed)]"
+                aria-label="Lock factual claims"
+              />
+              Lock factual claims
+            </label>
+            <label className="rounded-xl border border-[color:var(--stitch-border,#24282D)] bg-[color:var(--background)] px-3 py-2 text-xs text-[color:var(--foreground)]">
+              <div className="mb-1 flex items-center justify-between">
+                <span>Persona tone strength</span>
+                <span className="font-semibold">{revisionToneStrength}%</span>
+              </div>
+              <input
+                type="range"
+                min={10}
+                max={100}
+                step={5}
+                value={revisionToneStrength}
+                onChange={(event) => onRevisionToneStrengthChange?.(Number(event.target.value))}
+                className="w-full accent-[color:var(--stitch-accent,#7c3bed)]"
+                aria-label="Persona tone strength"
+              />
+            </label>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[color:var(--muted-foreground)]">
+              Revision profile
+            </p>
+          </div>
+          <p className="mt-2 text-[10px] uppercase tracking-[0.16em] text-[color:var(--muted-foreground)]">
+            Persona-guided rewrite. Preserves argument, upgrades voice.
+          </p>
+
+          <div className="mt-2 rounded-xl border border-[color:var(--stitch-border,#24282D)] bg-[color:var(--background)] px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
+                Quality Gate · {qualityPlatform.toUpperCase()}
+              </p>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                    qualityReport?.pass
+                      ? "bg-emerald-500/15 text-emerald-400"
+                      : "bg-amber-500/15 text-amber-300"
+                  }`}
+                >
+                  {qualityReport?.pass ? "Ready" : "Needs Work"}
+                </span>
+                <span className="font-mono text-xs text-[color:var(--foreground)]">
+                  {qualityReport?.totalScore ?? 0}
+                </span>
+              </div>
+            </div>
+            {qualityTopIssues.length > 0 && (
+              <p className="mt-1 text-[11px] text-[color:var(--muted-foreground)]">
+                {qualityTopIssues.join(" ")}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           <span className="text-[10px] uppercase tracking-[0.18em] text-white/55">Lens</span>
           {(["SKEPTIC", "ARCHITECT", "NONE"] as const).map((lens) => (
             <button
@@ -177,7 +352,7 @@ export function CanvasEditor({
         </div>
       </header>
 
-      <div className="relative flex-1 overflow-y-auto px-4 pb-48 pt-10 custom-scrollbar md:px-10 md:pb-56">
+      <div className="relative flex-1 overflow-y-auto px-4 pb-48 pt-20 custom-scrollbar md:px-10 md:pb-56 md:pt-24">
         <div className="mx-auto w-full max-w-3xl">
           {viewMode === "WATERFALL" ? (
             <div className="grid gap-6 lg:grid-cols-2">

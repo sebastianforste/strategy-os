@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { getSuggestions, Suggestion } from "../../../utils/suggestion-service";
-import { fetchSignals, Signal } from "../../../utils/signal-service";
+import { Signal } from "../../../utils/signal-service";
 import { getDynamicStarterChips } from "../../../utils/preferences-service";
 import { ApiKeys } from "../../SettingsModal";
 
@@ -59,7 +59,7 @@ export function useInput(options: InputOptions) {
 
   // Debounced Signal Fetching (Newsjacking)
   useEffect(() => {
-    if (!useNewsjack || !apiKeys.serper || !apiKeys.gemini) {
+    if (!useNewsjack || !apiKeys.gemini) {
       setSignals([]);
       return;
     }
@@ -68,8 +68,17 @@ export function useInput(options: InputOptions) {
       if (input.length >= 4 && !input.includes("\n")) {
         setIsFetchingSignals(true);
         try {
-          const results = await fetchSignals(input, { serper: apiKeys.serper, gemini: apiKeys.gemini });
-          setSignals(results);
+          const res = await fetch("/api/signals", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ topic: input }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && Array.isArray((data as any).signals)) {
+            setSignals((data as any).signals as Signal[]);
+          } else {
+            setSignals([]);
+          }
         } catch (e) {
           console.error("Signal fetching failed:", e);
         } finally {
@@ -79,7 +88,7 @@ export function useInput(options: InputOptions) {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [input, useNewsjack, apiKeys.serper, apiKeys.gemini]);
+  }, [input, useNewsjack, apiKeys.gemini]);
 
   // Dropzone logic
   const onDrop = useCallback((acceptedFiles: File[]) => {

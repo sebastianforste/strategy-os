@@ -1,5 +1,5 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { streamText, generateText } from "ai";
+import { generateText } from "ai";
 import { constructEnrichedPrompt } from "../../../utils/prompt-builder";
 import { PERSONAS, PersonaId } from "../../../utils/personas";
 import { verifyConstraints } from "../../../utils/constraint-service";
@@ -9,15 +9,20 @@ import { AI_CONFIG } from "../../../utils/config";
 import { isRateLimitError } from "../../../utils/gemini-errors";
 import { resolveApiKeys } from "../../../utils/server-api-keys";
 import { z } from "zod";
+import { appendStrategyOSMeta } from "../../../utils/stream-meta";
 
 import { authOptions } from "@/utils/auth";
 import { logger } from "@/utils/logger";
-import { HttpError, jsonError, parseJson, rateLimit, requireSession } from "@/utils/request-guard";
+import { emitTelemetryEvent } from "@/utils/telemetry";
+import { HttpError, jsonError, parseJson, rateLimit, requireSessionForRequest } from "@/utils/request-guard";
 
 export async function POST(req: Request) {
+  const requestId = req.headers.get("x-request-id");
+  const route = "/api/generate";
+
   try {
-    await requireSession(authOptions);
-    rateLimit({ key: "generate", limit: 20, windowMs: 60_000 });
+    const session = await requireSessionForRequest(req, authOptions);
+    await rateLimit({ key: `generate:${session.user.id}`, limit: 20, windowMs: 60_000 });
 
     const body = await parseJson(
       req,
@@ -30,7 +35,7 @@ export async function POST(req: Request) {
               gemini: z.string().optional(),
               serper: z.string().optional(),
             })
-            .passthrough()
+            .strict()
             .optional(),
           personaId: z.string().max(64).optional(),
           forceTrends: z.boolean().optional(),
@@ -49,7 +54,7 @@ export async function POST(req: Request) {
           subStyle: z.enum(["professional", "casual", "provocative"]).optional(),
           isReplyMode: z.boolean().optional(),
         })
-        .passthrough(),
+        .strict(),
     );
 
     const {
@@ -86,6 +91,19 @@ export async function POST(req: Request) {
     const resolvedApiKeys = await resolveApiKeys(apiKeys);
     const geminiKey = (resolvedApiKeys?.gemini || "").trim();
     if (!geminiKey) return new Response("Gemini API Key required", { status: 400 });
+
+    await emitTelemetryEvent({
+      kind: "generation_started",
+      authorId: session.user.id,
+      teamId: (session.user as any)?.teamId ?? null,
+      requestId,
+      route,
+      metadata: {
+        personaId: personaId || null,
+        platform: platform || null,
+        hasImages: Array.isArray(images) && images.length > 0,
+      },
+    });
 
     if (debug) {
       log.debug("Incoming request", {
@@ -140,7 +158,7 @@ Data tells better lies than people do.
     const adapter = platform === "twitter" ? TwitterAdapter : LinkedInAdapter;
 
     // 1. Construct the RAG-enriched prompt (REUSING LOGIC)
-    const { prompt: enrichedInput } = await constructEnrichedPrompt(
+    const { prompt: enrichedInput, citations } = await constructEnrichedPrompt(
         input, 
         geminiKey, 
         personaId as PersonaId, 
@@ -182,6 +200,7 @@ Data tells better lies than people do.
 
     // Helper function to attempt generation with validation and retry
     async function tryGenerateWithRetry(modelName: string) {
+      const startedAt = Date.now();
       if (debug) {
         log.debug("Trying generateText", { modelName });
       }
@@ -246,11 +265,30 @@ Data tells better lies than people do.
           }
       }
 
-      // Return as stream to satisfy client
+      await emitTelemetryEvent({
+        kind: "generation_completed",
+        authorId: session.user.id,
+        teamId: (session.user as any)?.teamId ?? null,
+        requestId,
+        route,
+        status: 200,
+        latencyMs: Date.now() - startedAt,
+        metadata: {
+          modelName,
+          attempts,
+          outputLen: lastText.length,
+          citationsCount: Array.isArray(citations) ? citations.length : 0,
+        },
+      });
+
+      // Return as stream to satisfy client; append metadata footer for citations.
       const encoder = new TextEncoder();
       const customStream = new ReadableStream({
           async start(controller) {
-              controller.enqueue(encoder.encode(lastText));
+              const withMeta = citations?.length
+                ? appendStrategyOSMeta(lastText, { citations })
+                : lastText;
+              controller.enqueue(encoder.encode(withMeta));
               controller.close();
           }
       });
@@ -274,10 +312,27 @@ Data tells better lies than people do.
     }
   } catch (error: unknown) {
     if (error instanceof HttpError) {
+      if (error.status === 429) {
+        // Best-effort; don't block rate limit response.
+        void emitTelemetryEvent({
+          kind: "rate_limited",
+          requestId,
+          route,
+          status: 429,
+          metadata: { code: error.code || null },
+        });
+      }
       return jsonError(error.status, error.message, error.code);
     }
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     logger.error("Streaming API Error (Global Catch)", error as Error);
+    void emitTelemetryEvent({
+      kind: "generation_failed",
+      requestId,
+      route,
+      status: 500,
+      metadata: { message: errorMessage },
+    });
     return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
