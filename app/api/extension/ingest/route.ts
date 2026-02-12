@@ -1,10 +1,33 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../utils/db";
+import { z } from "zod";
+
+import { authOptions } from "@/utils/auth";
+import { HttpError, jsonError, parseJson, rateLimit, requireSessionOrHeaderToken } from "@/utils/request-guard";
 
 export async function POST(req: Request) {
   try {
-    const { type, content, title, source } = await req.json();
+    await requireSessionOrHeaderToken({
+      req,
+      headerName: "x-strategyos-extension-token",
+      envVarName: "STRATEGYOS_EXTENSION_TOKEN",
+      authOptions,
+    });
+
+    rateLimit({ key: `extension_ingest`, limit: 60, windowMs: 60_000 });
+
+    const { type, content, title, source } = await parseJson(
+      req,
+      z
+        .object({
+          type: z.string().min(1).max(32),
+          content: z.string().min(1).max(50_000),
+          title: z.string().max(200).optional(),
+          source: z.string().max(2048).optional(),
+        })
+        .strict(),
+    );
 
     console.log(`[EXTENSION] Received: ${type} from ${source}`);
 
@@ -19,13 +42,16 @@ export async function POST(req: Request) {
         data: {
             title: title || "Clipped Content",
             type: "web",
-            url: source,
+            url: source || "",
             metadata: { snippet: content, clippedAt: new Date() }
         }
     });
 
     return NextResponse.json({ success: true, id: newResource.id });
   } catch (error) {
+    if (error instanceof HttpError) {
+      return jsonError(error.status, error.message, error.code);
+    }
     console.error("[EXTENSION API] Error ingest:", error);
     return NextResponse.json({ success: false, error: "Failed to ingest" }, { status: 500 });
   }

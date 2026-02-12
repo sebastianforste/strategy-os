@@ -22,6 +22,8 @@ export default function EngagementDeck({ apiKey }: EngagementDeckProps) {
   const rotate = useTransform(x, [-200, 200], [-30, 30]);
   const opacity = useTransform(x, [-150, 0, 150], [0.5, 1, 0.5]);
   const bg = useTransform(x, [-100, 0, 100], ["#ef4444", "#171717", "#22c55e"]);
+  const hintLeftOpacity = useTransform(x, [-50, -100], [0, 1]);
+  const hintRightOpacity = useTransform(x, [50, 100], [0, 1]);
 
   useEffect(() => {
     const load = async () => {
@@ -150,16 +152,16 @@ export default function EngagementDeck({ apiKey }: EngagementDeckProps) {
                 </div>
 
                 {/* Action Hints */}
-                <div className="absolute top-1/2 -translate-y-1/2 left-4 pointer-events-none opacity-0 transition-opacity" style={{ opacity: useTransform(x, [-50, -100], [0, 1]) as any }}>
-                    <div className="bg-red-500 text-white p-4 rounded-full shadow-xl rotate-12">
-                        <X className="w-8 h-8" />
-                    </div>
-                </div>
-                <div className="absolute top-1/2 -translate-y-1/2 right-4 pointer-events-none opacity-0 transition-opacity" style={{ opacity: useTransform(x, [50, 100], [0, 1]) as any }}>
-                    <div className="bg-green-500 text-white p-4 rounded-full shadow-xl -rotate-12">
-                         <Send className="w-8 h-8" />
-                    </div>
-                </div>
+	                <div className="absolute top-1/2 -translate-y-1/2 left-4 pointer-events-none opacity-0 transition-opacity" style={{ opacity: hintLeftOpacity as any }}>
+	                    <div className="bg-red-500 text-white p-4 rounded-full shadow-xl rotate-12">
+	                        <X className="w-8 h-8" />
+	                    </div>
+	                </div>
+	                <div className="absolute top-1/2 -translate-y-1/2 right-4 pointer-events-none opacity-0 transition-opacity" style={{ opacity: hintRightOpacity as any }}>
+	                    <div className="bg-green-500 text-white p-4 rounded-full shadow-xl -rotate-12">
+	                         <Send className="w-8 h-8" />
+	                    </div>
+	                </div>
 
              </motion.div>
         </div>

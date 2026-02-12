@@ -1,10 +1,25 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/utils/db";
+import { z } from "zod";
+
+import { authOptions } from "@/utils/auth";
+import { HttpError, jsonError, parseJson, rateLimit, requireSession } from "@/utils/request-guard";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { filename, metadata, content_summary } = body;
+    await requireSession(authOptions);
+    rateLimit({ key: `ingest`, limit: 60, windowMs: 60_000 });
+
+    const { filename, metadata, content_summary } = await parseJson(
+      request,
+      z
+        .object({
+          filename: z.string().min(1).max(300),
+          metadata: z.object({}).passthrough(),
+          content_summary: z.string().max(20_000).optional(),
+        })
+        .strict(),
+    );
 
     if (!filename || !metadata) {
       return NextResponse.json(
@@ -51,6 +66,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, resource }, { status: 201 });
   } catch (error: any) {
+    if (error instanceof HttpError) {
+      return jsonError(error.status, error.message, error.code);
+    }
     console.error("Ingest Error:", error);
     return NextResponse.json(
       { error: "Internal Server Error", details: error.message },

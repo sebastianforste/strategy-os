@@ -1,9 +1,60 @@
 import { NextResponse } from "next/server";
+import {
+  clearStoredApiKeys,
+  getStoredApiKeys,
+  maskApiKey,
+  setStoredApiKeys,
+} from "@/utils/server-api-keys";
+import { z } from "zod";
+
+import { authOptions } from "@/utils/auth";
+import { HttpError, jsonError, parseJson, rateLimit, requireSession } from "@/utils/request-guard";
+
+export async function GET() {
+  try {
+    await requireSession(authOptions);
+    const stored = await getStoredApiKeys();
+
+    return NextResponse.json({
+      success: true,
+      configured: Boolean(stored?.gemini),
+      hasSerper: Boolean(stored?.serper),
+      geminiKeyPreview: stored?.gemini ? maskApiKey(stored.gemini) : null,
+    });
+  } catch (error) {
+    if (error instanceof HttpError) {
+      return jsonError(error.status, error.message, error.code);
+    }
+    return NextResponse.json({ success: false, error: "Unable to load key status." }, { status: 500 });
+  }
+}
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    await requireSession(authOptions);
+    rateLimit({ key: `validate_key`, limit: 30, windowMs: 60_000 });
+
+    const body = await parseJson(
+      req,
+      z
+        .object({
+          clear: z.boolean().optional(),
+          persist: z.boolean().optional(),
+          key: z.string().optional(),
+          serper: z.string().optional(),
+        })
+        .strict(),
+    );
+
+    const clear = Boolean(body?.clear);
+    const persist = Boolean(body?.persist);
     const key = (body?.key || "").toString().trim();
+    const serper = (body?.serper || "").toString().trim();
+
+    if (clear) {
+      await clearStoredApiKeys();
+      return NextResponse.json({ success: true, configured: false });
+    }
 
     if (!key) {
       return NextResponse.json(
@@ -13,6 +64,9 @@ export async function POST(req: Request) {
     }
 
     if (key.toLowerCase() === "demo") {
+      if (persist) {
+        await setStoredApiKeys({ gemini: key, serper });
+      }
       return NextResponse.json({ success: true, mode: "demo" });
     }
 
@@ -46,11 +100,13 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       modelCount: data.models.length,
+      ...(persist ? { configured: await setStoredApiKeys({ gemini: key, serper }) } : {}),
     });
-  } catch {
-    return NextResponse.json(
-      { success: false, error: "Unable to validate key right now." },
-      { status: 500 }
-    );
+  } catch (error) {
+    if (error instanceof HttpError) {
+      return jsonError(error.status, error.message, error.code);
+    }
+    // A narrow error response here avoids exposing upstream details.
+    return NextResponse.json({ success: false, error: "Unable to validate key right now." }, { status: 500 });
   }
 }

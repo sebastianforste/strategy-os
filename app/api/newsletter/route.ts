@@ -1,10 +1,25 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText } from "ai";
 import { AI_CONFIG } from "../../../utils/config";
+import { z } from "zod";
+
+import { authOptions } from "@/utils/auth";
+import { HttpError, jsonError, parseJson, rateLimit, requireSession } from "@/utils/request-guard";
 
 export async function POST(req: Request) {
   try {
-    const { prompt, apiKeys } = await req.json();
+    await requireSession(authOptions);
+    rateLimit({ key: "newsletter", limit: 20, windowMs: 60_000 });
+
+    const { prompt, apiKeys } = await parseJson(
+      req,
+      z
+        .object({
+          prompt: z.string().min(1).max(40_000),
+          apiKeys: z.object({ gemini: z.string().min(1).max(512) }).passthrough(),
+        })
+        .strict(),
+    );
 
     if (!prompt) return new Response("Prompt required", { status: 400 });
     if (!apiKeys?.gemini) return new Response("Gemini API Key required", { status: 400 });
@@ -35,6 +50,9 @@ export async function POST(req: Request) {
 
     return result.toTextStreamResponse();
   } catch (error: any) {
+    if (error instanceof HttpError) {
+      return jsonError(error.status, error.message, error.code);
+    }
     console.error("Newsletter API Error:", error);
     return new Response(JSON.stringify({ error: error.message }), { 
         status: 500,

@@ -5,14 +5,30 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { z } from "zod";
+
+import { authOptions } from "@/utils/auth";
+import { HttpError, jsonError, parseJson, rateLimit, requireSession } from "@/utils/request-guard";
 
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY || "");
 
 export async function POST(req: Request) {
+  let tempFilePath: string | null = null;
   try {
-    const formData = await req.json();
-    const { audio, mimeType } = formData; // Base64 for simplicity in MVP, or we can use Blob
+    await requireSession(authOptions);
+    rateLimit({ key: "audio_transcribe", limit: 10, windowMs: 60_000 });
+
+    const formData = await parseJson(
+      req,
+      z
+        .object({
+          audio: z.string().min(1).max(15_000_000), // base64 string cap
+          mimeType: z.string().max(100).optional(),
+        })
+        .strict(),
+    );
+    const { audio, mimeType } = formData; // Base64 for simplicity in MVP
 
     if (!audio) {
       return NextResponse.json({ error: "No audio provided" }, { status: 400 });
@@ -20,7 +36,7 @@ export async function POST(req: Request) {
 
     // Convert base64 to temporary file
     const buffer = Buffer.from(audio, 'base64');
-    const tempFilePath = path.join(os.tmpdir(), `upload_${Date.now()}.webm`);
+    tempFilePath = path.join(os.tmpdir(), `upload_${Date.now()}.webm`);
     fs.writeFileSync(tempFilePath, buffer);
 
     console.log(`[Transcribe] Uploading to Google AI... ${tempFilePath}`);
@@ -58,12 +74,23 @@ export async function POST(req: Request) {
     const transcription = result.response.text();
 
     // Clean up
-    fs.unlinkSync(tempFilePath);
+    if (tempFilePath) fs.unlinkSync(tempFilePath);
     // await fileManager.deleteFile(file.name); // Optional: delete from cloud
 
     return NextResponse.json({ transcription });
   } catch (error: any) {
+    if (error instanceof HttpError) {
+      return jsonError(error.status, error.message, error.code);
+    }
     console.error("[Transcribe API] Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    if (tempFilePath) {
+      try {
+        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+      } catch {
+        // ignore cleanup failures
+      }
+    }
   }
 }

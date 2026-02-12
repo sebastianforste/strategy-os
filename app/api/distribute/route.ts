@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth";
 import { prisma } from "../../../utils/db";
 import { getCurrentUserProfile, createPost, createPostWithImage } from "../../../utils/linkedin-api-v2";
 import { moltbookService } from "../../../utils/moltbook-service";
+import { z } from "zod";
+
+import { authOptions } from "@/utils/auth";
+import { HttpError, jsonError, parseJson, rateLimit, requireSession } from "@/utils/request-guard";
 
 /**
  * API DISTRIBUTE ROUTE - Ghost Protocol
@@ -12,14 +16,28 @@ import { moltbookService } from "../../../utils/moltbook-service";
 
 export async function POST(req: Request) {
     try {
-        const { platform, content, imageUrl, persona, title } = await req.json();
+        await requireSession(authOptions);
+        rateLimit({ key: "distribute", limit: 10, windowMs: 60_000 });
+
+        const { platform, content, imageUrl, persona, title } = await parseJson(
+          req,
+          z
+            .object({
+              platform: z.string().min(1).max(32),
+              content: z.string().min(1).max(40_000),
+              imageUrl: z.string().max(2048).optional(),
+              persona: z.string().max(64).optional(),
+              title: z.string().max(200).optional(),
+            })
+            .strict(),
+        );
 
         if (!platform || !content) {
             return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
         }
 
         // 1. Get authenticated session (Real Integration)
-        const session = await getServerSession(); // Ensure you import { getServerSession } from "next-auth"; 
+        const session = await getServerSession(authOptions);
         // Note: You might need to pass authOptions if not globally configured or import from your auth config file.
         
         let accessToken = process.env.LINKEDIN_ACCESS_TOKEN; // Fallback for dev
@@ -300,6 +318,9 @@ export async function POST(req: Request) {
         });
 
     } catch (e) {
+        if (e instanceof HttpError) {
+            return jsonError(e.status, e.message, e.code);
+        }
         console.error("[API/Distribute] Error:", e);
         return NextResponse.json({ 
             success: false, 

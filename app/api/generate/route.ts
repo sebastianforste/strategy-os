@@ -7,66 +7,95 @@ import { LinkedInAdapter } from "../../../utils/platforms/linkedin";
 import { TwitterAdapter } from "../../../utils/platforms/twitter";
 import { AI_CONFIG } from "../../../utils/config";
 import { isRateLimitError } from "../../../utils/gemini-errors";
+import { resolveApiKeys } from "../../../utils/server-api-keys";
+import { z } from "zod";
+
+import { authOptions } from "@/utils/auth";
+import { logger } from "@/utils/logger";
+import { HttpError, jsonError, parseJson, rateLimit, requireSession } from "@/utils/request-guard";
 
 export async function POST(req: Request) {
   try {
-    const { 
-        prompt, 
-        input: manualInput, 
-        apiKeys, 
-        personaId, 
-        forceTrends, 
-        platform, 
-        useRAG, 
-        fewShotExamples, 
-        rlhfContext, 
-        styleMemory, 
-        styleDNA, // Added
-        images, 
-        customPersona, 
-        isTeamMode, 
-        coworkerName, 
-        coworkerRole, 
-        coworkerRelation,
-        subStyle,
-        isReplyMode
-    } = await req.json();
+    await requireSession(authOptions);
+    rateLimit({ key: "generate", limit: 20, windowMs: 60_000 });
+
+    const body = await parseJson(
+      req,
+      z
+        .object({
+          prompt: z.string().max(40_000).optional(),
+          input: z.string().max(40_000).optional(),
+          apiKeys: z
+            .object({
+              gemini: z.string().optional(),
+              serper: z.string().optional(),
+            })
+            .passthrough()
+            .optional(),
+          personaId: z.string().max(64).optional(),
+          forceTrends: z.boolean().optional(),
+          platform: z.string().max(32).optional(),
+          useRAG: z.boolean().optional(),
+          fewShotExamples: z.string().max(40_000).optional(),
+          rlhfContext: z.string().max(40_000).optional(),
+          styleMemory: z.string().max(40_000).optional(),
+          styleDNA: z.string().max(20_000).optional(),
+          images: z.array(z.string().max(2_000_000)).max(4).optional(),
+          customPersona: z.any().optional(),
+          isTeamMode: z.boolean().optional(),
+          coworkerName: z.string().max(120).optional(),
+          coworkerRole: z.string().max(120).optional(),
+          coworkerRelation: z.string().max(120).optional(),
+          subStyle: z.enum(["professional", "casual", "provocative"]).optional(),
+          isReplyMode: z.boolean().optional(),
+        })
+        .passthrough(),
+    );
+
+    const {
+      prompt,
+      input: manualInput,
+      apiKeys,
+      personaId,
+      forceTrends,
+      platform,
+      useRAG,
+      fewShotExamples,
+      rlhfContext,
+      styleMemory,
+      styleDNA,
+      images,
+      customPersona,
+      isTeamMode,
+      coworkerName,
+      coworkerRole,
+      coworkerRelation,
+      subStyle,
+      isReplyMode,
+    } = body;
     const input = prompt || manualInput;
     
-    // DEBUG LOGGING
-    const fs = require('fs');
-    const path = require('path');
-    const logFile = path.join(process.cwd(), 'server-debug.log');
-    const log = (msg: string) => fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
+    const log = logger.scope("API/Generate");
+    const debug = process.env.DEBUG_SERVER_LOG === "true";
     
     // MODEL AGNOSTICISM: Load from environment variables per global instructions
     const PRIMARY_MODEL = AI_CONFIG.primaryModel;
     const FALLBACK_MODEL = AI_CONFIG.fallbackModel;
     
-    log(`Incoming Request: InputLen=${input?.length || 0}, Persona=${personaId}, Model=${PRIMARY_MODEL}, Images=${images?.length || 0}`);
-    
-    // DIAGNOSTIC: LIST AVAILABLE MODELS
-    try {
-        console.log("Fetching available models from Google API...");
-        const modelsReq = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKeys.gemini}`);
-        const modelsData = await modelsReq.json();
-        if (modelsData.models) {
-            const names = modelsData.models.map((m: any) => m.name);
-            console.log(`AVAILABLE MODELS: ${names.join(", ")}`);
-            log(`AVAILABLE MODELS: ${names.join(", ")}`);
-        } else {
-            console.log(`FAILED TO LIST MODELS: ${JSON.stringify(modelsData)}`);
-            log(`FAILED TO LIST MODELS: ${JSON.stringify(modelsData)}`);
-        }
-    } catch (e: any) {
-        console.log(`MODEL LISTING ERROR: ${e.message}`);
-        log(`MODEL LISTING ERROR: ${e.message}`);
+    if (!input) return new Response("Input required", { status: 400 });
+    const resolvedApiKeys = await resolveApiKeys(apiKeys);
+    const geminiKey = (resolvedApiKeys?.gemini || "").trim();
+    if (!geminiKey) return new Response("Gemini API Key required", { status: 400 });
+
+    if (debug) {
+      log.debug("Incoming request", {
+        inputLen: input?.length || 0,
+        personaId,
+        model: PRIMARY_MODEL,
+        images: Array.isArray(images) ? images.length : 0,
+      });
     }
 
-    if (!input) return new Response("Input required", { status: 400 });
-    if (!apiKeys?.gemini) return new Response("Gemini API Key required", { status: 400 });
-
-    const geminiKey = apiKeys.gemini.trim();
     const { getAdaptationContext } = await import("../../../utils/adaptation-service");
     const adaptationContext = await getAdaptationContext(personaId as PersonaId);
 
@@ -115,9 +144,9 @@ Data tells better lies than people do.
         input, 
         geminiKey, 
         personaId as PersonaId, 
-        forceTrends, 
+        Boolean(forceTrends),
         adapter,
-        useRAG, // Pass flag
+        Boolean(useRAG), // Pass flag
         fewShotExamples, // Pass string content directly
         rlhfContext, // RLHF learning context
         styleMemory, // Style learning context
@@ -147,11 +176,15 @@ Data tells better lies than people do.
     Do not preface it. Just start writing the post.
     `;
 
-    log(`Enriched Prompt constructed. Length: ${enrichedInput.length}`);
+    if (debug) {
+      log.debug("Enriched prompt constructed", { length: enrichedInput.length });
+    }
 
     // Helper function to attempt generation with validation and retry
     async function tryGenerateWithRetry(modelName: string) {
-      log(`Trying generateText with ${modelName} (Safety OFF)...`);
+      if (debug) {
+        log.debug("Trying generateText", { modelName });
+      }
       
       const userContent: any[] = [{ type: 'text', text: enrichedInput }];
       
@@ -163,9 +196,9 @@ Data tells better lies than people do.
           });
       }
 
-      let currentMessages: any[] = [
-          { role: 'user', content: userContent }
-      ];
+	      const currentMessages: any[] = [
+	          { role: 'user', content: userContent }
+	      ];
       
       let attempts = 0;
       const MAX_ATTEMPTS = 3;
@@ -173,7 +206,9 @@ Data tells better lies than people do.
 
       while (attempts < MAX_ATTEMPTS) {
           attempts++;
-          log(`Attempt ${attempts}/${MAX_ATTEMPTS}`);
+          if (debug) {
+            log.debug("Generation attempt", { attempt: attempts, max: MAX_ATTEMPTS });
+          }
 
           const result = await generateText({
             // @ts-expect-error - Safety settings
@@ -194,11 +229,15 @@ Data tells better lies than people do.
           const validation = verifyConstraints(lastText);
 
           if (validation.valid) {
-              log(`Constraint Check Passed: ${attempts} attempts`);
+              if (debug) {
+                log.debug("Constraint check passed", { attempts });
+              }
               break;
           }
 
-          log(`Constraint Check Failed: ${validation.reason}`);
+          if (debug) {
+            log.warn("Constraint check failed", { reason: validation.reason });
+          }
           
           if (attempts < MAX_ATTEMPTS) {
               // Add context for retry
@@ -226,24 +265,22 @@ Data tells better lies than people do.
       return await tryGenerateWithRetry(PRIMARY_MODEL);
     } catch (primaryError: unknown) {
       if (isRateLimitError(primaryError)) {
-        log(`Primary model rate limited. Falling back to ${FALLBACK_MODEL}...`);
+        if (debug) {
+          log.warn("Primary model rate limited. Falling back.", { fallback: FALLBACK_MODEL });
+        }
         return await tryGenerateWithRetry(FALLBACK_MODEL);
       }
       throw primaryError;
     }
   } catch (error: unknown) {
-    const fs = require('fs');
-    const path = require('path');
-    const logFile = path.join(process.cwd(), 'server-debug.log');
+    if (error instanceof HttpError) {
+      return jsonError(error.status, error.message, error.code);
+    }
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-    const errorStack = error instanceof Error ? error.stack : "";
-    
-    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ERROR: ${errorMessage}\nSTACK: ${errorStack}\n`);
-    
-    console.error("Streaming API Error (Global Catch):", error);
-    return new Response(JSON.stringify({ error: errorMessage }), { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
+    logger.error("Streaming API Error (Global Catch)", error as Error);
+    return new Response(JSON.stringify({ error: errorMessage }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
     });
   }
 }

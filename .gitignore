@@ -36,6 +36,18 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# runtime state (never commit)
+.antigravity/
+dev.db
+prisma/dev.db
+playwright-report/
+server-debug.log
+
+# next-pwa / workbox outputs
+public/sw.js
+public/workbox-*.js
+public/workbox-*.js.map
+
 # vercel
 .vercel
 
